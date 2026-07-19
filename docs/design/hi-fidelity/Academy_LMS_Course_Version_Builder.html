@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Academy LMS — Course Version Builder (Prototype)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --acad-ink:#16262A; --acad-paper:#F5F8F7; --acad-surface:#FFFFFF;
+  --acad-teal:#0F6E62; --acad-teal-dk:#0B5148; --acad-ochre:#B8813A;
+  --acad-success:#1E7A52; --acad-danger:#B23B3B; --acad-info:#2B6CB0;
+  --acad-line:#D9E1DF; --acad-muted:#5B6B6E;
+  --bs-body-bg:var(--acad-paper); --bs-body-color:var(--acad-ink);
+  --bs-body-font-family:'Inter',sans-serif; --bs-font-monospace:'IBM Plex Mono',monospace;
+  --bs-border-color:var(--acad-line); --bs-border-radius:.3rem; --bs-border-radius-sm:.2rem; --bs-border-radius-lg:.5rem;
+  --bs-box-shadow:0 4px 16px rgba(15,38,42,.10); --bs-box-shadow-sm:0 1px 2px rgba(15,38,42,.07);
+  --bs-primary:var(--acad-teal); --bs-primary-rgb:15,110,98;
+  --bs-success:var(--acad-success); --bs-success-rgb:30,122,82;
+  --bs-warning:var(--acad-ochre); --bs-warning-rgb:184,129,58;
+  --bs-danger:var(--acad-danger); --bs-danger-rgb:178,59,59;
+  --bs-info:var(--acad-info); --bs-info-rgb:43,108,176;
+  --bs-link-color:var(--acad-teal); --bs-link-hover-color:var(--acad-teal-dk);
+}
+body{font-family:'Inter',sans-serif;color:var(--acad-ink);}
+h1,h2,h3,h4,.acad-display{font-family:'Libre Franklin',sans-serif;font-weight:700;letter-spacing:-.01em;}
+.acad-mono{font-family:'IBM Plex Mono',monospace;font-feature-settings:"tnum" 1;}
+.acad-eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--acad-muted);}
+:focus-visible{outline:2px solid var(--acad-teal);outline-offset:2px;}
+
+.acad-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px 3px 8px;border-radius:100px;}
+.acad-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;}
+.acad-pill--success{background:#E4F1EA;color:var(--acad-success);}
+.acad-pill--warning{background:#F6ECDA;color:var(--acad-ochre);}
+.acad-pill--danger{background:#F5E4E4;color:var(--acad-danger);}
+.acad-pill--neutral{background:#E8ECEB;color:var(--acad-muted);}
+
+.wiz-shell{display:flex;min-height:100vh;}
+.wiz-rail{width:250px;flex-shrink:0;background:#122024;color:#cfe0dd;padding:24px 0;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.wiz-rail h1{font-size:13px;color:#8fa8a4;padding:0 20px 12px;margin:0;border-bottom:1px solid #24373b;text-transform:uppercase;letter-spacing:.08em;}
+.wiz-step{display:flex;align-items:center;gap:10px;padding:11px 20px;cursor:pointer;color:#c9dbd8;font-size:13px;border-left:3px solid transparent;}
+.wiz-step:hover{background:#1a2c30;}
+.wiz-step.active{background:#1e3236;border-left-color:var(--acad-teal);color:#fff;font-weight:600;}
+.wiz-step .num{width:20px;height:20px;border-radius:50%;border:1.5px solid #4d6a66;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;}
+.wiz-step.done .num{background:var(--acad-teal);border-color:var(--acad-teal);color:#fff;}
+.wiz-step.active .num{border-color:#fff;color:#fff;}
+.wiz-main{flex:1;padding:36px 48px;max-width:920px;}
+.wiz-panel{display:none;}
+.wiz-panel.active{display:block;animation:fadein .2s ease;}
+@keyframes fadein{from{opacity:0;}to{opacity:1;}}
+.wiz-card{background:var(--acad-surface);border:1px solid var(--acad-line);border-radius:var(--bs-border-radius-lg);box-shadow:var(--bs-box-shadow-sm);padding:30px;}
+
+.rule-row,.doc-row,.mod-row{display:flex;align-items:center;gap:8px;border:1px solid var(--acad-line);border-radius:var(--bs-border-radius);padding:10px 12px;margin-bottom:8px;}
+.rule-row select, .rule-row input{font-size:13px;}
+.group-label{font-size:11px;font-weight:700;color:var(--acad-teal);width:44px;flex-shrink:0;text-align:center;}
+.summary-block{border-bottom:1px solid var(--acad-line);padding:14px 0;}
+.summary-block:last-child{border-bottom:none;}
+.summary-block h6{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--acad-muted);margin-bottom:8px;}
+.weight-total.ok{color:var(--acad-success);font-weight:700;}
+.weight-total.bad{color:var(--acad-danger);font-weight:700;}
+.toast-mini{position:fixed;bottom:20px;right:20px;background:var(--acad-ink);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;z-index:99;}
+.toast-mini.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="wiz-shell">
+  <nav class="wiz-rail">
+    <h1>Course Version Builder</h1>
+    <div class="wiz-step" data-step="1"><span class="num">1</span>Course Identity</div>
+    <div class="wiz-step" data-step="2"><span class="num">2</span>Version Overview</div>
+    <div class="wiz-step" data-step="3"><span class="num">3</span>Eligibility</div>
+    <div class="wiz-step" data-step="4"><span class="num">4</span>Required Documents</div>
+    <div class="wiz-step" data-step="5"><span class="num">5</span>Curriculum</div>
+    <div class="wiz-step" data-step="6"><span class="num">6</span>Assessments &amp; Grading</div>
+    <div class="wiz-step" data-step="7"><span class="num">7</span>Certificates</div>
+    <div class="wiz-step" data-step="8"><span class="num">8</span>Pricing</div>
+    <div class="wiz-step" data-step="9"><span class="num">9</span>Review &amp; Publish</div>
+  </nav>
+
+  <main class="wiz-main">
+
+    <!-- STEP 1 -->
+    <div class="wiz-panel" data-panel="1">
+      <div class="wiz-card">
+        <h4>Course Identity</h4>
+        <p class="acad-eyebrow mb-3">Stable — shared across every version of this course</p>
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label acad-eyebrow">Course Code</label><input class="form-control" id="f-code" value="OBS-DIP-01"></div>
+          <div class="col-md-6"><label class="form-label acad-eyebrow">Master Title</label><input class="form-control" id="f-title" value="Diploma in Metabolic Health"></div>
+          <div class="col-md-6"><label class="form-label acad-eyebrow">Product Owner</label><input class="form-control" id="f-owner" value="Dr. R. Iyer"></div>
+          <div class="col-md-6"><label class="form-label acad-eyebrow">Course Status</label>
+            <select class="form-select" id="f-cstatus"><option>Active</option><option>Retired</option></select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="wiz-panel" data-panel="2">
+      <div class="wiz-card">
+        <h4>Version Overview</h4>
+        <p class="acad-eyebrow mb-3">This create action always produces a <em>new</em> Course Version — it never edits a version with existing Applications</p>
+        <div class="row g-3">
+          <div class="col-md-3"><label class="form-label acad-eyebrow">Version</label><input class="form-control acad-mono" id="f-version" value="v2" disabled></div>
+          <div class="col-md-9"><label class="form-label acad-eyebrow">Version Title</label><input class="form-control" id="f-vtitle" value="Diploma in Metabolic Health — 2026 Curriculum"></div>
+          <div class="col-12"><label class="form-label acad-eyebrow">Description</label><textarea class="form-control" rows="3" id="f-desc">A six-month programme covering clinical assessment, pharmacological and lifestyle management, and case-based practice in obesity and metabolic disorders.</textarea></div>
+          <div class="col-md-6"><label class="form-label acad-eyebrow">Delivery Type</label>
+            <select class="form-select" id="f-delivery"><option>Cohort</option><option>Self-paced</option><option>Blended</option></select>
+          </div>
+          <div class="col-md-6"><label class="form-label acad-eyebrow">Duration</label><input class="form-control" id="f-duration" value="6 months"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="wiz-panel" data-panel="3">
+      <div class="wiz-card">
+        <h4>Eligibility</h4>
+        <p class="acad-eyebrow mb-3">One or more EligibilityRule records — combinable with AND / OR</p>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="f-open-all">
+          <label class="form-check-label" style="font-size:13px;">Open to all professions — no eligibility restriction</label>
+        </div>
+        <div id="rule-list"></div>
+        <button class="btn btn-outline-primary btn-sm mt-1" id="add-rule">+ Add rule</button>
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="wiz-panel" data-panel="4">
+      <div class="wiz-card">
+        <h4>Required Documents</h4>
+        <p class="acad-eyebrow mb-3">CourseDocumentRequirement records — each a standalone entity, not an embedded list</p>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="f-no-docs">
+          <label class="form-check-label" style="font-size:13px;">No documents required for this course</label>
+        </div>
+        <div id="doc-list"></div>
+        <button class="btn btn-outline-primary btn-sm mt-1" id="add-doc">+ Add required document</button>
+      </div>
+    </div>
+
+    <!-- STEP 5 -->
+    <div class="wiz-panel" data-panel="5">
+      <div class="wiz-card">
+        <h4>Curriculum</h4>
+        <p class="acad-eyebrow mb-3">Module list for this version — full sequencing/release-rule detail lives in the Module Builder (CA-04)</p>
+        <div id="mod-list"></div>
+        <div class="d-flex gap-2 mt-2">
+          <input class="form-control form-control-sm" id="new-mod-title" placeholder="New module title…" style="max-width:320px;">
+          <button class="btn btn-outline-primary btn-sm" id="add-mod">+ Add module</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 6 -->
+    <div class="wiz-panel" data-panel="6">
+      <div class="wiz-card">
+        <h4>Assessments &amp; Grading</h4>
+        <p class="acad-eyebrow mb-3">Passing model is set once, at course level</p>
+        <div class="mb-3">
+          <div class="form-check"><input class="form-check-input" type="radio" name="passmodel" value="A" checked> <label class="form-check-label">Model A — every module individually</label></div>
+          <div class="form-check"><input class="form-check-input" type="radio" name="passmodel" value="B"> <label class="form-check-label">Model B — weighted aggregate</label></div>
+          <div class="form-check"><input class="form-check-input" type="radio" name="passmodel" value="C"> <label class="form-check-label">Model C — combined</label></div>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-4"><label class="form-label acad-eyebrow">Max Attempts</label><input class="form-control" value="3"></div>
+          <div class="col-md-4"><label class="form-label acad-eyebrow">Cooldown (1st / 2nd fail)</label><input class="form-control" value="1h / 24h"></div>
+        </div>
+        <h6 class="acad-eyebrow">Module weights (must sum to 100%)</h6>
+        <div id="weight-list"></div>
+        <div class="mt-2" style="font-size:13px;">Total: <span id="weight-total" class="weight-total">0%</span></div>
+      </div>
+    </div>
+
+    <!-- STEP 7 -->
+    <div class="wiz-panel" data-panel="7">
+      <div class="wiz-card">
+        <h4>Certificates</h4>
+        <div class="row g-3">
+          <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" checked disabled><label class="form-check-label" style="font-size:13px;">Certificate of Participation — issued on 100% content consumption (always on)</label></div></div>
+          <div class="col-md-4"><label class="form-label acad-eyebrow">Distinction ≥</label><input class="form-control" id="gb-dist" value="90"></div>
+          <div class="col-md-4"><label class="form-label acad-eyebrow">Grade A ≥</label><input class="form-control" id="gb-a" value="75"></div>
+          <div class="col-md-4"><label class="form-label acad-eyebrow">Grade B ≥</label><input class="form-control" id="gb-b" value="60"></div>
+          <div class="col-md-6"><label class="form-label acad-eyebrow">CME Credit Hours</label><input class="form-control" id="f-cme" value="24"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 8 -->
+    <div class="wiz-panel" data-panel="8">
+      <div class="wiz-card">
+        <h4>Pricing</h4>
+        <div class="row g-3">
+          <div class="col-md-4"><label class="form-label acad-eyebrow">Base Fee (₹)</label><input class="form-control" id="f-fee" value="29661"></div>
+          <div class="col-md-4"><label class="form-label acad-eyebrow">GST %</label><input class="form-control" id="f-gst" value="18"></div>
+          <div class="col-md-4"><label class="form-label acad-eyebrow">Validity (months)</label><input class="form-control" id="f-validity" value="12"></div>
+          <div class="col-12">
+            <label class="form-label acad-eyebrow">Admission Mode</label>
+            <div class="form-check"><input class="form-check-input" type="radio" name="admmode" value="A" checked><label class="form-check-label">Mode A — Verify then Pay</label></div>
+            <div class="form-check"><input class="form-check-input" type="radio" name="admmode" value="B"><label class="form-check-label">Mode B — Pay then Verify</label></div>
+            <div class="form-check"><input class="form-check-input" type="radio" name="admmode" value="C"><label class="form-check-label">Mode C — Direct, no verification</label></div>
+          </div>
+          <div class="col-12"><div id="mode-hint" class="alert" style="display:none;background:#F6ECDA;border:1px solid #e2c893;color:var(--acad-ochre);font-size:13px;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 9 -->
+    <div class="wiz-panel" data-panel="9">
+      <div class="wiz-card">
+        <h4>Review &amp; Publish</h4>
+        <p class="acad-eyebrow mb-3">The only step that can move CourseVersion.status to Published</p>
+        <div id="review-summary"></div>
+        <div id="publish-block-msg" class="alert" style="display:none;background:#F5E4E4;border:1px solid #e0bcbc;color:var(--acad-danger);font-size:13px;margin-top:14px;"></div>
+        <div id="published-msg" class="alert" style="display:none;background:#EAF2EE;border:1px solid #cfe4d9;color:var(--acad-success);font-size:13px;margin-top:14px;">Published. This version is now live in the catalogue and selectable in Batch Builder.</div>
+        <button class="btn btn-primary mt-2" id="publish-btn">Publish Version</button>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+      <div>
+        <button class="btn btn-link" id="wiz-back">← Back</button>
+        <button class="btn btn-outline-secondary btn-sm ms-2" id="wiz-save">Save Draft &amp; Exit</button>
+      </div>
+      <button class="btn btn-primary" id="wiz-next">Next →</button>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-mini" id="mini-toast">Draft saved.</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script>
+$(function(){
+
+var current = 1;
+var TOTAL = 9;
+var rules = [{field:'Profession', op:'=', value:'Doctor', group:'AND'}, {field:'Registration Validity', op:'=', value:'Not Expired', group:'AND'}];
+var docs = [
+  {name:'MBBS Degree Certificate', mandatory:true, types:'PDF, JPEG, PNG', maxSize:'10MB'},
+  {name:'Medical Council Registration', mandatory:true, types:'PDF, JPEG, PNG', maxSize:'10MB'}
+];
+var modules = [{title:'Foundations of Metabolic Health', weight:35},{title:'Clinical Assessment', weight:35},{title:'Management Plans', weight:30}];
+
+function go(step){
+  current = step;
+  $('.wiz-panel').removeClass('active');
+  $('.wiz-panel[data-panel="'+step+'"]').addClass('active');
+  $('.wiz-step').removeClass('active');
+  $('.wiz-step[data-step="'+step+'"]').addClass('active');
+  $('.wiz-step').each(function(){
+    var s = parseInt($(this).data('step'));
+    if(s < step) $(this).addClass('done'); else $(this).removeClass('done');
+  });
+  $('#wiz-back').prop('disabled', step === 1);
+  $('#wiz-next').text(step === TOTAL ? 'Finish' : 'Next →').toggle(step !== TOTAL);
+  if(step === 6) renderWeights();
+  if(step === 9) renderReview();
+  window.scrollTo(0,0);
+}
+
+$('.wiz-step').on('click', function(){ go(parseInt($(this).data('step'))); });
+$('#wiz-next').on('click', function(){ if(current < TOTAL) go(current+1); });
+$('#wiz-back').on('click', function(){ if(current > 1) go(current-1); });
+$('#wiz-save').on('click', function(){
+  $('#mini-toast').addClass('show');
+  setTimeout(function(){ $('#mini-toast').removeClass('show'); }, 1600);
+});
+
+/* ---- Step 3: Eligibility rules ---- */
+function renderRules(){
+  var html = '';
+  rules.forEach(function(r, i){
+    html += '<div class="rule-row">' +
+      '<span class="group-label">'+(i===0?'IF':r.group)+'</span>' +
+      '<select class="form-select form-select-sm rule-field" data-i="'+i+'" style="max-width:200px;">'+
+        ['Profession','Qualification','Registration Validity','Experience','Employment Category','Jurisdiction'].map(function(f){return '<option'+(f===r.field?' selected':'')+'>'+f+'</option>';}).join('')+
+      '</select>' +
+      '<span style="font-size:12px;color:var(--acad-muted);">=</span>' +
+      '<input class="form-control form-control-sm rule-value" data-i="'+i+'" value="'+r.value+'" style="max-width:180px;">' +
+      '<button class="btn btn-sm btn-outline-danger ms-auto rule-remove" data-i="'+i+'">✕</button>' +
+      '</div>';
+  });
+  $('#rule-list').html(html);
+}
+$('#add-rule').on('click', function(){
+  rules.push({field:'Experience', op:'>=', value:'2 years', group:'AND'});
+  renderRules();
+});
+$(document).on('click', '.rule-remove', function(){
+  rules.splice($(this).data('i'), 1); renderRules();
+});
+$(document).on('change', '.rule-field', function(){ rules[$(this).data('i')].field = $(this).val(); });
+$(document).on('input', '.rule-value', function(){ rules[$(this).data('i')].value = $(this).val(); });
+$('#f-open-all').on('change', function(){
+  var open = $(this).is(':checked');
+  $('#rule-list, #add-rule').toggle(!open);
+});
+renderRules();
+
+/* ---- Step 4: Documents ---- */
+function renderDocs(){
+  var html = '';
+  docs.forEach(function(d, i){
+    html += '<div class="doc-row">' +
+      '<input class="form-control form-control-sm doc-name" data-i="'+i+'" value="'+d.name+'" style="max-width:260px;">' +
+      '<span style="font-size:12px;color:var(--acad-muted);">'+d.types+' · max '+d.maxSize+'</span>' +
+      '<div class="form-check ms-auto"><input class="form-check-input" type="checkbox" '+(d.mandatory?'checked':'')+' disabled><label class="form-check-label" style="font-size:12px;">Mandatory</label></div>' +
+      '<button class="btn btn-sm btn-outline-danger doc-remove" data-i="'+i+'">✕</button>' +
+      '</div>';
+  });
+  $('#doc-list').html(html);
+}
+$('#add-doc').on('click', function(){
+  docs.push({name:'New document', mandatory:true, types:'PDF, JPEG, PNG', maxSize:'10MB'});
+  renderDocs();
+});
+$(document).on('click', '.doc-remove', function(){ docs.splice($(this).data('i'),1); renderDocs(); });
+$(document).on('input', '.doc-name', function(){ docs[$(this).data('i')].name = $(this).val(); });
+$('#f-no-docs').on('change', function(){
+  var none = $(this).is(':checked');
+  $('#doc-list, #add-doc').toggle(!none);
+});
+renderDocs();
+
+/* ---- Step 5: Curriculum ---- */
+function renderMods(){
+  var html = '';
+  modules.forEach(function(m, i){
+    html += '<div class="mod-row">' +
+      '<span class="acad-mono" style="width:20px;color:var(--acad-muted);">'+(i+1)+'</span>' +
+      '<span style="flex:1;font-size:13px;">'+m.title+'</span>' +
+      '<button class="btn btn-sm btn-outline-secondary mod-up" data-i="'+i+'" '+(i===0?'disabled':'')+'>↑</button>' +
+      '<button class="btn btn-sm btn-outline-secondary mod-down" data-i="'+i+'" '+(i===modules.length-1?'disabled':'')+'>↓</button>' +
+      '<button class="btn btn-sm btn-outline-danger mod-remove" data-i="'+i+'">✕</button>' +
+      '</div>';
+  });
+  $('#mod-list').html(html);
+}
+$('#add-mod').on('click', function(){
+  var t = $('#new-mod-title').val().trim();
+  if(!t) return;
+  modules.push({title:t, weight:0});
+  $('#new-mod-title').val('');
+  renderMods();
+});
+$(document).on('click', '.mod-remove', function(){ modules.splice($(this).data('i'),1); renderMods(); });
+$(document).on('click', '.mod-up', function(){ var i=$(this).data('i'); if(i>0){ var t=modules[i]; modules[i]=modules[i-1]; modules[i-1]=t; renderMods(); }});
+$(document).on('click', '.mod-down', function(){ var i=$(this).data('i'); if(i<modules.length-1){ var t=modules[i]; modules[i]=modules[i+1]; modules[i+1]=t; renderMods(); }});
+renderMods();
+
+/* ---- Step 6: Weights ---- */
+function renderWeights(){
+  var html = '';
+  modules.forEach(function(m, i){
+    html += '<div class="d-flex align-items-center gap-2 mb-2">' +
+      '<span style="width:220px;font-size:13px;">'+m.title+'</span>' +
+      '<input type="number" class="form-control form-control-sm weight-input" data-i="'+i+'" value="'+m.weight+'" style="width:80px;">' +
+      '<span style="font-size:12px;color:var(--acad-muted);">%</span></div>';
+  });
+  $('#weight-list').html(html);
+  updateWeightTotal();
+}
+function updateWeightTotal(){
+  var total = modules.reduce(function(s,m){ return s + (Number(m.weight)||0); }, 0);
+  var $t = $('#weight-total');
+  $t.text(total+'%').toggleClass('ok', total===100).toggleClass('bad', total!==100);
+}
+$(document).on('input', '.weight-input', function(){
+  modules[$(this).data('i')].weight = $(this).val();
+  updateWeightTotal();
+});
+
+/* ---- Step 8: mode hint ---- */
+function updateModeHint(){
+  var open = $('#f-open-all').is(':checked');
+  var noDocs = $('#f-no-docs').is(':checked');
+  var $hint = $('#mode-hint');
+  if(open && noDocs){
+    $hint.show().text('With no eligibility rules and no required documents, Admission Mode C (Direct) is recommended.');
+  } else {
+    $hint.hide();
+  }
+}
+$(document).on('change', '#f-open-all, #f-no-docs', updateModeHint);
+
+/* ---- Step 9: Review & Publish ---- */
+function renderReview(){
+  var open = $('#f-open-all').is(':checked');
+  var noDocs = $('#f-no-docs').is(':checked');
+  var total = modules.reduce(function(s,m){ return s + (Number(m.weight)||0); }, 0);
+  var mode = $('input[name="admmode"]:checked').val();
+
+  var html = '';
+  html += '<div class="summary-block"><h6>1 · Course Identity</h6><div style="font-size:13px;">'+$('#f-title').val()+' <span class="acad-mono" style="color:var(--acad-muted);">('+$('#f-code').val()+')</span> · Owner: '+$('#f-owner').val()+'</div></div>';
+  html += '<div class="summary-block"><h6>2 · Version Overview</h6><div style="font-size:13px;">'+$('#f-vtitle').val()+' · '+$('#f-delivery').val()+' · '+$('#f-duration').val()+'</div></div>';
+  html += '<div class="summary-block"><h6>3 · Eligibility</h6><div style="font-size:13px;">'+(open ? 'Open to all professions' : rules.length+' rule(s) configured')+'</div></div>';
+  html += '<div class="summary-block"><h6>4 · Required Documents</h6><div style="font-size:13px;">'+(noDocs ? 'None required' : docs.length+' document(s) required')+'</div></div>';
+  html += '<div class="summary-block"><h6>5 · Curriculum</h6><div style="font-size:13px;">'+modules.length+' module(s)</div></div>';
+  html += '<div class="summary-block"><h6>6 · Assessments &amp; Grading</h6><div style="font-size:13px;">Passing Model '+$('input[name="passmodel"]:checked').val()+' · Module weights total <b class="'+(total===100?'weight-total ok':'weight-total bad')+'">'+total+'%</b></div></div>';
+  html += '<div class="summary-block"><h6>7 · Certificates</h6><div style="font-size:13px;">CME credits: '+$('#f-cme').val()+' · Grade bands: Distinction ≥'+$('#gb-dist').val()+', A ≥'+$('#gb-a').val()+', B ≥'+$('#gb-b').val()+'</div></div>';
+  html += '<div class="summary-block"><h6>8 · Pricing</h6><div style="font-size:13px;">₹'+Number($('#f-fee').val()).toLocaleString('en-IN')+' + '+$('#f-gst').val()+'% GST · Admission Mode '+mode+' · Valid '+$('#f-validity').val()+' months</div></div>';
+  $('#review-summary').html(html);
+
+  var blockers = [];
+  if(total !== 100) blockers.push('Module weights must sum to exactly 100% (currently '+total+'%).');
+  if(!open && rules.length === 0) blockers.push('Add at least one eligibility rule, or mark this course open to all professions.');
+  if(!noDocs && docs.length === 0) blockers.push('Add at least one required document, or mark this course as requiring none.');
+
+  if(blockers.length){
+    $('#publish-block-msg').show().html('<b>Cannot publish yet:</b><ul class="mb-0 mt-1">'+blockers.map(function(b){return '<li>'+b+'</li>';}).join('')+'</ul>');
+    $('#publish-btn').prop('disabled', true);
+  } else {
+    $('#publish-block-msg').hide();
+    $('#publish-btn').prop('disabled', false);
+  }
+  $('#published-msg').hide();
+}
+$('#publish-btn').on('click', function(){
+  $(this).prop('disabled', true).text('Published ✓');
+  $('#published-msg').show();
+});
+
+go(1);
+});
+</script>
+</body>
+</html>

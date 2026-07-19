@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Academy LMS — Reviewer Verification Workflow (Prototype)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --acad-ink:#16262A; --acad-paper:#F5F8F7; --acad-surface:#FFFFFF;
+  --acad-teal:#0F6E62; --acad-teal-dk:#0B5148; --acad-ochre:#B8813A;
+  --acad-success:#1E7A52; --acad-danger:#B23B3B; --acad-info:#2B6CB0;
+  --acad-line:#D9E1DF; --acad-muted:#5B6B6E;
+  --bs-body-bg:var(--acad-paper); --bs-body-color:var(--acad-ink);
+  --bs-body-font-family:'Inter',sans-serif; --bs-font-monospace:'IBM Plex Mono',monospace;
+  --bs-border-color:var(--acad-line); --bs-border-radius:.3rem; --bs-border-radius-sm:.2rem; --bs-border-radius-lg:.5rem;
+  --bs-box-shadow:0 4px 16px rgba(15,38,42,.10); --bs-box-shadow-sm:0 1px 2px rgba(15,38,42,.07);
+  --bs-primary:var(--acad-teal); --bs-primary-rgb:15,110,98;
+  --bs-success:var(--acad-success); --bs-success-rgb:30,122,82;
+  --bs-warning:var(--acad-ochre); --bs-warning-rgb:184,129,58;
+  --bs-danger:var(--acad-danger); --bs-danger-rgb:178,59,59;
+  --bs-info:var(--acad-info); --bs-info-rgb:43,108,176;
+  --bs-link-color:var(--acad-teal); --bs-link-hover-color:var(--acad-teal-dk);
+}
+body{font-family:'Inter',sans-serif;color:var(--acad-ink);}
+h1,h2,h3,h4,.acad-display{font-family:'Libre Franklin',sans-serif;font-weight:700;letter-spacing:-.01em;}
+.acad-mono{font-family:'IBM Plex Mono',monospace;font-feature-settings:"tnum" 1;}
+.acad-eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--acad-muted);}
+:focus-visible{outline:2px solid var(--acad-teal);outline-offset:2px;}
+
+.acad-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px 3px 8px;border-radius:100px;}
+.acad-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;}
+.acad-pill--success{background:#E4F1EA;color:var(--acad-success);}
+.acad-pill--warning{background:#F6ECDA;color:var(--acad-ochre);}
+.acad-pill--danger{background:#F5E4E4;color:var(--acad-danger);}
+.acad-pill--neutral{background:#E8ECEB;color:var(--acad-muted);}
+
+.shell{max-width:1080px;margin:0 auto;padding:28px 24px 80px;}
+.screen{display:none;}
+.screen.active{display:block;animation:fadein .2s ease;}
+@keyframes fadein{from{opacity:0;}to{opacity:1;}}
+.flow-card{background:var(--acad-surface);border:1px solid var(--acad-line);border-radius:var(--bs-border-radius-lg);box-shadow:var(--bs-box-shadow-sm);padding:24px;}
+
+table.qtable{width:100%;font-size:13px;}
+table.qtable th{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--acad-muted);border-bottom:1px solid var(--acad-line);padding:8px 10px;text-align:left;}
+table.qtable td{padding:10px;border-bottom:1px solid var(--acad-line);vertical-align:middle;}
+table.qtable tr.rowlink{cursor:pointer;}
+table.qtable tr.rowlink:hover{background:#F0F7F5;}
+.sla-age{font-weight:700;}
+.sla-age.crit{color:var(--acad-danger);}
+.sla-age.warn{color:var(--acad-ochre);}
+.sla-age.ok{color:var(--acad-muted);}
+
+.doc-preview{background:repeating-linear-gradient(45deg,#e2e2e2,#e2e2e2 8px,#ececec 8px,#ececec 16px);border:1px solid var(--acad-line);border-radius:var(--bs-border-radius);display:flex;align-items:center;justify-content:center;color:#888;font-size:13px;cursor:zoom-in;height:280px;transition:height .2s;}
+.doc-preview.zoomed{height:480px;cursor:zoom-out;}
+
+.hist-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px dashed var(--acad-line);font-size:12px;}
+.hist-item:last-child{border-bottom:none;}
+
+.toast-mini{position:fixed;bottom:20px;right:20px;background:var(--acad-ink);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;z-index:99;max-width:300px;}
+.toast-mini.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- QUEUE -->
+  <div class="screen active" id="s-queue">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h4 class="mb-0">Document Review Queue</h4>
+        <p class="acad-eyebrow mb-0">Sorted oldest-first by default · R-01</p>
+      </div>
+      <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" id="f-profession" style="width:150px;">
+          <option value="">All professions</option>
+          <option>Doctor</option><option>Nurse</option><option>Allied Staff</option>
+        </select>
+        <div class="form-check form-check-inline mt-1">
+          <input class="form-check-input" type="checkbox" id="f-escalated">
+          <label class="form-check-label" style="font-size:12px;">Escalated only</label>
+        </div>
+        <div class="form-check form-check-inline mt-1">
+          <input class="form-check-input" type="checkbox" id="f-mine">
+          <label class="form-check-label" style="font-size:12px;">Assigned to me (R. Iyer)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div style="font-size:12px;color:var(--acad-muted);"><span id="sel-count">0</span> selected</div>
+      <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" id="bulk-assignee" style="width:170px;">
+          <option value="">Assign to…</option>
+          <option>R. Iyer</option><option>K. Nair</option><option>S. Rao</option>
+        </select>
+        <button class="btn btn-outline-primary btn-sm" id="bulk-assign-btn" disabled>Assign selected</button>
+      </div>
+    </div>
+
+    <div class="flow-card p-0">
+      <table class="qtable">
+        <thead><tr>
+          <th style="width:30px;"><input type="checkbox" id="check-all"></th>
+          <th>Applicant</th><th>Course / Batch</th><th>Doc Type</th>
+          <th>SLA Age ▾</th><th>Resub?</th><th>Profession</th><th>Assigned</th><th>Flags</th>
+        </tr></thead>
+        <tbody id="queue-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- DETAIL -->
+  <div class="screen" id="s-detail">
+    <button class="btn btn-link ps-0 mb-2" onclick="backToQueue()">← Back to queue</button>
+    <div class="row g-3">
+      <div class="col-md-7">
+        <div class="flow-card">
+          <div class="acad-eyebrow mb-2" id="d-doctype"></div>
+          <div class="doc-preview" id="doc-preview" onclick="toggleZoom()">Document preview — click to zoom (signed URL, 10–15 min expiry)</div>
+          <div id="hist-wrap" style="display:none;" class="mt-3">
+            <h6 class="acad-eyebrow">Verification Audit History <span style="font-weight:400;text-transform:none;">(append-only)</span></h6>
+            <div id="hist-list"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-5">
+        <div class="flow-card mb-3">
+          <h6 class="acad-eyebrow mb-2">Applicant Profile</h6>
+          <table class="table table-sm mb-0">
+            <tr><td style="color:var(--acad-muted);">Name</td><td id="d-name"></td></tr>
+            <tr><td style="color:var(--acad-muted);">Profession</td><td id="d-profession"></td></tr>
+            <tr><td style="color:var(--acad-muted);">Registration No.</td><td id="d-regno" class="acad-mono"></td></tr>
+            <tr><td style="color:var(--acad-muted);">Course / Batch</td><td id="d-course"></td></tr>
+          </table>
+        </div>
+        <div class="flow-card">
+          <h6 class="acad-eyebrow mb-2">Decision</h6>
+          <button class="btn btn-primary w-100 mb-2" onclick="decide('approved')">Approve</button>
+          <button class="btn btn-outline-danger w-100 mb-2" id="reject-toggle" onclick="showRejectForm()">Reject…</button>
+          <div id="reject-form" style="display:none;">
+            <label class="form-label acad-eyebrow mt-2">Reason (required)</label>
+            <select class="form-select form-select-sm mb-2" id="reject-reason">
+              <option value="">Select a reason…</option>
+              <option>Blurry / Illegible</option>
+              <option>Wrong Document Type</option>
+              <option>Incomplete</option>
+              <option>Expired Registration</option>
+              <option>Name Mismatch</option>
+              <option>Qualification Doesn't Meet Eligibility</option>
+              <option>Registration Number Not Visible</option>
+              <option>Other</option>
+            </select>
+            <label class="form-label acad-eyebrow">Learner-facing instructions</label>
+            <textarea class="form-control form-control-sm mb-2" id="reject-instructions" rows="2" placeholder="What the applicant should fix…"></textarea>
+            <label class="form-label acad-eyebrow">Private internal note <span style="font-weight:400;text-transform:none;color:var(--acad-muted);">(never shown to applicant)</span></label>
+            <textarea class="form-control form-control-sm mb-2" style="background:#F7F1E2;" id="reject-note" rows="2"></textarea>
+            <button class="btn btn-danger btn-sm w-100" id="reject-submit" disabled onclick="decide('rejected')">Submit Rejection</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast-mini" id="mini-toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script>
+$(function(){
+
+var queue = [
+  {id:1, applicant:'K. Menon', course:'Diploma · Jul 2026', doctype:'MBBS Degree Certificate', sla:60, resub:1, profession:'Doctor', assigned:'', escalation:true, regno:'MH-2016-08821',
+   history:[{ts:'10 Jul, 09:14', actor:'System', action:'Submitted', note:'Initial upload'},{ts:'11 Jul, 16:02', actor:'S. Rao', action:'Rejected', note:'Blurry / Illegible'}]},
+  {id:2, applicant:'J. Sharma', course:'Diploma · Jul 2026', doctype:'Medical Council Registration', sla:51, resub:2, profession:'Doctor', assigned:'', escalation:true, regno:'MH-2019-04471',
+   history:[{ts:'08 Jul, 11:20', actor:'System', action:'Submitted', note:'Initial upload'},{ts:'09 Jul, 14:10', actor:'R. Iyer', action:'Rejected', note:'Name Mismatch'},{ts:'10 Jul, 08:44', actor:'Applicant', action:'Resubmitted', note:'—'},{ts:'12 Jul, 17:30', actor:'K. Nair', action:'Rejected', note:'Registration Number Not Visible'}]},
+  {id:3, applicant:'P. Verma', course:'Diploma · Jul 2026', doctype:'Medical Council Registration', sla:30, resub:0, profession:'Doctor', assigned:'R. Iyer', escalation:false, regno:'MH-2018-11390', history:[]},
+  {id:4, applicant:'S. Rao', course:'Advanced Nutrition Cert.', doctype:'Council Registration', sla:12, resub:0, profession:'Allied Staff', assigned:'R. Iyer', escalation:false, regno:'AN-2021-3390', history:[]},
+  {id:5, applicant:'A. Nair', course:'Obesity Basics', doctype:'Government ID Proof', sla:4, resub:0, profession:'Nurse', assigned:'', escalation:false, regno:'—', history:[]},
+];
+
+var selected = {};
+var currentId = null;
+
+function slaClass(h){ return h >= 48 ? 'crit' : (h >= 24 ? 'warn' : 'ok'); }
+
+function renderQueue(){
+  var prof = $('#f-profession').val();
+  var escOnly = $('#f-escalated').is(':checked');
+  var mineOnly = $('#f-mine').is(':checked');
+  var rows = queue.filter(function(q){
+    if(prof && q.profession !== prof) return false;
+    if(escOnly && !q.escalation) return false;
+    if(mineOnly && q.assigned !== 'R. Iyer') return false;
+    return true;
+  }).sort(function(a,b){ return b.sla - a.sla; });
+
+  var html = '';
+  rows.forEach(function(q){
+    html += '<tr class="rowlink" data-id="'+q.id+'">' +
+      '<td onclick="event.stopPropagation()"><input type="checkbox" class="rowcheck" data-id="'+q.id+'" '+(selected[q.id]?'checked':'')+'></td>' +
+      '<td>'+q.applicant+'</td><td>'+q.course+'</td><td>'+q.doctype+'</td>' +
+      '<td class="acad-mono sla-age '+slaClass(q.sla)+'">'+q.sla+'h</td>' +
+      '<td>'+(q.resub ? q.resub+(q.resub===1?'st':'nd') : '—')+'</td>' +
+      '<td>'+q.profession+'</td>' +
+      '<td>'+(q.assigned || '<span style="color:var(--acad-muted);">Unassigned</span>')+'</td>' +
+      '<td>'+(q.escalation ? '<span class="acad-pill acad-pill--danger">Escalated</span>' : '—')+'</td>' +
+      '</tr>';
+  });
+  $('#queue-body').html(html || '<tr><td colspan="8" class="text-center text-muted p-4">No documents match this filter.</td></tr>');
+  updateSelCount();
+}
+
+$('#f-profession, #f-escalated, #f-mine').on('change', renderQueue);
+$(document).on('click', '.rowlink', function(){ openDetail(parseInt($(this).data('id'))); });
+$(document).on('click', '.rowcheck', function(){
+  var id = parseInt($(this).data('id'));
+  if($(this).is(':checked')) selected[id] = true; else delete selected[id];
+  updateSelCount();
+});
+$('#check-all').on('click', function(){
+  var checked = $(this).is(':checked');
+  $('.rowcheck').prop('checked', checked).each(function(){
+    var id = parseInt($(this).data('id'));
+    if(checked) selected[id] = true; else delete selected[id];
+  });
+  updateSelCount();
+});
+function updateSelCount(){
+  var n = Object.keys(selected).length;
+  $('#sel-count').text(n);
+  $('#bulk-assign-btn').prop('disabled', n===0 || !$('#bulk-assignee').val());
+}
+$('#bulk-assignee').on('change', updateSelCount);
+$('#bulk-assign-btn').on('click', function(){
+  var who = $('#bulk-assignee').val();
+  Object.keys(selected).forEach(function(id){
+    var q = queue.find(function(x){ return x.id === parseInt(id); });
+    if(q) q.assigned = who;
+  });
+  showToast(Object.keys(selected).length+' document(s) assigned to '+who+'.');
+  selected = {};
+  renderQueue();
+});
+
+function openDetail(id){
+  currentId = id;
+  var q = queue.find(function(x){ return x.id === id; });
+  $('#d-doctype').text(q.doctype+' — '+q.applicant);
+  $('#d-name').text(q.applicant);
+  $('#d-profession').text(q.profession);
+  $('#d-regno').text(q.regno);
+  $('#d-course').text(q.course);
+  $('#doc-preview').removeClass('zoomed').text('Document preview — click to zoom (signed URL, 10–15 min expiry)');
+  $('#reject-form').hide();
+  $('#reject-reason, #reject-instructions, #reject-note').val('');
+  $('#reject-submit').prop('disabled', true);
+
+  if(q.history && q.history.length){
+    $('#hist-wrap').show();
+    var h = '';
+    q.history.forEach(function(ev){
+      h += '<div class="hist-item"><span class="acad-mono" style="width:100px;color:var(--acad-muted);">'+ev.ts+'</span>' +
+        '<span style="width:70px;font-weight:600;">'+ev.actor+'</span>' +
+        '<span>'+ev.action+(ev.note && ev.note!=='—' ? ' — '+ev.note : '')+'</span></div>';
+    });
+    $('#hist-list').html(h);
+  } else {
+    $('#hist-wrap').hide();
+  }
+
+  $('.screen').removeClass('active'); $('#s-detail').addClass('active');
+  window.scrollTo(0,0);
+}
+window.backToQueue = function(){ $('.screen').removeClass('active'); $('#s-queue').addClass('active'); renderQueue(); };
+
+window.toggleZoom = function(){ $('#doc-preview').toggleClass('zoomed'); };
+
+window.showRejectForm = function(){ $('#reject-form').slideDown(150); };
+$('#reject-reason').on('change', function(){
+  $('#reject-submit').prop('disabled', !$(this).val());
+});
+
+window.decide = function(outcome){
+  var q = queue.find(function(x){ return x.id === currentId; });
+  if(outcome === 'approved'){
+    showToast(q.doctype+' approved for '+q.applicant+'.');
+  } else {
+    var reason = $('#reject-reason').val();
+    showToast(q.doctype+' rejected for '+q.applicant+' — '+reason+'.');
+  }
+  queue = queue.filter(function(x){ return x.id !== currentId; });
+  backToQueue();
+};
+
+window.showToast = function(msg){
+  $('#mini-toast').text(msg).addClass('show');
+  setTimeout(function(){ $('#mini-toast').removeClass('show'); }, 2400);
+};
+
+renderQueue();
+});
+</script>
+</body>
+</html>

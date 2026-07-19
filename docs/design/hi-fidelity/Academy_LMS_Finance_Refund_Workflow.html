@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Academy LMS — Finance Refund Workflow (Prototype)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --acad-ink:#16262A; --acad-paper:#F5F8F7; --acad-surface:#FFFFFF;
+  --acad-teal:#0F6E62; --acad-teal-dk:#0B5148; --acad-ochre:#B8813A;
+  --acad-success:#1E7A52; --acad-danger:#B23B3B; --acad-info:#2B6CB0;
+  --acad-line:#D9E1DF; --acad-muted:#5B6B6E;
+  --bs-body-bg:var(--acad-paper); --bs-body-color:var(--acad-ink);
+  --bs-body-font-family:'Inter',sans-serif; --bs-font-monospace:'IBM Plex Mono',monospace;
+  --bs-border-color:var(--acad-line); --bs-border-radius:.3rem; --bs-border-radius-sm:.2rem; --bs-border-radius-lg:.5rem;
+  --bs-box-shadow:0 4px 16px rgba(15,38,42,.10); --bs-box-shadow-sm:0 1px 2px rgba(15,38,42,.07);
+  --bs-primary:var(--acad-teal); --bs-primary-rgb:15,110,98;
+  --bs-success:var(--acad-success); --bs-success-rgb:30,122,82;
+  --bs-warning:var(--acad-ochre); --bs-warning-rgb:184,129,58;
+  --bs-danger:var(--acad-danger); --bs-danger-rgb:178,59,59;
+  --bs-info:var(--acad-info); --bs-info-rgb:43,108,176;
+  --bs-link-color:var(--acad-teal); --bs-link-hover-color:var(--acad-teal-dk);
+}
+body{font-family:'Inter',sans-serif;color:var(--acad-ink);}
+h1,h2,h3,h4,.acad-display{font-family:'Libre Franklin',sans-serif;font-weight:700;letter-spacing:-.01em;}
+.acad-mono{font-family:'IBM Plex Mono',monospace;font-feature-settings:"tnum" 1;}
+.acad-eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--acad-muted);}
+:focus-visible{outline:2px solid var(--acad-teal);outline-offset:2px;}
+
+.acad-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px 3px 8px;border-radius:100px;}
+.acad-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;}
+.acad-pill--success{background:#E4F1EA;color:var(--acad-success);}
+.acad-pill--warning{background:#F6ECDA;color:var(--acad-ochre);}
+.acad-pill--danger{background:#F5E4E4;color:var(--acad-danger);}
+.acad-pill--info{background:#E3EBF5;color:var(--acad-info);}
+.acad-pill--neutral{background:#E8ECEB;color:var(--acad-muted);}
+
+.shell{max-width:1080px;margin:0 auto;padding:28px 24px 80px;}
+.screen{display:none;}
+.screen.active{display:block;animation:fadein .2s ease;}
+@keyframes fadein{from{opacity:0;}to{opacity:1;}}
+.flow-card{background:var(--acad-surface);border:1px solid var(--acad-line);border-radius:var(--bs-border-radius-lg);box-shadow:var(--bs-box-shadow-sm);padding:24px;}
+
+table.qtable{width:100%;font-size:13px;}
+table.qtable th{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--acad-muted);border-bottom:1px solid var(--acad-line);padding:8px 10px;text-align:left;}
+table.qtable td{padding:10px;border-bottom:1px solid var(--acad-line);vertical-align:middle;}
+table.qtable tr.rowlink{cursor:pointer;}
+table.qtable tr.rowlink:hover{background:#F0F7F5;}
+
+.policy-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--acad-line);font-size:13px;}
+.policy-row:last-child{border-bottom:none;}
+
+.progress-item{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--acad-line);border-radius:var(--bs-border-radius);padding:10px 14px;margin-bottom:8px;font-size:13px;}
+.toast-mini{position:fixed;bottom:20px;right:20px;background:var(--acad-ink);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;z-index:99;max-width:320px;}
+.toast-mini.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- QUEUE -->
+  <div class="screen active" id="s-queue">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h4 class="mb-0">Refunds</h4>
+        <p class="acad-eyebrow mb-0">FA-02 · Payment / Refund Detail</p>
+      </div>
+      <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" id="f-status" style="width:160px;">
+          <option value="">All statuses</option>
+          <option>Requested</option><option>Processing</option><option>Completed</option><option>Failed</option><option>Denied</option>
+        </select>
+        <button class="btn btn-outline-danger btn-sm" onclick="goTo('s-batch-cancel')">Cancel a Batch…</button>
+      </div>
+    </div>
+
+    <div class="flow-card p-0">
+      <table class="qtable">
+        <thead><tr><th>Learner</th><th>Course</th><th>Reason</th><th>Amount</th><th>Status</th></tr></thead>
+        <tbody id="queue-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- DETAIL -->
+  <div class="screen" id="s-detail">
+    <button class="btn btn-link ps-0 mb-2" onclick="backToQueue()">← Back to refunds</button>
+    <div class="row g-3">
+      <div class="col-md-7">
+        <div class="flow-card mb-3">
+          <h6 class="acad-eyebrow mb-2">Refund Request</h6>
+          <div class="policy-row"><span>Learner</span><b id="d-learner"></b></div>
+          <div class="policy-row"><span>Course</span><span id="d-course"></span></div>
+          <div class="policy-row"><span>Original Payment</span><span class="acad-mono" id="d-amount"></span></div>
+          <div class="policy-row"><span>Reason</span><span id="d-reason"></span></div>
+        </div>
+        <div class="flow-card">
+          <h6 class="acad-eyebrow mb-2">Policy Check <span style="font-weight:400;text-transform:none;">(computed, not manually judged)</span></h6>
+          <div id="policy-checks"></div>
+          <div id="policy-verdict" class="mt-2"></div>
+        </div>
+      </div>
+      <div class="col-md-5">
+        <div class="flow-card" id="decision-panel">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BATCH CANCEL -->
+  <div class="screen" id="s-batch-cancel">
+    <button class="btn btn-link ps-0 mb-2" onclick="backToQueue()">← Back to refunds</button>
+    <div class="flow-card">
+      <h4>Cancel a Batch</h4>
+      <p class="acad-eyebrow mb-3">Triggers automatic full refunds for every enrolled learner (REQ-REFUND-3)</p>
+      <div id="batch-pick">
+        <label class="form-label acad-eyebrow">Batch</label>
+        <select class="form-select mb-3" id="batch-select">
+          <option>October 2026 Cohort — Advanced Nutrition Certificate (4 enrolled, under minimum capacity)</option>
+        </select>
+        <div class="alert" style="background:#F6ECDA;border:1px solid #e2c893;color:var(--acad-ochre);font-size:13px;">
+          This batch did not reach minimum capacity (4 of 15 required) before its enrolment-close date. Cancelling will automatically refund all 4 enrolled learners in full.
+        </div>
+        <button class="btn btn-danger" onclick="startBatchCancel()">Confirm Cancellation &amp; Refund All</button>
+      </div>
+      <div id="batch-progress" style="display:none;">
+        <h6 class="acad-eyebrow mb-2">Processing refunds</h6>
+        <div id="batch-progress-list"></div>
+        <div id="batch-done-msg" style="display:none;" class="alert mt-2" style="background:#EAF2EE;border:1px solid #cfe4d9;color:var(--acad-success);">All 4 learners refunded and notified. Batch marked Cancelled.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast-mini" id="mini-toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script>
+$(function(){
+
+var refunds = [
+  {id:1, learner:'J. Sharma', course:'Diploma · Jul 2026', amount:35000, reason:'Verification rejected after payment (Mode B)', status:'Requested', daysAgo:1, modulesConsumed:0},
+  {id:2, learner:'P. Verma', course:'Diploma · Jul 2026', amount:35000, reason:'Student-initiated cancellation', status:'Requested', daysAgo:3, modulesConsumed:1},
+  {id:3, learner:'A. Nair', course:'Obesity Basics', amount:4000, reason:'Payment reconciliation error', status:'Processing', daysAgo:2, modulesConsumed:0},
+  {id:4, learner:'K. Menon', course:'Advanced Nutrition', amount:12000, reason:'Student-initiated cancellation', status:'Denied', daysAgo:20, modulesConsumed:4},
+  {id:5, learner:'S. Rao', course:'Diploma · Jul 2026', amount:35000, reason:'Course cancelled by Academy', status:'Completed', daysAgo:9, modulesConsumed:2},
+];
+var currentId = null;
+
+function pillFor(status){
+  var map = {Requested:'warning', Processing:'info', Completed:'success', Failed:'danger', Denied:'danger'};
+  return '<span class="acad-pill acad-pill--'+(map[status]||'neutral')+'">'+status+'</span>';
+}
+
+function renderQueue(){
+  var f = $('#f-status').val();
+  var rows = refunds.filter(function(r){ return !f || r.status === f; });
+  var html = '';
+  rows.forEach(function(r){
+    html += '<tr class="rowlink" data-id="'+r.id+'">' +
+      '<td>'+r.learner+'</td><td>'+r.course+'</td><td>'+r.reason+'</td>' +
+      '<td class="acad-mono">₹'+r.amount.toLocaleString('en-IN')+'</td><td>'+pillFor(r.status)+'</td></tr>';
+  });
+  $('#queue-body').html(html || '<tr><td colspan="5" class="text-center text-muted p-4">No refunds match this filter.</td></tr>');
+}
+$('#f-status').on('change', renderQueue);
+$(document).on('click', '.rowlink', function(){ openDetail(parseInt($(this).data('id'))); });
+
+window.goTo = function(id){ $('.screen').removeClass('active'); $('#'+id).addClass('active'); window.scrollTo(0,0); };
+window.backToQueue = function(){ goTo('s-queue'); renderQueue(); };
+
+function openDetail(id){
+  currentId = id;
+  var r = refunds.find(function(x){ return x.id === id; });
+  $('#d-learner').text(r.learner);
+  $('#d-course').text(r.course);
+  $('#d-amount').text('₹'+r.amount.toLocaleString('en-IN'));
+  $('#d-reason').text(r.reason);
+
+  var withinWindow = r.daysAgo <= 7;
+  var withinConsumption = r.modulesConsumed <= 1;
+  var autoEligible = withinWindow && withinConsumption;
+  var isModeB = r.reason.indexOf('Mode B') > -1;
+  var isAcademyCancel = r.reason.indexOf('cancelled by Academy') > -1;
+
+  var checks = '';
+  if(isModeB || isAcademyCancel){
+    checks += '<div class="policy-row"><span>Refund basis</span><span class="acad-pill acad-pill--info">'+(isModeB?'Verification rejected post-payment':'Academy-initiated cancellation')+'</span></div>';
+    checks += '<div class="policy-row"><span>Academy policy</span><span>Full refund — no learner-side eligibility check needed (REQ-REFUND-2/3)</span></div>';
+  } else {
+    checks += '<div class="policy-row"><span>Requested within 7-day window?</span>'+(withinWindow?'<span class="acad-pill acad-pill--success">Yes — '+r.daysAgo+'d</span>':'<span class="acad-pill acad-pill--danger">No — '+r.daysAgo+'d</span>')+'</div>';
+    checks += '<div class="policy-row"><span>≤ 1 module consumed?</span>'+(withinConsumption?'<span class="acad-pill acad-pill--success">Yes — '+r.modulesConsumed+'</span>':'<span class="acad-pill acad-pill--danger">No — '+r.modulesConsumed+'</span>')+'</div>';
+  }
+  $('#policy-checks').html(checks);
+
+  var verdict = '';
+  if(isModeB || isAcademyCancel || autoEligible){
+    verdict = '<span class="acad-pill acad-pill--success">Eligible for full refund per policy</span>';
+  } else {
+    verdict = '<span class="acad-pill acad-pill--warning">Outside standard policy — requires Finance judgement call</span>';
+  }
+  $('#policy-verdict').html(verdict);
+
+  renderDecisionPanel(r);
+  goTo('s-detail');
+}
+
+function renderDecisionPanel(r){
+  var html = '<h6 class="acad-eyebrow mb-2">Decision</h6>';
+  if(r.status === 'Completed'){
+    html += '<span class="acad-pill acad-pill--success">Completed</span><div style="font-size:12px;color:var(--acad-muted);margin-top:8px;">Refunded '+r.daysAgo+' days ago. Credit note issued.</div>';
+  } else if(r.status === 'Denied'){
+    html += '<span class="acad-pill acad-pill--danger">Denied</span><div style="font-size:12px;color:var(--acad-muted);margin-top:8px;">Outside the cancellation window and more than one module consumed.</div>' +
+      '<button class="btn btn-outline-primary btn-sm mt-2" onclick="reopenDenied()">Reopen for review</button>';
+  } else if(r.status === 'Processing'){
+    html += '<span class="acad-pill acad-pill--info">Processing</span><div style="font-size:12px;color:var(--acad-muted);margin-top:8px;">Awaiting gateway confirmation.</div>' +
+      '<button class="btn btn-outline-danger btn-sm mt-2" onclick="markFailed()">Simulate: Gateway Failed</button>' +
+      '<button class="btn btn-outline-primary btn-sm mt-2 ms-2" onclick="markCompleted()">Simulate: Gateway Confirmed</button>';
+  } else if(r.status === 'Failed'){
+    html += '<span class="acad-pill acad-pill--danger">Failed</span><div style="font-size:12px;color:var(--acad-muted);margin-top:8px;">Gateway could not complete this refund. Retry or process manually.</div>' +
+      '<button class="btn btn-primary btn-sm mt-2" onclick="retryRefund()">Retry Refund</button>';
+  } else {
+    html += '<label class="form-label acad-eyebrow">Refund Amount</label>' +
+      '<input class="form-control form-control-sm mb-2" id="refund-amount" value="'+r.amount+'">' +
+      '<div class="form-check mb-2"><input class="form-check-input" type="radio" name="ramt" checked onclick="$(\'#refund-amount\').val('+r.amount+').prop(\'disabled\',true)"> Full refund</div>' +
+      '<div class="form-check mb-3"><input class="form-check-input" type="radio" name="ramt" onclick="$(\'#refund-amount\').prop(\'disabled\',false)"> Partial refund</div>' +
+      '<button class="btn btn-primary w-100 mb-2" onclick="approveRefund()">Approve &amp; Process Refund</button>' +
+      '<button class="btn btn-outline-danger w-100" onclick="denyRefund()">Deny</button>';
+  }
+  $('#decision-panel').html(html);
+  $('#refund-amount').prop('disabled', true);
+}
+
+window.approveRefund = function(){
+  var r = refunds.find(function(x){ return x.id === currentId; });
+  r.status = 'Processing';
+  showToast('Refund approved — processing with gateway.');
+  renderDecisionPanel(r);
+  setTimeout(function(){
+    if(currentId === r.id){ r.status = 'Completed'; showToast('Refund completed. Credit note generated and emailed.'); renderDecisionPanel(r); openDetail(r.id); }
+  }, 1800);
+};
+window.denyRefund = function(){
+  var r = refunds.find(function(x){ return x.id === currentId; });
+  r.status = 'Denied';
+  showToast('Refund denied. Learner notified with reason.');
+  openDetail(r.id);
+};
+window.markFailed = function(){ var r = refunds.find(function(x){return x.id===currentId;}); r.status='Failed'; showToast('Gateway refund failed — flagged for manual follow-up.'); openDetail(r.id); };
+window.markCompleted = function(){ var r = refunds.find(function(x){return x.id===currentId;}); r.status='Completed'; showToast('Refund completed. Credit note generated.'); openDetail(r.id); };
+window.retryRefund = function(){ var r = refunds.find(function(x){return x.id===currentId;}); r.status='Processing'; showToast('Retrying refund with gateway…'); openDetail(r.id); };
+window.reopenDenied = function(){ var r = refunds.find(function(x){return x.id===currentId;}); r.status='Requested'; showToast('Reopened for review.'); openDetail(r.id); };
+
+// Batch cancellation
+window.startBatchCancel = function(){
+  $('#batch-pick').hide();
+  $('#batch-progress').show();
+  var learners = ['R. Patel','M. Iyengar','T. Fernandes','V. Krishnan'];
+  var html = '';
+  learners.forEach(function(name,i){
+    html += '<div class="progress-item" id="bp-'+i+'"><span>'+name+'</span><span class="acad-pill acad-pill--neutral">Pending</span></div>';
+  });
+  $('#batch-progress-list').html(html);
+  learners.forEach(function(name, i){
+    setTimeout(function(){
+      $('#bp-'+i).find('span:last').replaceWith('<span class="acad-pill acad-pill--info">Processing</span>');
+    }, i*700 + 400);
+    setTimeout(function(){
+      $('#bp-'+i).find('span:last').replaceWith('<span class="acad-pill acad-pill--success">Refunded</span>');
+      if(i === learners.length-1){ $('#batch-done-msg').show(); }
+    }, i*700 + 1300);
+  });
+};
+
+window.showToast = function(msg){
+  $('#mini-toast').text(msg).addClass('show');
+  setTimeout(function(){ $('#mini-toast').removeClass('show'); }, 2400);
+};
+
+renderQueue();
+});
+</script>
+</body>
+</html>

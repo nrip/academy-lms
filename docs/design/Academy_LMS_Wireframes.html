@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Academy LMS — Wireframes v1.0</title>
+<style>
+  :root{
+    --ink:#2b2b2b; --line:#8a8a8a; --line-light:#c7c7c7; --panel:#ffffff;
+    --canvas:#e9e9e9; --muted:#6b6b6b; --accent:#444444; --tag:#eeeeee;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:var(--canvas);color:var(--ink);}
+  .app{display:flex;min-height:100vh;}
+  /* ---- Nav ---- */
+  .nav{width:250px;flex-shrink:0;background:#1f1f1f;color:#eee;padding:18px 0;position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .nav h1{font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:#9a9a9a;padding:0 18px 10px;margin:0;border-bottom:1px solid #3a3a3a;}
+  .nav .grp{padding:12px 18px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#7a7a7a;}
+  .nav button{display:block;width:100%;text-align:left;background:none;border:none;color:#d8d8d8;padding:8px 18px;font-size:13px;cursor:pointer;border-left:3px solid transparent;}
+  .nav button:hover{background:#2a2a2a;}
+  .nav button.active{background:#2f2f2f;border-left-color:#ffffff;color:#fff;font-weight:600;}
+  .nav .id{display:inline-block;width:34px;color:#888;font-family:monospace;font-size:11px;}
+  /* ---- Main ---- */
+  .main{flex:1;padding:28px;overflow-x:auto;}
+  .titlebar{display:flex;align-items:baseline;gap:12px;margin-bottom:4px;}
+  .titlebar h2{margin:0;font-size:20px;}
+  .titlebar .req{font-family:monospace;font-size:12px;color:var(--muted);}
+  .subtitle{color:var(--muted);font-size:13px;margin-bottom:18px;}
+  .screen{display:none;}
+  .screen.active{display:block;}
+  /* ---- Browser frame ---- */
+  .frame{background:var(--panel);border:1px solid var(--line);max-width:1000px;box-shadow:0 1px 3px rgba(0,0,0,.15);}
+  .frame-bar{background:#dcdcdc;border-bottom:1px solid var(--line);padding:6px 10px;display:flex;gap:6px;align-items:center;}
+  .frame-bar span{width:9px;height:9px;border-radius:50%;background:#b6b6b6;display:inline-block;}
+  .frame-body{padding:20px;}
+  /* ---- Wireframe primitives ---- */
+  .wf-box{border:1px solid var(--line);background:#fff;padding:10px;}
+  .wf-dashed{border:1px dashed var(--line-light);}
+  .wf-h{font-weight:700;font-size:15px;margin:0 0 8px;}
+  .wf-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+  .wf-line{height:9px;background:#d8d8d8;border-radius:2px;margin:6px 0;}
+  .wf-line.w60{width:60%;} .wf-line.w80{width:80%;} .wf-line.w40{width:40%;} .wf-line.w100{width:100%;}
+  .wf-btn{display:inline-block;border:1px solid var(--accent);padding:7px 16px;font-size:12px;background:#f2f2f2;border-radius:3px;}
+  .wf-btn.primary{background:#3a3a3a;color:#fff;border-color:#3a3a3a;}
+  .wf-btn.ghost{background:#fff;}
+  .wf-input{border:1px solid var(--line);padding:7px 8px;font-size:12px;color:var(--muted);border-radius:2px;background:#fbfbfb;}
+  .wf-img{background:repeating-linear-gradient(45deg,#e2e2e2,#e2e2e2 6px,#ececec 6px,#ececec 12px);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;}
+  .wf-tag{display:inline-block;font-size:10px;border:1px solid var(--line);background:var(--tag);padding:2px 7px;border-radius:10px;margin-right:6px;color:var(--muted);}
+  .grid{display:grid;gap:14px;}
+  .g2{grid-template-columns:1fr 1fr;}
+  .g3{grid-template-columns:1fr 1fr 1fr;}
+  .g-side{grid-template-columns:220px 1fr;}
+  table.wf-table{width:100%;border-collapse:collapse;font-size:12px;}
+  table.wf-table th{background:#f0f0f0;text-align:left;padding:7px 8px;border:1px solid var(--line-light);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);}
+  table.wf-table td{padding:7px 8px;border:1px solid var(--line-light);}
+  .stepper{display:flex;gap:0;margin-bottom:16px;}
+  .stepper .step{flex:1;text-align:center;font-size:11px;padding:6px 4px;border-bottom:3px solid var(--line-light);color:var(--muted);}
+  .stepper .step.done{border-color:#3a3a3a;color:#3a3a3a;font-weight:600;}
+  .stepper .step.now{border-color:#3a3a3a;color:#000;font-weight:700;}
+  .pill{display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;border:1px solid var(--line);}
+  .pill.warn{background:#f3ecd8;border-color:#c9b26a;}
+  .pill.ok{background:#e4ede4;border-color:#7fa87f;}
+  .pill.bad{background:#f2e0e0;border-color:#c07d7d;}
+  .annot{margin-top:16px;background:#fbfbfb;border:1px dashed var(--line-light);padding:12px 16px;font-size:12px;color:#444;}
+  .annot h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
+  .annot ul{margin:0;padding-left:18px;}
+  .annot li{margin-bottom:4px;}
+  .sidebar-nav{display:flex;flex-direction:column;gap:4px;}
+  .sidebar-nav .item{padding:8px;font-size:12px;border:1px solid var(--line-light);background:#f7f7f7;}
+  .sidebar-nav .item.on{background:#e6e6e6;font-weight:600;border-color:var(--line);}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+
+  /* ---- Mobile simulation mode ---- */
+  body.mobile-mode .main{padding:14px;}
+  body.mobile-mode .frame{max-width:375px;margin:0 auto;}
+  body.mobile-mode .grid.g2,
+  body.mobile-mode .grid.g3,
+  body.mobile-mode .grid.g-side,
+  body.mobile-mode .grid[style*="210px"],
+  body.mobile-mode .grid[style*="200px"]{grid-template-columns:1fr !important;}
+  body.mobile-mode table.wf-table{display:block;overflow-x:auto;white-space:nowrap;}
+  body.mobile-mode .stepper{overflow-x:auto;white-space:nowrap;}
+  body.mobile-mode .stepper .step{flex:0 0 auto;min-width:84px;}
+  body.mobile-mode .sidebar-nav{flex-direction:row;overflow-x:auto;}
+  body.mobile-mode .sidebar-nav .item{flex:0 0 auto;min-width:150px;}
+  body.mobile-mode .titlebar{flex-direction:column;align-items:flex-start;gap:2px;}
+  .viewbtn.on{outline:2px solid #fff;outline-offset:-2px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="nav">
+    <h1>Academy LMS — Wireframes</h1>
+    <div class="viewtoggle" style="padding:10px 18px;border-bottom:1px solid #3a3a3a;margin-bottom:6px;">
+      <div style="font-size:10px;color:#8a8a8a;text-transform:uppercase;margin-bottom:6px;">View</div>
+      <button id="view-desktop" class="wf-btn primary viewbtn on" style="font-size:11px;padding:5px 10px;">🖥 Desktop</button>
+      <button id="view-mobile" class="wf-btn ghost viewbtn" style="font-size:11px;padding:5px 10px;background:#333;color:#ddd;border-color:#555;">📱 Mobile</button>
+    </div>
+    <div class="grp">Public</div>
+    <button data-target="g02" class="nav-btn"><span class="id">G-02</span>Course Detail</button>
+    <button data-target="g06" class="nav-btn"><span class="id">G-06</span>Cert Verification</button>
+    <div class="grp">Applicant</div>
+    <button data-target="a03" class="nav-btn"><span class="id">A-03</span>Application Start</button>
+    <button data-target="a04" class="nav-btn"><span class="id">A-04</span>Document Upload</button>
+    <button data-target="a06" class="nav-btn"><span class="id">A-06</span>Checkout</button>
+    <button data-target="a08" class="nav-btn"><span class="id">A-08</span>Waitlist Status</button>
+    <button data-target="a09" class="nav-btn"><span class="id">A-09</span>Payment Status</button>
+    <div class="grp">Learner</div>
+    <button data-target="l01" class="nav-btn"><span class="id">L-01</span>Dashboard</button>
+    <button data-target="l02" class="nav-btn"><span class="id">L-02</span>Course Player</button>
+    <button data-target="l04" class="nav-btn"><span class="id">L-04</span>Assessment Attempt</button>
+    <button data-target="l05" class="nav-btn"><span class="id">L-05</span>Assessment Result</button>
+    <button data-target="l06" class="nav-btn"><span class="id">L-06</span>Certificates</button>
+    <div class="grp">Faculty / Evaluator</div>
+    <button data-target="f02" class="nav-btn"><span class="id">F-02</span>Learner List &amp; Progress</button>
+    <button data-target="f04" class="nav-btn"><span class="id">F-04</span>Question Bank Contribution</button>
+    <button data-target="e01" class="nav-btn"><span class="id">E-01</span>Manual Grading Queue</button>
+    <div class="grp">Reviewer</div>
+    <button data-target="r01" class="nav-btn"><span class="id">R-01</span>Review Queue</button>
+    <button data-target="r02" class="nav-btn"><span class="id">R-02</span>Document Review</button>
+    <div class="grp">Course Admin</div>
+    <button data-target="ca02" class="nav-btn"><span class="id">CA-02</span>Course Version Builder</button>
+    <button data-target="ca03" class="nav-btn"><span class="id">CA-03</span>Batch Builder</button>
+    <button data-target="ca04" class="nav-btn"><span class="id">CA-04</span>Module Builder</button>
+    <button data-target="ca05" class="nav-btn"><span class="id">CA-05</span>Assessment Builder</button>
+    <button data-target="ca08" class="nav-btn"><span class="id">CA-08</span>Certificate Admin</button>
+    <div class="grp">Finance Admin</div>
+    <button data-target="fa01" class="nav-btn"><span class="id">FA-01</span>Finance Dashboard</button>
+    <button data-target="fa04" class="nav-btn"><span class="id">FA-04</span>Corporate &amp; Seats</button>
+    <div class="grp">Support</div>
+    <button data-target="s02" class="nav-btn"><span class="id">S-02</span>Ticket Detail</button>
+    <div class="grp">Super Admin</div>
+    <button data-target="sa01" class="nav-btn"><span class="id">SA-01</span>Role &amp; Permission Matrix</button>
+    <button data-target="sa02" class="nav-btn"><span class="id">SA-02</span>User Role Assignment</button>
+    <div class="grp">Reporting &amp; Security</div>
+    <button data-target="rpt01" class="nav-btn"><span class="id">RPT</span>Report Centre</button>
+    <button data-target="sec03" class="nav-btn"><span class="id">SEC</span>Session / Security</button>
+    <div class="grp">Mobile</div>
+    <button data-target="mob01" class="nav-btn"><span class="id">MOB</span>Adaptation Notes</button>
+  </nav>
+
+  <main class="main">
+
+    <!-- G-02 Course Detail -->
+    <section class="screen" id="g02">
+      <div class="titlebar"><h2>G-02 · Course Detail Page</h2><span class="req">REQ-CAT-2</span></div>
+      <div class="subtitle">Guest / Public — shows eligibility and required documents up front, before Apply</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g2" style="grid-template-columns:2fr 1fr;">
+            <div>
+              <div class="wf-line w80" style="height:16px;"></div>
+              <div class="wf-tag">Doctor · Nurse eligible</div><div class="wf-tag">6 months</div><div class="wf-tag">Cohort</div>
+              <div class="wf-img" style="height:140px;margin:12px 0;">hero image</div>
+              <div class="wf-h">Overview</div>
+              <div class="wf-line w100"></div><div class="wf-line w100"></div><div class="wf-line w60"></div>
+              <div class="wf-h" style="margin-top:14px;">Syllabus / Module Summary</div>
+              <div class="wf-box wf-dashed" style="margin-bottom:6px;">Module 1 — Foundations of Metabolic Health</div>
+              <div class="wf-box wf-dashed" style="margin-bottom:6px;">Module 2 — Clinical Assessment</div>
+              <div class="wf-box wf-dashed">Module 3 — Management Plans …</div>
+              <div class="wf-h" style="margin-top:14px;">Required Documents</div>
+              <div class="wf-line w60"></div><div class="wf-line w40"></div>
+            </div>
+            <div>
+              <div class="wf-box" style="text-align:center;">
+                <div class="wf-label">Fee</div>
+                <div style="font-size:20px;font-weight:700;">₹35,000 <span style="font-size:11px;font-weight:400;color:var(--muted);">inclusive of GST</span></div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px;">Base ₹29,661 + GST ₹5,339</div>
+                <div class="wf-line w60" style="margin:10px auto;"></div>
+                <a class="wf-btn primary" style="width:100%;display:block;margin-top:8px;">Apply Now</a>
+                <div style="font-size:10px;color:var(--muted);margin-top:8px;">Next batch: Jul 2026</div>
+              </div>
+              <div class="wf-box" style="margin-top:14px;">
+                <div class="wf-label">Certificate</div>
+                <div class="wf-line w80"></div><div class="wf-line w60"></div>
+              </div>
+              <div class="wf-box" style="margin-top:14px;">
+                <div class="wf-label">Refund Policy</div>
+                <div class="wf-line w100"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Eligibility &amp; required documents shown before Apply, so an ineligible visitor self-selects out early.</li>
+        <li>Fee/Certificate/Refund panel is CourseVersion-driven — must re-render if the published version changes.</li>
+        <li><b>Pricing display fixed:</b> the headline price is always the GST-inclusive total (matches what Checkout actually charges), with the base+GST breakdown shown smaller beneath it — never "+GST" as a suffix, which implied GST was additional and conflicted with Checkout's inclusive total.</li>
+      </ul></div>
+    </section>
+
+    <!-- G-06 Certificate Verification -->
+    <section class="screen" id="g06">
+      <div class="titlebar"><h2>G-06 · Public Certificate Verification</h2><span class="req">REQ-CERT-4</span></div>
+      <div class="subtitle">Guest / Public — reached via QR code or manual certificate number entry</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body" style="max-width:480px;margin:0 auto;text-align:center;">
+          <div class="wf-h">Verify a Certificate</div>
+          <div class="wf-input" style="width:100%;text-align:left;margin:10px 0;">Enter certificate number…</div>
+          <a class="wf-btn primary">Verify</a>
+          <div class="wf-box" style="margin-top:20px;text-align:left;">
+            <span class="pill ok">Valid</span>
+            <div class="wf-line w60" style="margin-top:10px;"></div>
+            <div class="wf-line w40"></div>
+            <table class="wf-table" style="margin-top:10px;">
+              <tr><td>Learner</td><td>J. Sharma</td></tr>
+              <tr><td>Course</td><td>Diploma in Metabolic Health</td></tr>
+              <tr><td>Type</td><td>Completion — Grade A</td></tr>
+              <tr><td>Issued</td><td>12 Jun 2026</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Only validity, name, course, type, grade, issue date, revoked status — no contact details (REQ-CERT-4).</li>
+      </ul></div>
+    </section>
+
+    <!-- A-03 Application Start / Batch Select -->
+    <section class="screen" id="a03">
+      <div class="titlebar"><h2>A-03 · Application Start / Batch Select</h2><span class="req">REQ-APP-1, REQ-CRS-4</span></div>
+      <div class="subtitle">Applicant — the point where a learner picks the CourseVersion+Batch pair their Application will bind to</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="wf-h">Diploma in Metabolic Health</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Choose a batch to apply to</div>
+          <table class="wf-table">
+            <tr><th></th><th>Batch</th><th>Version</th><th>Starts</th><th>Seats</th><th></th></tr>
+            <tr>
+              <td><input type="radio" name="batch" checked></td><td>July 2026 Cohort</td><td>v2</td><td>01 Jul 2026</td><td>42 / 60 open</td>
+              <td><a class="wf-btn ghost">Details</a></td>
+            </tr>
+            <tr>
+              <td><input type="radio" name="batch"></td><td>January 2027 Cohort</td><td>v2</td><td>15 Jan 2027</td><td>60 / 60 open</td>
+              <td><a class="wf-btn ghost">Details</a></td>
+            </tr>
+            <tr style="color:var(--muted);">
+              <td><input type="radio" name="batch" disabled></td><td>January 2026 Cohort</td><td>v1 (closed)</td><td>Started</td><td><span class="pill bad">Full — waitlist only</span></td>
+              <td><a class="wf-btn ghost">Join waitlist</a></td>
+            </tr>
+          </table>
+          <a class="wf-btn primary" style="margin-top:14px;display:inline-block;">Continue to Application</a>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Application.course_version_id and batch_id are both fixed at this step (REQ-CRS-4) — a learner is applying to a specific version's rules and a specific batch's dates, not to "the course" abstractly.</li>
+        <li>A closed/full batch on an older version still shown (greyed) rather than hidden, with a direct path to A-08 Waitlist Status — avoids a confusing disappearance of a batch a learner may have been told about directly.</li>
+      </ul></div>
+    </section>
+
+    <!-- A-04 Document Upload -->
+    <section class="screen" id="a04">
+      <div class="titlebar"><h2>A-04 · Document Upload &amp; Status Tracker</h2><span class="req">REQ-DOC-1/2 · REQ-REV-1 · §8.2–8.4</span></div>
+      <div class="subtitle">Applicant — one row per CourseDocumentRequirement, live status per document</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="toolbar">
+            <span style="font-size:11px;color:var(--muted);">Admission Mode (set by CourseVersion, shown here to demonstrate the stepper is generated, not fixed):</span>
+            <span>
+              <span class="wf-btn ghost mode-btn on" data-mode="A">Mode A</span>
+              <span class="wf-btn ghost mode-btn" data-mode="B">Mode B</span>
+              <span class="wf-btn ghost mode-btn" data-mode="C">Mode C</span>
+            </span>
+          </div>
+          <div class="stepper" id="a04-stepper">
+            <div class="step done">Profile</div><div class="step now">Documents</div><div class="step">Payment</div><div class="step">Admitted</div>
+          </div>
+          <table class="wf-table">
+            <tr><th>Document</th><th>Status</th><th>Action</th></tr>
+            <tr><td>MBBS Degree Certificate</td><td><span class="pill ok">Approved</span></td><td><span class="wf-btn ghost">View</span></td></tr>
+            <tr><td>Medical Council Registration</td><td><span class="pill bad">Rejected — Name Mismatch</span></td><td><span class="wf-btn ghost">Resubmit</span></td></tr>
+            <tr><td>Government ID Proof</td><td><span class="pill warn">Under Review</span></td><td><span class="wf-btn ghost">View</span></td></tr>
+          </table>
+          <div class="wf-box wf-dashed" style="margin-top:14px;">
+            <div class="wf-label">Resubmit — Medical Council Registration</div>
+            <div class="wf-img" style="height:70px;margin:8px 0;">drag file / browse</div>
+            <a class="wf-btn primary">Upload</a>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Stepper sequence is <b>derived from CourseVersion.admission_mode</b> at render time — Mode A: Profile → Documents → Payment → Admitted; Mode B: Profile → Payment → Documents → Admitted; Mode C: Profile → Payment → Admitted (no Documents step at all). Click the mode buttons above to see the sequence change.</li>
+        <li>Rejection reason + corrective instruction shown per REQ-REV-3 wording, not just "Rejected."</li>
+        <li>Resubmission count against REQ-REV-3's default cap of 5 should be visible to Applicant near the limit, not only to the Reviewer.</li>
+      </ul></div>
+    </section>
+
+    <!-- A-06 Checkout -->
+    <section class="screen" id="a06">
+      <div class="titlebar"><h2>A-06 · Checkout / Payment</h2><span class="req">REQ-PAY-1–7</span></div>
+      <div class="subtitle">Applicant — this screen only appears once Application status = Payment Pending</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g2">
+            <div>
+              <div class="wf-h">Payment Method</div>
+              <div class="wf-box" style="margin-bottom:8px;">◉ UPI</div>
+              <div class="wf-box" style="margin-bottom:8px;">○ Debit / Credit Card</div>
+              <div class="wf-box" style="margin-bottom:8px;">○ Net Banking</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:6px;">Gateway: Razorpay (auto-selected)</div>
+              <a class="wf-btn primary" style="margin-top:16px;display:inline-block;">Pay ₹35,000</a>
+            </div>
+            <div class="wf-box">
+              <div class="wf-label">Order Summary <span style="font-weight:400;text-transform:none;color:var(--muted);">(GST-inclusive total)</span></div>
+              <div class="wf-line w80"></div><div class="wf-line w60"></div>
+              <table class="wf-table" style="margin-top:8px;">
+                <tr><td>Base fee</td><td>₹29,661</td></tr>
+                <tr><td>GST (18%)</td><td>₹5,339</td></tr>
+                <tr><td><b>Total</b></td><td><b>₹35,000</b></td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Confirmation screen must not fire on browser redirect alone — waits for server-side webhook (REQ-PAY-3). Show a "Confirming payment…" state, not a fake success flash.</li>
+        <li>Payment.application_id is set here; enrolment_id stays null until Admission (Section 8).</li>
+      </ul></div>
+    </section>
+
+    <!-- A-08 Waitlist Status -->
+    <section class="screen" id="a08">
+      <div class="titlebar"><h2>A-08 · Waitlist Status</h2><span class="req">REQ-BATCH-4, WaitlistEntry</span></div>
+      <div class="subtitle">Applicant — time-sensitive: the 48-hour offer window is the whole point of this screen</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body" style="text-align:center;max-width:480px;margin:0 auto;">
+          <div class="wf-box">
+            <span class="pill warn">Waiting — position 3</span>
+            <div class="wf-line w60" style="margin:12px auto;"></div>
+            <div style="font-size:12px;color:var(--muted);">You'll be notified automatically if a seat opens.</div>
+          </div>
+          <div class="wf-box" style="margin-top:14px;background:#f3ecd8;">
+            <span class="pill warn">⏱ Seat offered — expires in 31:24:07</span>
+            <div class="wf-line w80" style="margin:10px auto;"></div>
+            <a class="wf-btn primary" style="margin-top:6px;display:inline-block;">Accept Seat &amp; Continue</a>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Two states shown stacked here for the wireframe; in the product only one applies at a time: plain "waiting" (no clock), or "offered" (countdown visible, default 48h per REQ-BATCH-4).</li>
+        <li>Countdown must be a server-computed deadline shown client-side, not a client-started timer — otherwise closing the tab and reopening resets a clock that shouldn't reset.</li>
+        <li>If the offer lapses unaccepted, WaitlistEntry.status → Expired and the seat rolls to the next position automatically (REQ-BATCH-4/5).</li>
+      </ul></div>
+    </section>
+
+    <!-- A-09 Payment Status -->
+    <section class="screen" id="a09">
+      <div class="titlebar"><h2>A-09 · Payment Status</h2><span class="req">REQ-PAY-3/4/7 · REQ-REFUND-3</span></div>
+      <div class="subtitle">Applicant/Learner — one screen, state-specific variants (click a state below)</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+            <span class="wf-btn ghost pay-state-btn on" data-state="pending">Pending</span>
+            <span class="wf-btn ghost pay-state-btn" data-state="success">Successful</span>
+            <span class="wf-btn ghost pay-state-btn" data-state="failed">Failed</span>
+            <span class="wf-btn ghost pay-state-btn" data-state="cancelled">Cancelled</span>
+            <span class="wf-btn ghost pay-state-btn" data-state="reconcile">Reconciliation Pending</span>
+            <span class="wf-btn ghost pay-state-btn" data-state="duplicate">Duplicate Detected</span>
+            <span class="wf-btn ghost pay-state-btn" data-state="refund-req">Refund Requested</span>
+            <span class="wf-btn ghost pay-state-btn" data-state="refund-proc">Refund Processing</span>
+            <span class="wf-btn ghost pay-state-btn" data-state="refund-failed">Refund Failed</span>
+            <span class="wf-btn ghost pay-state-btn" data-state="refund-done">Refund Completed</span>
+          </div>
+          <div class="wf-box" style="text-align:center;padding:30px;">
+            <div id="pay-state-pill" style="margin-bottom:10px;"><span class="pill warn">⏳ Confirming your payment…</span></div>
+            <div id="pay-state-msg" class="wf-line w60" style="margin:0 auto;"></div>
+            <div id="pay-state-sub" class="wf-line w40" style="margin:8px auto 16px;"></div>
+            <div id="pay-state-action"><a class="wf-btn ghost">Refresh status</a></div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>One screen, one layout — only the pill, message, and next action change per Payment.status / Refund.status (Section 9.1/9.4). Avoids building 10 near-duplicate screens.</li>
+        <li>Duplicate Detected and Reconciliation Pending both need a support-ticket shortcut (REQ-SUP-1), not just "try again" — a learner shouldn't be told to re-pay when the system itself is unsure.</li>
+      </ul></div>
+    </section>
+
+    <!-- L-01 Learner Dashboard -->
+    <section class="screen" id="l01">
+      <div class="titlebar"><h2>L-01 · Learner Dashboard</h2><span class="req">REQ-DASH-LRN-1</span></div>
+      <div class="subtitle">Active Learner — landing page after login</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g3">
+            <div class="wf-box"><div class="wf-label">Continue</div><div class="wf-line w80"></div><div class="wf-line w60"></div><a class="wf-btn primary" style="margin-top:8px;display:inline-block;">Resume Module 4</a></div>
+            <div class="wf-box"><div class="wf-label">Assessments Due</div><div class="wf-line w60"></div><div class="wf-line w40"></div></div>
+            <div class="wf-box"><div class="wf-label">Access Expires</div><div class="wf-line w40"></div></div>
+          </div>
+          <div class="wf-h" style="margin-top:16px;">My Courses</div>
+          <table class="wf-table">
+            <tr><th>Course</th><th>Progress</th><th>Status</th></tr>
+            <tr><td>Diploma in Metabolic Health</td><td>■■■■□□□□ 45%</td><td><span class="pill ok">Active</span></td></tr>
+            <tr><td>Obesity Basics (4-hr)</td><td>■■■■■■■■ 100%</td><td><span class="pill ok">Completed</span></td></tr>
+          </table>
+          <div class="wf-label" style="margin-top:18px;">Course Card — State Variants (same dashboard, different lifecycle_status)</div>
+          <div class="grid g3" style="margin-top:6px;">
+            <div class="wf-box"><span class="pill warn">Scheduled</span><div class="wf-line w80" style="margin-top:6px;"></div><div style="font-size:11px;color:var(--muted);">Admitted · begins in 12 days · orientation material available</div></div>
+            <div class="wf-box"><span class="pill bad">Suspended</span><div class="wf-line w80" style="margin-top:6px;"></div><div style="font-size:11px;color:var(--muted);">Contact support to resolve</div></div>
+            <div class="wf-box"><span class="pill bad">Access Expired</span><div class="wf-line w80" style="margin-top:6px;"></div><div style="font-size:11px;color:var(--muted);">Extension available — request</div></div>
+            <div class="wf-box"><span class="pill bad">Withdrawn</span><div class="wf-line w80" style="margin-top:6px;"></div><div style="font-size:11px;color:var(--muted);">Refund status: Processing</div></div>
+            <div class="wf-box"><span class="pill warn">Batch Cancelled</span><div class="wf-line w80" style="margin-top:6px;"></div><div style="font-size:11px;color:var(--muted);">Transfer to another batch, or refund</div></div>
+            <div class="wf-box"><span class="pill ok">Transferred</span><div class="wf-line w80" style="margin-top:6px;"></div><div style="font-size:11px;color:var(--muted);">Now in: October 2026 Cohort</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Progress bar reads from ContentProgress, not inferred from last login.</li>
+        <li>Scheduled must not look like Active — no "Resume" CTA, no content links; instead shows start date, orientation material, and upcoming-session calendar (Section 8.1, REQ-ENR-1). The other variants above are deliberately kept as one card component with a status-driven body, not six separate screens.</li>
+      </ul></div>
+    </section>
+
+    <!-- F-02 Learner List & Progress -->
+    <section class="screen" id="f02">
+      <div class="titlebar"><h2>F-02 · Learner List &amp; Progress</h2><span class="req">REQ-DASH-FAC-1</span></div>
+      <div class="subtitle">Faculty — the primary intervention view for a six-month cohort</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="toolbar">
+            <span style="font-size:12px;">Batch: <b>July 2026 Cohort</b> (58 learners)</span>
+            <span><span class="wf-btn ghost">Filter: At-risk only</span> <span class="wf-btn ghost">Export</span></span>
+          </div>
+          <table class="wf-table">
+            <tr><th>Learner</th><th>Progress</th><th>Attendance</th><th>Last Active</th><th>Flag</th></tr>
+            <tr><td>J. Sharma</td><td>■■■■□□□□ 45%</td><td>92%</td><td>2 days ago</td><td>—</td></tr>
+            <tr><td>P. Verma</td><td>■□□□□□□□ 12%</td><td>60%</td><td>19 days ago</td><td><span class="pill bad">At risk</span></td></tr>
+            <tr><td>A. Iyer</td><td>■■■■■■□□ 78%</td><td>100%</td><td>Today</td><td>—</td></tr>
+            <tr><td>R. Nair</td><td>■■□□□□□□ 22%</td><td>40%</td><td>31 days ago</td><td><span class="pill bad">At risk</span></td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>"At risk" is computed from low progress + low attendance + inactivity together, not any single signal — worth confirming the exact thresholds with the academy rather than hard-coding one.</li>
+        <li>This view drives real intervention over six months, so it needs to be a Faculty default landing tab, not buried under a batch-detail click.</li>
+      </ul></div>
+    </section>
+
+    <!-- F-04 Question Bank Contribution -->
+    <section class="screen" id="f04">
+      <div class="titlebar"><h2>F-04 · Question Bank Contribution</h2><span class="req">REQ-EVAL-1/2</span></div>
+      <div class="subtitle">Faculty — proposes questions; does not publish them directly into a live assessment</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g2">
+            <div>
+              <div class="wf-label">My Proposed Questions</div>
+              <div class="wf-box" style="margin-bottom:6px;">Q214 — Metabolic syndrome criteria <span class="pill warn" style="float:right;">Pending review</span></div>
+              <div class="wf-box" style="margin-bottom:6px;">Q215 — GLP-1 mechanism <span class="pill ok" style="float:right;">Approved</span></div>
+              <div class="wf-box">Q216 — Case: insulin resistance <span class="pill bad" style="float:right;">Sent back</span></div>
+            </div>
+            <div>
+              <div class="wf-label">New Question</div>
+              <div class="wf-input" style="height:50px;margin-bottom:6px;">Question text…</div>
+              <div class="wf-box" style="margin-bottom:4px;">○ Option A</div>
+              <div class="wf-box" style="margin-bottom:4px;">● Option B (correct)</div>
+              <div class="wf-box" style="margin-bottom:4px;">○ Option C</div>
+              <div class="grid g2" style="margin-top:8px;">
+                <div><div class="wf-label">Difficulty</div><div class="wf-input">Medium</div></div>
+                <div><div class="wf-label">Topic</div><div class="wf-input">Pharmacology</div></div>
+              </div>
+              <a class="wf-btn primary" style="margin-top:10px;display:inline-block;">Submit for Review</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Faculty-authored questions land in review_status = Pending (Question entity, Section 17.4), not active=true directly — a Course Administrator or peer reviewer approves before it can be drawn into a live question pool.</li>
+      </ul></div>
+    </section>
+
+    <!-- E-01 Manual Grading Queue -->
+    <section class="screen" id="e01">
+      <div class="titlebar"><h2>E-01 · Manual Grading / Feedback Queue</h2><span class="req">REQ-GRADE-6</span></div>
+      <div class="subtitle">Academic Evaluator — non-MCQ marks, feedback, pass/fail recommendation</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g2">
+            <div>
+              <div class="wf-label">Queue</div>
+              <div class="wf-box on" style="background:#eee;margin-bottom:6px;">J. Sharma — Case Response 3 <span class="pill warn" style="float:right;">Pending</span></div>
+              <div class="wf-box" style="margin-bottom:6px;">P. Verma — Case Response 3 <span class="pill warn" style="float:right;">Pending</span></div>
+              <div class="wf-box">A. Iyer — Case Response 3 <span class="pill ok" style="float:right;">Graded</span></div>
+            </div>
+            <div>
+              <div class="wf-label">Submission — J. Sharma</div>
+              <div class="wf-box wf-dashed" style="margin-bottom:10px;height:90px;">learner's written response…</div>
+              <div class="wf-label">Marks (out of 20)</div>
+              <div class="wf-input" style="margin-bottom:8px;">16</div>
+              <div class="wf-label">Feedback</div>
+              <div class="wf-input" style="height:50px;margin-bottom:8px;">Write feedback…</div>
+              <a class="wf-btn primary">Submit Grade</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Every manual grade entry writes to AuditLog (original value, revised value, reason, authoriser — REQ-GRADE-6), so a later change is traceable.</li>
+      </ul></div>
+    </section>
+
+    <!-- L-02 Course Player -->
+    <section class="screen" id="l02">
+      <div class="titlebar"><h2>L-02 · Course Player</h2><span class="req">REQ-MOD-2–4 · ContentProgress</span></div>
+      <div class="subtitle">Active Learner — module navigation with sequential lock indicator</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g-side">
+            <div class="sidebar-nav">
+              <div class="item on">✓ Module 1 — Foundations</div>
+              <div class="item on">✓ Module 2 — Assessment</div>
+              <div class="item">▶ Module 3 — Clinical Cases</div>
+              <div class="item" style="color:#aaa;">🔒 Module 4 (locked)</div>
+            </div>
+            <div>
+              <div class="wf-img" style="height:220px;">video player — resume 04:12</div>
+              <div class="wf-line w100" style="margin-top:10px;"></div>
+              <div class="wf-line w60"></div>
+              <a class="wf-btn ghost" style="margin-top:10px;display:inline-block;">Mark Complete</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Module 4 shown locked, not hidden — learner should see what's coming even if release rule delays it (REQ-MOD-3).</li>
+      </ul></div>
+    </section>
+
+    <!-- L-04 Assessment Attempt -->
+    <section class="screen" id="l04">
+      <div class="titlebar"><h2>L-04 · Assessment Attempt Screen</h2><span class="req">REQ-EVAL-1–4, REQ-EVAL-6</span></div>
+      <div class="subtitle">Active Learner — timed MCQ, autosave, one active attempt at a time</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="toolbar">
+            <span class="pill warn">⏱ 18:32 remaining</span>
+            <span style="font-size:12px;color:var(--muted);">Question 6 of 20</span>
+          </div>
+          <div class="wf-box">
+            <div class="wf-line w100"></div><div class="wf-line w80"></div>
+            <div style="margin-top:12px;">
+              <div class="wf-box" style="margin-bottom:6px;">○ Option A</div>
+              <div class="wf-box" style="margin-bottom:6px;">● Option B</div>
+              <div class="wf-box" style="margin-bottom:6px;">○ Option C</div>
+              <div class="wf-box">○ Option D</div>
+            </div>
+          </div>
+          <div class="toolbar" style="margin-top:14px;">
+            <span class="wf-btn ghost">🚩 Flag for review</span>
+            <span><span class="wf-btn ghost">Previous</span> <span class="wf-btn primary">Next</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Every answer writes an AssessmentResponse immediately (REQ-EVAL-7), not just on final submit — this is what autosave actually persists.</li>
+        <li>Flag icon is per-question, session-scoped only (REQ-EVAL-6) — not a permanent dispute marker.</li>
+      </ul></div>
+    </section>
+
+    <!-- L-05 Assessment Result / Review -->
+    <section class="screen" id="l05">
+      <div class="titlebar"><h2>L-05 · Assessment Result / Review</h2><span class="req">REQ-EVAL-5, REQ-GRADE-4</span></div>
+      <div class="subtitle">Active Learner — shown after submission; per-question review only where the assessment enables it</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="wf-box" style="text-align:center;margin-bottom:14px;">
+            <span class="pill ok">Passed — 17 / 20 (85%)</span>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px;">Attempt 1 of 3 · counts as: Highest attempt</div>
+          </div>
+          <div class="wf-label">Answer Review</div>
+          <table class="wf-table">
+            <tr><th>#</th><th>Your Answer</th><th>Result</th></tr>
+            <tr><td>4</td><td>Option B</td><td><span class="pill ok">Correct</span></td></tr>
+            <tr><td>5</td><td>Option A</td><td><span class="pill bad">Incorrect — correct: Option C</span></td></tr>
+            <tr><td>6</td><td>Option B</td><td><span class="pill ok">Correct</span></td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Answer Review section renders only if the Assessment's "show correct answers/explanations" setting (REQ-EVAL-2) is on — otherwise this screen shows the score alone.</li>
+        <li>Reads directly from AssessmentResponse per question (REQ-EVAL-5/7), including question_version_shown — so a later question-bank edit can't silently change what this review displays for a past attempt.</li>
+      </ul></div>
+    </section>
+
+    <!-- L-06 Certificates -->
+    <section class="screen" id="l06">
+      <div class="titlebar"><h2>L-06 · Certificates Page</h2><span class="req">REQ-CERT-1–3</span></div>
+      <div class="subtitle">Active Learner — both certificate types may exist per enrolment</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g2">
+            <div class="wf-box">
+              <div class="wf-label">Certificate of Participation</div>
+              <div class="wf-img" style="height:120px;margin:8px 0;">certificate preview</div>
+              <a class="wf-btn ghost">Download PDF</a> <a class="wf-btn ghost">Copy verify link</a>
+            </div>
+            <div class="wf-box">
+              <div class="wf-label">Certificate of Completion — Grade A</div>
+              <div class="wf-img" style="height:120px;margin:8px 0;">certificate preview</div>
+              <a class="wf-btn ghost">Download PDF</a> <a class="wf-btn ghost">Copy verify link</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Certificate name shown here must match the learner's confirmed certificate name (REQ-PROF-1) — flag for correction request if it doesn't, rather than silently using account name.</li>
+      </ul></div>
+    </section>
+
+    <!-- R-01 Document Review Queue -->
+    <section class="screen" id="r01">
+      <div class="titlebar"><h2>R-01 · Document Review Queue</h2><span class="req">REQ-REV-1, REQ-DASH-VER-1</span></div>
+      <div class="subtitle">Credential Reviewer — turnaround SLA depends on this screen, not just the detail view</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="toolbar">
+            <span><span class="wf-btn ghost">Sort: Oldest first ▾</span> <span class="wf-btn ghost">Filter ▾</span> <span class="wf-btn ghost">Profession ▾</span></span>
+            <span><span class="wf-btn ghost">Bulk assign</span></span>
+          </div>
+          <table class="wf-table">
+            <tr><th><input type="checkbox"></th><th>Applicant</th><th>Course / Batch</th><th>Doc Type</th><th>SLA Age</th><th>Resub?</th><th>Assigned</th><th>Flags</th></tr>
+            <tr><td><input type="checkbox"></td><td>J. Sharma</td><td>Diploma · Jul'26</td><td>MBBS Degree</td><td class="pill bad">51h</td><td>—</td><td>—</td><td><span class="pill bad">Escalated</span></td></tr>
+            <tr><td><input type="checkbox"></td><td>P. Verma</td><td>Diploma · Jul'26</td><td>Council Reg.</td><td class="pill warn">30h</td><td>2nd</td><td>R. Iyer</td><td>—</td></tr>
+            <tr><td><input type="checkbox"></td><td>A. Nair</td><td>Obesity Basics</td><td>ID Proof</td><td>4h</td><td>—</td><td>—</td><td>—</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>SLA Age is the default sort, not just a column — the 48-hour target (REQ-REV-6 in SRS v5, folded into REQ-DASH-VER-1) is only meetable if the queue surfaces the oldest item first by default.</li>
+        <li>Resubmission indicator and Escalation flag both need to visually outrank a plain "new" item — a reviewer scanning quickly should catch these before working top-to-bottom.</li>
+        <li>Bulk assignment is for routing to reviewers, not bulk-approving — approval always stays a per-document decision (REQ-REV-1).</li>
+      </ul></div>
+    </section>
+
+    <!-- R-02 Document Review Detail -->
+    <section class="screen" id="r02">
+      <div class="titlebar"><h2>R-02 · Document Review Detail</h2><span class="req">REQ-REV-1/2 · REQ-DOC-4</span></div>
+      <div class="subtitle">Credential Reviewer — inline preview, no download required</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g2">
+            <div>
+              <div class="wf-img" style="height:280px;">document preview (zoomable, signed URL)</div>
+            </div>
+            <div>
+              <div class="wf-label">Applicant Profile (for comparison)</div>
+              <table class="wf-table" style="margin-bottom:14px;">
+                <tr><td>Name</td><td>J. Sharma</td></tr>
+                <tr><td>Registration No.</td><td>MH-2019-04471</td></tr>
+              </table>
+              <div class="wf-label">Decision</div>
+              <a class="wf-btn primary" style="margin-bottom:6px;display:inline-block;">Approve</a><br>
+              <a class="wf-btn ghost" style="margin-bottom:10px;display:inline-block;">Reject</a>
+              <div class="wf-input" style="margin-bottom:6px;">Reason: Select…</div>
+              <div class="wf-input" style="height:50px;">Learner-facing instructions…</div>
+              <div class="wf-input" style="height:40px;margin-top:6px;background:#f5f0e2;">Private internal note…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Rejection is blocked until a Reason is selected (REQ-REV-1) — no free-text-only rejections.</li>
+        <li>Internal note field is visually distinguished (tinted) to reinforce it is never learner-visible.</li>
+      </ul></div>
+    </section>
+
+    <!-- CA-02 Course Version Builder -->
+    <section class="screen" id="ca02">
+      <div class="titlebar"><h2>CA-02 · Course Version Builder</h2><span class="req">REQ-CRS-2/5, REQ-ELIG-1, REQ-DOC-1</span></div>
+      <div class="subtitle">Course Administrator — the most complex admin workflow in the app; built as a 9-step wizard, not one long form</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid" style="grid-template-columns:210px 1fr;gap:20px;">
+            <div class="sidebar-nav">
+              <div class="item">1 · Course Identity</div>
+              <div class="item">2 · Version Overview</div>
+              <div class="item on">3 · Eligibility</div>
+              <div class="item">4 · Required Documents</div>
+              <div class="item">5 · Curriculum</div>
+              <div class="item">6 · Assessments &amp; Grading</div>
+              <div class="item">7 · Certificates</div>
+              <div class="item">8 · Pricing</div>
+              <div class="item">9 · Review &amp; Publish</div>
+            </div>
+            <div>
+              <div class="wf-h">Step 3 — Eligibility Rules</div>
+              <div class="wf-box wf-dashed" style="margin-bottom:8px;">
+                <span class="wf-tag">Profession</span> = <span class="wf-tag">Doctor</span>
+                <span style="font-weight:700;margin:0 6px;">AND</span>
+                <span class="wf-tag">Registration Validity</span> = <span class="wf-tag">Not Expired</span>
+              </div>
+              <div class="wf-box wf-dashed" style="margin-bottom:8px;color:var(--muted);">
+                <span style="font-weight:700;">OR</span> group — <span class="wf-tag">Experience</span> ≥ <span class="wf-tag">2 years</span>
+              </div>
+              <a class="wf-btn ghost">+ Add rule</a>
+              <div style="margin-top:20px;display:flex;justify-content:space-between;">
+                <a class="wf-btn ghost">← 2 · Version Overview</a>
+                <a class="wf-btn primary">4 · Required Documents →</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Each step is its own screen state with its own validation — a Course Admin should be able to save-and-exit mid-wizard (e.g., stop after Eligibility) and resume later, rather than losing progress if Curriculum isn't ready yet.</li>
+        <li>Step 9 (Review &amp; Publish) shows a full read-only summary of steps 1–8 before the CourseVersion.status can move to Published — this is the only path that flips that status (REQ-CRS-2).</li>
+        <li>Eligibility (step 3) and Required Documents (step 4) both write to standalone EligibilityRule / CourseDocumentRequirement records per rule/document, not a single textarea — the AND/OR builder above is the concrete shape of that.</li>
+        <li>This wizard produces a new CourseVersion; it never edits a version that already has Applications against it (REQ-CRS-3) — editing after that point requires creating Version N+1.</li>
+      </ul></div>
+    </section>
+
+    <!-- CA-03 Batch Builder -->
+    <section class="screen" id="ca03">
+      <div class="titlebar"><h2>CA-03 · Batch Builder / Scheduler</h2><span class="req">REQ-BATCH-1–5 · REQ-CRS-4</span></div>
+      <div class="subtitle">Course Administrator — a Batch always points at one CourseVersion</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g2">
+            <div>
+              <div class="wf-label">Course Version</div>
+              <div class="wf-input">Diploma in Metabolic Health — v2 (Published)</div>
+              <div class="wf-label" style="margin-top:10px;">Batch Name</div>
+              <div class="wf-input">July 2026 Cohort</div>
+              <div class="grid g2" style="margin-top:10px;">
+                <div><div class="wf-label">Start Date</div><div class="wf-input">01 Jul 2026</div></div>
+                <div><div class="wf-label">End Date</div><div class="wf-input">31 Dec 2026</div></div>
+              </div>
+              <div class="grid g2" style="margin-top:10px;">
+                <div><div class="wf-label">Min Capacity</div><div class="wf-input">15</div></div>
+                <div><div class="wf-label">Max Capacity</div><div class="wf-input">60</div></div>
+              </div>
+            </div>
+            <div>
+              <div class="wf-label">Fee Override</div>
+              <div class="wf-input">Use CourseVersion standard fee (₹35,000)</div>
+              <div class="wf-label" style="margin-top:10px;">Faculty Assigned</div>
+              <div class="wf-box wf-dashed">Dr. R. Iyer, Dr. K. Nair</div>
+              <div class="wf-label" style="margin-top:10px;">Waitlist</div>
+              <div class="wf-box wf-dashed">Enabled — 48hr offer window</div>
+              <a class="wf-btn primary" style="margin-top:14px;display:inline-block;">Publish Batch</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Course Version selector is locked once the batch has any Application against it (REQ-CRS-3/4).</li>
+        <li>Below-minimum-capacity handling at enrolment close surfaces here as a decision prompt, not a silent auto-cancel (REQ-BATCH-3).</li>
+      </ul></div>
+    </section>
+
+    <!-- CA-04 Module Builder -->
+    <section class="screen" id="ca04">
+      <div class="titlebar"><h2>CA-04 · Module &amp; Content Builder</h2><span class="req">REQ-MOD-1–4</span></div>
+      <div class="subtitle">Course Administrator — reorderable module list within a CourseVersion</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="wf-box" style="margin-bottom:6px;display:flex;align-items:center;gap:10px;">
+            <span style="cursor:grab;color:var(--muted);">⠿⠿</span> <b>1 · Foundations of Metabolic Health</b>
+            <span class="wf-tag" style="margin-left:auto;">Mandatory</span><span class="wf-tag">Immediate release</span>
+          </div>
+          <div class="wf-box" style="margin-bottom:6px;display:flex;align-items:center;gap:10px;">
+            <span style="cursor:grab;color:var(--muted);">⠿⠿</span> <b>2 · Clinical Assessment</b>
+            <span class="wf-tag" style="margin-left:auto;">Mandatory</span><span class="wf-tag">+14 days after enrolment</span>
+          </div>
+          <div class="wf-box" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;background:#f7f7f7;">
+            <span style="cursor:grab;color:var(--muted);">⠿⠿</span> <b>3 · Management Plans</b>
+            <span class="wf-tag" style="margin-left:auto;">Prereq: Module 2</span><span class="wf-tag">Calendar date</span>
+          </div>
+          <div class="wf-box wf-dashed">
+            <div class="wf-label">Module 2 — settings</div>
+            <div class="grid g2" style="margin-top:6px;">
+              <div><div class="wf-label">Release rule</div><div class="wf-input">+14 days after enrolment activation</div></div>
+              <div><div class="wf-label">Completion rule</div><div class="wf-input">Video ≥ 90% + Assessment submitted</div></div>
+              <div><div class="wf-label">Prerequisite</div><div class="wf-input">Module 1 complete</div></div>
+              <div><div class="wf-label">Mandatory?</div><div class="wf-input">Yes</div></div>
+            </div>
+            <a class="wf-btn ghost" style="margin-top:10px;display:inline-block;">+ Add lesson / content item</a>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Drag handles reorder Module.sequence; reordering after learners are already Active mid-course needs a confirmation step — resequencing isn't purely cosmetic once ContentProgress records exist against the old order.</li>
+        <li>This is where Module belongs to CourseVersion, not Course, actually matters operationally — this whole screen is scoped to one version.</li>
+      </ul></div>
+    </section>
+
+    <!-- CA-05 Assessment Builder -->
+    <section class="screen" id="ca05">
+      <div class="titlebar"><h2>CA-05 · Assessment Builder &amp; Question Bank</h2><span class="req">REQ-EVAL-1/2, REQ-GRADE-1–5</span></div>
+      <div class="subtitle">Course Administrator — not an ordinary CRUD screen; several interacting settings</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g2">
+            <div>
+              <div class="wf-label">Question Bank</div>
+              <div class="wf-box wf-dashed">240 questions tagged "Module 2" <a class="wf-btn ghost" style="float:right;">Browse</a></div>
+              <div class="wf-label" style="margin-top:10px;">Questions per attempt</div>
+              <div class="wf-input">20 of 240 (randomised)</div>
+              <div class="wf-label" style="margin-top:10px;">Attempt controls</div>
+              <div class="grid g2">
+                <div><div class="wf-label">Max attempts</div><div class="wf-input">3</div></div>
+                <div><div class="wf-label">Cooldown</div><div class="wf-input">1h / 24h</div></div>
+              </div>
+            </div>
+            <div>
+              <div class="wf-label">Passing Model (course-level)</div>
+              <div class="wf-box" style="margin-bottom:6px;">○ Model A — every module individually</div>
+              <div class="wf-box" style="margin-bottom:6px;">● Model B — weighted aggregate</div>
+              <div class="wf-box" style="margin-bottom:10px;">○ Model C — combined</div>
+              <div class="wf-label">This assessment's weight</div>
+              <div class="wf-input">15% of final grade</div>
+              <div class="wf-label" style="margin-top:10px;">Formative or graded?</div>
+              <div class="wf-input">Graded — counts toward Completion</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Passing Model is set once at course level (REQ-GRADE-1–3) and every module's weight field should visibly sum toward 100% somewhere on this screen — otherwise an admin can silently create weights that don't add up.</li>
+        <li>Question Bank "Browse" opens Question/QuestionOption management — kept as its own sub-screen since a 240-question bank doesn't belong inline here.</li>
+      </ul></div>
+    </section>
+
+    <!-- CA-08 Certificate Administration -->
+    <section class="screen" id="ca08">
+      <div class="titlebar"><h2>CA-08 · Certificate Administration</h2><span class="req">REQ-CERT-5</span></div>
+      <div class="subtitle">Course Administrator — operational counterpart to the learner's Certificates page (L-06)</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="toolbar">
+            <span style="font-size:12px;">Certificate CERT-88213 — J. Sharma — Completion, Grade A</span>
+            <span class="pill ok">Active</span>
+          </div>
+          <div class="grid g2">
+            <div>
+              <div class="wf-label">Issue History</div>
+              <table class="wf-table">
+                <tr><th>Version</th><th>Reason</th><th>Date</th></tr>
+                <tr><td>v1 (original)</td><td>—</td><td>12 Jun 2026</td></tr>
+                <tr><td>v2 (reissue)</td><td>Name correction</td><td>15 Jun 2026</td></tr>
+              </table>
+            </div>
+            <div>
+              <div class="wf-label">Actions</div>
+              <a class="wf-btn ghost" style="margin-bottom:6px;display:block;">Reissue (with reason)</a>
+              <a class="wf-btn ghost" style="margin-bottom:6px;display:block;">Revoke (with reason)</a>
+              <a class="wf-btn ghost" style="display:block;">View public verification page</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Reissue never deletes the prior version — issue history is preserved and every action reasoned/dated (REQ-CERT-5), matching the general AuditLog pattern used elsewhere.</li>
+        <li>Revoke immediately flips the public verification page (G-06) to a revoked state — that linkage is the whole point of this screen existing separately from L-06.</li>
+      </ul></div>
+    </section>
+
+    <!-- FA-01 Finance Dashboard -->
+    <section class="screen" id="fa01">
+      <div class="titlebar"><h2>FA-01 · Finance Dashboard</h2><span class="req">REQ-DASH-FIN-1</span></div>
+      <div class="subtitle">Finance Administrator — no document/credential visibility (REQ §6.8)</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g3">
+            <div class="wf-box"><div class="wf-label">Revenue (MTD)</div><div style="font-size:20px;font-weight:700;">₹18.4L</div></div>
+            <div class="wf-box"><div class="wf-label">Pending Reconciliation</div><div style="font-size:20px;font-weight:700;">7</div></div>
+            <div class="wf-box"><div class="wf-label">Refunds Open</div><div style="font-size:20px;font-weight:700;">3</div></div>
+          </div>
+          <table class="wf-table" style="margin-top:14px;">
+            <tr><th>Payment</th><th>Course</th><th>Gateway</th><th>Status</th></tr>
+            <tr><td>PMT-88213</td><td>Diploma — Metabolic Health</td><td>Razorpay</td><td><span class="pill ok">Successful</span></td></tr>
+            <tr><td>PMT-88214</td><td>Obesity Basics</td><td>HDFC</td><td><span class="pill warn">Reconciliation Pending</span></td></tr>
+            <tr><td>PMT-88190</td><td>Diploma — Metabolic Health</td><td>Razorpay</td><td><span class="pill bad">Refund — Processing</span></td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>No column here should ever expose uploaded qualification documents — that's a hard permission boundary (REQ-RBAC + PRD §6.8), not just a UI choice.</li>
+      </ul></div>
+    </section>
+
+    <!-- FA-04 Corporate Account & Seat Allocation -->
+    <section class="screen" id="fa04">
+      <div class="titlebar"><h2>FA-04 · Corporate Account &amp; Seat Allocation</h2><span class="req">REQ-CORP-1–3</span></div>
+      <div class="subtitle">Finance Administrator — seat purchase and voucher generation for sponsored enrolment</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="toolbar">
+            <span style="font-size:12px;">City Hospital Group <span class="wf-tag">Agreement #CHG-2026-04</span></span>
+            <a class="wf-btn ghost">+ New Seat Allocation</a>
+          </div>
+          <table class="wf-table">
+            <tr><th>Batch</th><th>Seats Purchased</th><th>Consumed</th><th>Expiry</th><th></th></tr>
+            <tr><td>Diploma — July 2026 Cohort</td><td>20</td><td>14</td><td>31 Aug 2026</td><td><a class="wf-btn ghost">Generate Vouchers</a></td></tr>
+          </table>
+          <div class="wf-box wf-dashed" style="margin-top:12px;">
+            <div class="wf-label">Vouchers — Diploma July 2026 (6 unused)</div>
+            <div style="font-size:12px;font-family:monospace;color:var(--muted);">CHG-4F21-A9 · CHG-4F21-B3 · CHG-4F21-C7 · +3 more</div>
+            <a class="wf-btn ghost" style="margin-top:8px;display:inline-block;">Export list</a>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Redeeming a voucher still routes through the full eligibility + document verification flow (REQ-CORP-3) — this screen only ever removes the payment step for the employee, never the credential check.</li>
+        <li>Consumed count reads live from CorporateSeatAllocation.seats_consumed, not from a separate manual tally, so it can't drift from actual voucher redemptions.</li>
+      </ul></div>
+    </section>
+
+    <!-- S-02 Ticket Detail -->
+    <section class="screen" id="s02">
+      <div class="titlebar"><h2>S-02 · Support Ticket Detail</h2><span class="req">REQ-SUP-3–5, REQ-SUP-7</span></div>
+      <div class="subtitle">Support Executive — internal notes are structurally separated from learner-visible replies</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="toolbar">
+            <span><b>Ticket #4471</b> — Refund Issue</span>
+            <span><span class="wf-btn ghost">Reassign</span> <span class="wf-btn ghost">Reopen</span></span>
+          </div>
+          <div class="wf-box" style="margin-bottom:8px;"><div class="wf-label">Learner message</div><div class="wf-line w80"></div></div>
+          <div class="wf-box" style="margin-bottom:8px;background:#eef3ee;"><div class="wf-label">Learner-visible reply</div><div class="wf-line w60"></div></div>
+          <div class="wf-box" style="margin-bottom:8px;background:#f5f0e2;"><div class="wf-label">Internal note (not visible to learner)</div><div class="wf-line w60"></div></div>
+          <div class="wf-input" style="height:50px;">Write a reply…</div>
+          <div style="margin-top:8px;">
+            <label style="font-size:12px;"><input type="checkbox" checked disabled> Visible to learner</label>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Composer defaults to learner-visible; switching it off (for an internal note) should require a deliberate toggle, not the reverse.</li>
+      </ul></div>
+    </section>
+
+    <!-- SA-01 Role Definition & Permission Matrix -->
+    <section class="screen" id="sa01">
+      <div class="titlebar"><h2>SA-01 · Role Definition &amp; Permission Matrix</h2><span class="req">REQ-RBAC-2/3</span></div>
+      <div class="subtitle">Super Administrator — defines what a Role can do; separate from deciding who holds it (SA-02)</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="toolbar">
+            <span><span class="wf-btn ghost">+ New Role</span> <span class="wf-btn ghost">Clone Role</span></span>
+            <span style="font-size:11px;color:var(--muted);">7 roles assigned to 34 users</span>
+          </div>
+          <table class="wf-table">
+            <tr><th>Permission</th><th>Faculty</th><th>Academic Evaluator</th><th>Credential Reviewer</th><th>Finance Admin</th></tr>
+            <tr><td>view_assigned_batches</td><td>☑</td><td>☑</td><td>☐</td><td>☐</td></tr>
+            <tr><td>enter_grades</td><td>☐</td><td>☑</td><td>☐</td><td>☐</td></tr>
+            <tr><td>approve_reject_documents</td><td>☐</td><td>☐</td><td>☑</td><td>☐</td></tr>
+            <tr><td>view_payment_data</td><td>☐</td><td>☐</td><td>☐</td><td>☑</td></tr>
+            <tr><td>view_qualification_documents <span class="wf-tag" style="background:#f5e0e0;border-color:#c07d7d;">sensitive</span></td><td>☐</td><td>☐</td><td>☑</td><td>☐ <span style="color:#a33;font-size:10px;">⚠ blocked by design (§6.8)</span></td></tr>
+          </table>
+          <div class="wf-box wf-dashed" style="margin-top:12px;">
+            <div class="wf-label">Removing "approve_reject_documents" from Credential Reviewer</div>
+            <div style="font-size:12px;color:var(--muted);">⚠ 6 users hold this role and would lose this permission immediately. 3 documents are currently assigned to reviewers with only this role.</div>
+            <a class="wf-btn ghost" style="margin-top:8px;display:inline-block;">View affected users</a>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Toggling a sensitive permission (view_payment_data, view_qualification_documents) shows an inline warning naming the segregation-of-duties rule it would cross (§3, PRD §6.8) — not just a generic confirm dialog.</li>
+        <li>Impact-of-removal preview (bottom box) queries UserRole/RolePermission before saving, so an admin sees the blast radius before committing — this is the piece a plain CRUD screen wouldn't surface.</li>
+        <li>Every create/clone/edit here writes to AuditLog (Section 17.5), not just the document-review VerificationAuditLog.</li>
+      </ul></div>
+    </section>
+
+    <!-- SA-02 User Role Assignment -->
+    <section class="screen" id="sa02">
+      <div class="titlebar"><h2>SA-02 · User Role Assignment</h2><span class="req">REQ-RBAC-1</span></div>
+      <div class="subtitle">Super Administrator — a User may hold multiple Roles simultaneously</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g2">
+            <div>
+              <div class="wf-label">User: Dr. K. Nair</div>
+              <div class="wf-box" style="margin-bottom:6px;">☑ Faculty</div>
+              <div class="wf-box" style="margin-bottom:6px;">☑ Academic Evaluator</div>
+              <div class="wf-box" style="margin-bottom:6px;">☐ Course Administrator</div>
+              <div class="wf-box">☐ Credential Reviewer</div>
+            </div>
+            <div>
+              <div class="wf-label">Permissions granted (union across roles, read-only here)</div>
+              <div class="wf-tag">view_assigned_batches</div><div class="wf-tag">mark_attendance</div>
+              <div class="wf-tag">enter_grades</div><div class="wf-tag">recommend_reassessment</div>
+              <div style="margin-top:10px;"><a class="wf-btn ghost">Edit permissions in Role Definition (SA-01) →</a></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Multiple roles checked simultaneously is the normal case, not an edge case (REQ-RBAC-1) — checkbox list, not a single dropdown.</li>
+        <li>This screen only assigns/removes Roles for a User; it deliberately cannot edit what a Role grants — that's SA-01, so the two responsibilities (who has a role vs. what a role means) stay separated.</li>
+      </ul></div>
+    </section>
+
+    <!-- RPT-01 Report Centre -->
+    <section class="screen" id="rpt01">
+      <div class="titlebar"><h2>RPT-01 · Report Centre</h2><span class="req">REQ-RPT-1–5</span></div>
+      <div class="subtitle">Shared across Course/Finance/Academic admin roles — reports live here, not only inside individual dashboards</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid" style="grid-template-columns:200px 1fr;gap:16px;">
+            <div class="sidebar-nav">
+              <div class="item on">Applications &amp; Verification</div>
+              <div class="item">Enrolment</div>
+              <div class="item">Academic</div>
+              <div class="item">Finance</div>
+              <div class="item">Certification</div>
+              <div class="item" style="margin-top:14px;color:var(--muted);">↳ Export History</div>
+            </div>
+            <div>
+              <div class="wf-label">Filters</div>
+              <div class="grid g3" style="margin-bottom:10px;">
+                <div class="wf-input">Course ▾</div><div class="wf-input">Date range ▾</div><div class="wf-input">Status ▾</div>
+              </div>
+              <table class="wf-table">
+                <tr><th>Applicant</th><th>Status</th><th>Turnaround</th></tr>
+                <tr><td>J. Sharma</td><td>Rejected — Expired Registration</td><td>36h</td></tr>
+                <tr><td>P. Verma</td><td>Approved</td><td>22h</td></tr>
+              </table>
+              <div class="toolbar" style="margin-top:10px;">
+                <span style="font-size:11px;color:var(--muted);">1,204 rows match this filter</span>
+                <a class="wf-btn primary">Export CSV/Excel</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>Preview renders before export so a filter mistake is caught before generating a large file — Export History becomes relevant once large reports run asynchronously rather than downloading inline.</li>
+      </ul></div>
+    </section>
+
+    <!-- SEC-03 Session/Device Management -->
+    <section class="screen" id="sec03">
+      <div class="titlebar"><h2>SEC-03 · Session / Device Management</h2><span class="req">NFR-SEC-1</span></div>
+      <div class="subtitle">Shared account settings — representative pattern for the Security screen group (Screen Inventory §11)</div>
+      <div class="frame"><div class="frame-bar"><span></span><span></span><span></span></div>
+        <div class="frame-body">
+          <div class="grid g2">
+            <div>
+              <div class="wf-label">Active Sessions</div>
+              <table class="wf-table">
+                <tr><th>Device</th><th>Location</th><th>Last active</th><th></th></tr>
+                <tr><td>Chrome · Windows</td><td>Nagpur, IN</td><td>Now</td><td><span class="pill ok">This device</span></td></tr>
+                <tr><td>Safari · iPhone</td><td>Pune, IN</td><td>2 days ago</td><td><a class="wf-btn ghost">Revoke</a></td></tr>
+              </table>
+            </div>
+            <div>
+              <div class="wf-label">Change Password</div>
+              <div class="wf-input" style="margin-bottom:6px;">Current password</div>
+              <div class="wf-input" style="margin-bottom:6px;">New password</div>
+              <div class="wf-input" style="margin-bottom:10px;">Confirm new password</div>
+              <a class="wf-btn primary">Update Password</a>
+              <div class="wf-label" style="margin-top:14px;">Two-Factor Authentication</div>
+              <div class="wf-box">Status: <b>Enabled</b> (required for this role) <a class="wf-btn ghost" style="float:right;">Reconfigure</a></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><h4>Notes</h4><ul>
+        <li>MFA shown as required (not optional) for Admin/Reviewer/Finance roles per NFR-SEC-1 — the toggle here is "reconfigure," not "enable/disable."</li>
+        <li>Revoking a session should immediately invalidate that device's active token server-side, not just remove it from this list cosmetically.</li>
+      </ul></div>
+    </section>
+
+    <!-- MOB-01 Mobile Adaptation Notes -->
+    <section class="screen" id="mob01">
+      <div class="titlebar"><h2>Mobile Adaptation Notes</h2></div>
+      <div class="subtitle">Cross-cutting responsive patterns — REQ-ACC-2 (fully responsive, no native app at v1)</div>
+      <div class="wf-box" style="max-width:720px;">
+        <div class="wf-h" style="font-size:14px;">1. Try the toggle</div>
+        <p style="font-size:13px;line-height:1.6;">The 🖥 Desktop / 📱 Mobile toggle at the top of this sidebar re-flows every screen in this file live — multi-column grids stack to one column, wizard/module step-lists become horizontally-scrollable strips instead of a fixed side rail, and dense tables scroll horizontally rather than clipping. It's a simulation for review purposes, not production breakpoint code, but the patterns it demonstrates are the ones to build against.</p>
+        <div class="wf-h" style="font-size:14px;margin-top:16px;">2. Pattern by screen type</div>
+        <table class="wf-table" style="font-size:12px;">
+          <tr><th>Screen type</th><th>Desktop pattern</th><th>Mobile pattern</th></tr>
+          <tr><td>Multi-step wizard (CA-02)</td><td>Fixed left step-rail + content</td><td>Horizontal step strip on top, full-width single-column content, sticky Back/Next footer</td></tr>
+          <tr><td>Module/step navigator (L-02, CA-04)</td><td>Left sidebar list</td><td>Horizontally scrollable chip row above the content</td></tr>
+          <tr><td>Dense operational table (R-01, FA-01, F-02)</td><td>Full multi-column table</td><td>Horizontal scroll with a frozen first column (applicant/learner name), or card-per-row for the highest-priority queues</td></tr>
+          <tr><td>Two/three-column form (CA-02, CA-05, A-06)</td><td>Side-by-side columns</td><td>Single column, stacked in reading order (primary action fields before secondary summary panels)</td></tr>
+          <tr><td>Dashboards (L-01, FA-01, F-01)</td><td>Grid of summary cards</td><td>Cards stack vertically; "Continue/Resume" card stays first, not buried</td></tr>
+          <tr><td>Stepper (A-04)</td><td>Four equal-width segments</td><td>Horizontal scroll, or collapse to "Step 2 of 4: Documents" text on the narrowest widths</td></tr>
+        </table>
+        <div class="wf-h" style="font-size:14px;margin-top:16px;">3. Deliberately not simulated here</div>
+        <p style="font-size:13px;line-height:1.6;">Video player controls, live-session join flows, and file-upload camera capture all have mobile-OS-specific behaviour (native camera roll, picture-in-picture, etc.) that a browser wireframe can't meaningfully approximate — flag these for a real device test pass during build rather than trusting this file for them.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  const buttons = document.querySelectorAll('.nav-btn');
+  const screens = document.querySelectorAll('.screen');
+  function show(id){
+    screens.forEach(s => s.classList.toggle('active', s.id === id));
+    buttons.forEach(b => b.classList.toggle('active', b.dataset.target === id));
+    window.scrollTo(0,0);
+  }
+  buttons.forEach(b => b.addEventListener('click', () => show(b.dataset.target)));
+  show('g02');
+
+  // Desktop / Mobile view toggle
+  const desktopBtn = document.getElementById('view-desktop');
+  const mobileBtn = document.getElementById('view-mobile');
+  desktopBtn.addEventListener('click', () => {
+    document.body.classList.remove('mobile-mode');
+    desktopBtn.classList.add('on'); mobileBtn.classList.remove('on');
+  });
+  mobileBtn.addEventListener('click', () => {
+    document.body.classList.add('mobile-mode');
+    mobileBtn.classList.add('on'); desktopBtn.classList.remove('on');
+  });
+
+  // A-04: mode-aware stepper
+  const stepperSequences = {
+    A: ['Profile','Documents','Payment','Admitted'],
+    B: ['Profile','Payment','Documents','Admitted'],
+    C: ['Profile','Payment','Admitted'],
+  };
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      const seq = stepperSequences[btn.dataset.mode];
+      const stepper = document.getElementById('a04-stepper');
+      stepper.innerHTML = seq.map((label, i) => {
+        const cls = i === 0 ? 'step done' : (i === 1 ? 'step now' : 'step');
+        return `<div class="${cls}">${label}</div>`;
+      }).join('');
+    });
+  });
+
+  // A-09: payment status state switcher
+  const payStates = {
+    pending:      { pill:'<span class="pill warn">⏳ Confirming your payment…</span>', msg:'We are waiting for confirmation from the gateway.', sub:'This usually takes a few seconds.', action:'<a class="wf-btn ghost">Refresh status</a>' },
+    success:      { pill:'<span class="pill ok">✓ Payment successful</span>', msg:'Your enrolment is being finalised.', sub:'Invoice available shortly.', action:'<a class="wf-btn primary">Go to Dashboard</a>' },
+    failed:       { pill:'<span class="pill bad">✕ Payment failed</span>', msg:'Your bank or gateway declined this transaction.', sub:'No amount has been deducted.', action:'<a class="wf-btn primary">Try again</a>' },
+    cancelled:    { pill:'<span class="pill bad">Payment cancelled</span>', msg:'You cancelled the payment before it completed.', sub:'Your application is still saved.', action:'<a class="wf-btn primary">Resume payment</a>' },
+    reconcile:    { pill:'<span class="pill warn">Reconciliation pending</span>', msg:'Your bank shows this differently than our records.', sub:'Our finance team is checking — no action needed yet.', action:'<a class="wf-btn ghost">Contact support</a>' },
+    duplicate:    { pill:'<span class="pill warn">Duplicate payment detected</span>', msg:'It looks like this course may have been paid for twice.', sub:'We will refund the extra charge automatically.', action:'<a class="wf-btn ghost">Contact support</a>' },
+    'refund-req': { pill:'<span class="pill warn">Refund requested</span>', msg:'Your refund request has been received.', sub:'Typically processed within 5–7 business days.', action:'<a class="wf-btn ghost">View refund policy</a>' },
+    'refund-proc':{ pill:'<span class="pill warn">Refund processing</span>', msg:'Your refund is being processed by the gateway.', sub:'', action:'<a class="wf-btn ghost">Refresh status</a>' },
+    'refund-failed': { pill:'<span class="pill bad">Refund failed</span>', msg:'The gateway could not complete this refund automatically.', sub:'Our finance team has been notified.', action:'<a class="wf-btn ghost">Contact support</a>' },
+    'refund-done':{ pill:'<span class="pill ok">Refund completed</span>', msg:'₹35,000 has been refunded to your original payment method.', sub:'', action:'<a class="wf-btn ghost">View credit note</a>' },
+  };
+  document.querySelectorAll('.pay-state-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.pay-state-btn').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      const s = payStates[btn.dataset.state];
+      document.getElementById('pay-state-pill').innerHTML = s.pill;
+      document.getElementById('pay-state-msg').textContent = '';
+      document.getElementById('pay-state-msg').style.cssText = 'width:auto;height:auto;background:none;font-size:13px;color:#333;';
+      document.getElementById('pay-state-msg').textContent = s.msg;
+      document.getElementById('pay-state-sub').textContent = s.sub;
+      document.getElementById('pay-state-sub').style.cssText = 'width:auto;height:auto;background:none;font-size:11px;color:var(--muted);';
+      document.getElementById('pay-state-action').innerHTML = s.action;
+    });
+  });
+</script>
+</body>
+</html>

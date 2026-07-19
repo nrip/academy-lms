@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Academy LMS — Shared System States</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --acad-ink:#16262A; --acad-paper:#F5F8F7; --acad-surface:#FFFFFF;
+  --acad-teal:#0F6E62; --acad-teal-dk:#0B5148; --acad-ochre:#B8813A;
+  --acad-success:#1E7A52; --acad-danger:#B23B3B; --acad-info:#2B6CB0;
+  --acad-line:#D9E1DF; --acad-muted:#5B6B6E;
+  --bs-body-bg:var(--acad-paper); --bs-body-color:var(--acad-ink);
+  --bs-body-font-family:'Inter',sans-serif; --bs-font-monospace:'IBM Plex Mono',monospace;
+  --bs-border-color:var(--acad-line); --bs-border-radius:.3rem; --bs-border-radius-sm:.2rem; --bs-border-radius-lg:.5rem;
+  --bs-box-shadow:0 4px 16px rgba(15,38,42,.10); --bs-box-shadow-sm:0 1px 2px rgba(15,38,42,.07);
+  --bs-primary:var(--acad-teal); --bs-primary-rgb:15,110,98;
+  --bs-success:var(--acad-success); --bs-success-rgb:30,122,82;
+  --bs-warning:var(--acad-ochre); --bs-warning-rgb:184,129,58;
+  --bs-danger:var(--acad-danger); --bs-danger-rgb:178,59,59;
+  --bs-info:var(--acad-info); --bs-info-rgb:43,108,176;
+  --bs-link-color:var(--acad-teal); --bs-link-hover-color:var(--acad-teal-dk);
+}
+body{font-family:'Inter',sans-serif;color:var(--acad-ink);}
+h1,h2,h3,h4,.acad-display{font-family:'Libre Franklin',sans-serif;font-weight:700;letter-spacing:-.01em;}
+.acad-mono{font-family:'IBM Plex Mono',monospace;font-feature-settings:"tnum" 1;}
+.acad-eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--acad-muted);}
+:focus-visible{outline:2px solid var(--acad-teal);outline-offset:2px;}
+
+.acad-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px 3px 8px;border-radius:100px;}
+.acad-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;}
+.acad-pill--success{background:#E4F1EA;color:var(--acad-success);}
+.acad-pill--warning{background:#F6ECDA;color:var(--acad-ochre);}
+.acad-pill--danger{background:#F5E4E4;color:var(--acad-danger);}
+.acad-pill--neutral{background:#E8ECEB;color:var(--acad-muted);}
+
+.ds-nav{width:230px;flex-shrink:0;background:#122024;color:#cfe0dd;height:100vh;position:sticky;top:0;overflow-y:auto;padding:20px 0;}
+.ds-nav h1{font-size:14px;color:#8fa8a4;padding:0 18px 12px;margin:0;border-bottom:1px solid #24373b;text-transform:uppercase;letter-spacing:.08em;}
+.ds-nav .grp{padding:14px 18px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#6d8683;}
+.ds-nav a{display:block;padding:7px 18px;font-size:13px;color:#d7e6e3;text-decoration:none;border-left:3px solid transparent;}
+.ds-nav a:hover{background:#1a2c30;}
+.ds-nav a.active{background:#1e3236;border-left-color:var(--acad-teal);color:#fff;font-weight:600;}
+.ds-main{flex:1;padding:36px 44px;max-width:1080px;}
+.ds-section{margin-bottom:56px;scroll-margin-top:20px;}
+.ds-section h2{font-size:24px;margin-bottom:4px;}
+.ds-section .lede{color:var(--acad-muted);font-size:13px;margin-bottom:22px;max-width:640px;}
+.mini-frame{background:var(--acad-surface);border:1px solid var(--acad-line);border-radius:var(--bs-border-radius-lg);box-shadow:var(--bs-box-shadow-sm);padding:22px;margin-bottom:20px;}
+.mini-frame .frame-label{font-size:11px;color:var(--acad-muted);margin-bottom:10px;}
+
+@keyframes acadShimmer{0%{background-position:-300px 0}100%{background-position:300px 0}}
+.acad-skel{background:linear-gradient(90deg,#e8edec 25%,#f4f7f6 37%,#e8edec 63%);background-size:400px 100%;animation:acadShimmer 1.4s ease-in-out infinite;border-radius:var(--bs-border-radius-sm);}
+
+.empty-box{text-align:center;padding:36px 20px;color:var(--acad-muted);}
+.empty-box .icon{font-size:28px;margin-bottom:10px;opacity:.5;}
+
+.fullpage-demo{background:var(--acad-ink);border-radius:var(--bs-border-radius-lg);padding:40px;text-align:center;color:#eaf2f0;}
+.fullpage-demo.light{background:var(--acad-paper);color:var(--acad-ink);border:1px solid var(--acad-line);}
+</style>
+</head>
+<body>
+<div class="d-flex">
+
+  <nav class="ds-nav">
+    <h1>Shared System States</h1>
+    <div class="grp">Loading</div>
+    <a href="#load-skel" class="dsnav-link">Skeletons</a>
+    <a href="#load-button" class="dsnav-link">Button &amp; Autosave</a>
+    <a href="#load-page" class="dsnav-link">Full-page Loading</a>
+    <div class="grp">Empty</div>
+    <a href="#empty-gallery" class="dsnav-link">Empty States Gallery</a>
+    <div class="grp">Error</div>
+    <a href="#err-inline" class="dsnav-link">Inline &amp; Form Errors</a>
+    <a href="#err-network" class="dsnav-link">Network / Retry</a>
+    <a href="#err-fullpage" class="dsnav-link">403 / 404 / 500</a>
+    <div class="grp">Access &amp; Session</div>
+    <a href="#sess-expired" class="dsnav-link">Session Expired</a>
+    <a href="#lockout" class="dsnav-link">Lockout</a>
+    <a href="#offline" class="dsnav-link">Offline / Maintenance</a>
+  </nav>
+
+  <main class="ds-main">
+
+    <div class="acad-eyebrow">Academy LMS · System States Reference</div>
+    <h1 class="acad-display" style="font-size:32px;margin:6px 0 8px;">Loading, Empty &amp; Error</h1>
+    <p class="lede" style="max-width:680px;">The states a screen is in <em>before</em> it has the data it wants — most of a real product's screen-time, and the part a happy-path mockup never shows. Every pattern below follows the same voice: explain what happened and what to do next, never apologize, never stay vague.</p>
+
+    <!-- LOADING: SKELETONS -->
+    <section class="ds-section" id="load-skel">
+      <h2>Skeletons</h2>
+      <p class="lede">Shaped like the content they'll become, not a generic gray box — a table skeleton looks like table rows, a card skeleton looks like cards.</p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="mini-frame">
+            <div class="frame-label">Reviewer Queue — loading rows</div>
+            <div class="d-flex gap-2 mb-2"><div class="acad-skel" style="height:12px;width:20%;"></div><div class="acad-skel" style="height:12px;width:30%;"></div><div class="acad-skel" style="height:12px;width:15%;"></div></div>
+            <div class="d-flex gap-2 mb-2"><div class="acad-skel" style="height:12px;width:20%;"></div><div class="acad-skel" style="height:12px;width:30%;"></div><div class="acad-skel" style="height:12px;width:15%;"></div></div>
+            <div class="d-flex gap-2"><div class="acad-skel" style="height:12px;width:20%;"></div><div class="acad-skel" style="height:12px;width:30%;"></div><div class="acad-skel" style="height:12px;width:15%;"></div></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="mini-frame">
+            <div class="frame-label">Learner Dashboard — loading course cards</div>
+            <div class="row g-2">
+              <div class="col-6"><div class="acad-skel" style="height:70px;"></div></div>
+              <div class="col-6"><div class="acad-skel" style="height:70px;"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOADING: BUTTON & AUTOSAVE -->
+    <section class="ds-section" id="load-button">
+      <h2>Button &amp; Autosave States</h2>
+      <p class="lede">A button's own loading state, and the quiet inline autosave indicator used in the Assessment and Document Upload flows.</p>
+      <div class="mini-frame">
+        <button class="btn btn-primary" id="demo-pay-btn" onclick="demoPay()">Pay ₹35,000</button>
+        <span style="font-size:12px;color:var(--acad-muted);margin-left:14px;">Click to see the loading → success sequence</span>
+      </div>
+      <div class="mini-frame">
+        <div class="frame-label">Autosave indicator (Assessment / Document Upload)</div>
+        <span id="autosave-indicator" style="font-size:12px;color:var(--acad-muted);">All changes saved</span>
+        <button class="btn btn-outline-secondary btn-sm ms-3" onclick="demoAutosave()">Simulate an edit</button>
+      </div>
+    </section>
+
+    <!-- LOADING: FULL PAGE -->
+    <section class="ds-section" id="load-page">
+      <h2>Full-page Loading</h2>
+      <p class="lede">Used only for genuine first-load moments (opening the app cold) — never for in-page updates, which use skeletons or button states instead.</p>
+      <div class="fullpage-demo">
+        <div class="spinner-border" style="color:#6fb3a6;width:2.2rem;height:2.2rem;" role="status"></div>
+        <div class="acad-eyebrow mt-3" style="color:#9fc0bb;">Loading your dashboard…</div>
+      </div>
+    </section>
+
+    <!-- EMPTY STATES -->
+    <section class="ds-section" id="empty-gallery">
+      <h2>Empty States</h2>
+      <p class="lede">An empty screen is an invitation to act, not a dead end — each one names the next concrete step.</p>
+      <div class="row g-3">
+        <div class="col-md-6"><div class="mini-frame"><div class="frame-label">Reviewer Queue — nothing pending</div>
+          <div class="empty-box"><div class="icon">✓</div><b>All caught up</b><div style="font-size:13px;margin-top:4px;">No documents are waiting for review right now.</div></div>
+        </div></div>
+        <div class="col-md-6"><div class="mini-frame"><div class="frame-label">Learner Dashboard — first login</div>
+          <div class="empty-box"><div class="icon">＋</div><b>You're not enrolled in anything yet</b><div style="font-size:13px;margin-top:4px;">Browse the catalogue to find your first course.</div>
+          <button class="btn btn-primary btn-sm mt-2">Browse Courses</button></div>
+        </div></div>
+        <div class="col-md-6"><div class="mini-frame"><div class="frame-label">Report Centre — no results for this filter</div>
+          <div class="empty-box"><div class="icon">⌕</div><b>No rows match these filters</b><div style="font-size:13px;margin-top:4px;">Try a wider date range, or clear the course filter.</div></div>
+        </div></div>
+        <div class="col-md-6"><div class="mini-frame"><div class="frame-label">Certificates — none earned yet</div>
+          <div class="empty-box"><div class="icon">🎓</div><b>Your certificates will appear here</b><div style="font-size:13px;margin-top:4px;">Complete a course's mandatory modules to earn your first one.</div></div>
+        </div></div>
+        <div class="col-md-6"><div class="mini-frame"><div class="frame-label">Notifications — empty</div>
+          <div class="empty-box"><div class="icon">🔔</div><b>Nothing new</b><div style="font-size:13px;margin-top:4px;">Updates on applications, assessments, and certificates will show up here.</div></div>
+        </div></div>
+        <div class="col-md-6"><div class="mini-frame"><div class="frame-label">Corporate Seats — none allocated</div>
+          <div class="empty-box"><div class="icon">🏢</div><b>No seats purchased yet</b><div style="font-size:13px;margin-top:4px;">Set up a seat allocation for this organisation to generate vouchers.</div>
+          <button class="btn btn-outline-primary btn-sm mt-2">New Seat Allocation</button></div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ERROR: INLINE -->
+    <section class="ds-section" id="err-inline">
+      <h2>Inline &amp; Form Errors</h2>
+      <p class="lede">Specific about what's wrong and how to fix it — never just "Invalid input."</p>
+      <div class="mini-frame">
+        <label class="form-label acad-eyebrow">Registration expiry date</label>
+        <input class="form-control is-invalid" value="31/02/2026" style="max-width:260px;">
+        <div class="invalid-feedback">31 February isn't a valid date — check the day and month.</div>
+      </div>
+      <div class="mini-frame">
+        <div class="alert" style="background:#F5E4E4;border:1px solid #e0bcbc;color:var(--acad-danger);font-size:13px;margin:0;">
+          This document exceeds the 10MB limit. Compress it or upload a smaller scan.
+        </div>
+      </div>
+    </section>
+
+    <!-- ERROR: NETWORK / RETRY -->
+    <section class="ds-section" id="err-network">
+      <h2>Network / Retry</h2>
+      <p class="lede">Transient failures — the interface says what it's doing about it, not just that something broke.</p>
+      <div class="mini-frame">
+        <button class="btn btn-outline-primary" onclick="demoNetworkFail()">Simulate a dropped autosave (Assessment)</button>
+        <div id="network-fail-msg" style="display:none;margin-top:12px;" class="alert" style="background:#F6ECDA;border:1px solid #e2c893;color:var(--acad-ochre);font-size:13px;">
+          Couldn't save your last answer — retrying automatically… <span id="retry-count" class="acad-mono"></span>
+        </div>
+      </div>
+      <div class="mini-frame">
+        <div class="frame-label">Payment reconciliation (from the Applicant flow)</div>
+        <span class="acad-pill acad-pill--warning">Reconciliation pending</span>
+        <div style="font-size:12px;color:var(--acad-muted);margin-top:6px;">Your bank shows this differently than our records. Our finance team is checking — no action needed yet.</div>
+      </div>
+    </section>
+
+    <!-- ERROR: FULL PAGE -->
+    <section class="ds-section" id="err-fullpage">
+      <h2>403 / 404 / 500</h2>
+      <p class="lede">Full-page failures — same voice as everything else, no stack traces, always a way back.</p>
+      <div class="row g-3">
+        <div class="col-md-4"><div class="fullpage-demo light"><div style="font-size:32px;">🔒</div><b class="d-block mt-2">Access Denied</b><div style="font-size:12px;margin:8px 0;color:var(--acad-muted);">Your role doesn't include this page. If you think that's wrong, ask your administrator.</div><button class="btn btn-outline-primary btn-sm">Back to Dashboard</button></div></div>
+        <div class="col-md-4"><div class="fullpage-demo light"><div style="font-size:32px;">🔍</div><b class="d-block mt-2">Page Not Found</b><div style="font-size:12px;margin:8px 0;color:var(--acad-muted);">This link may be outdated, or the item may have been removed.</div><button class="btn btn-outline-primary btn-sm">Back to Dashboard</button></div></div>
+        <div class="col-md-4"><div class="fullpage-demo light"><div style="font-size:32px;">⚠</div><b class="d-block mt-2">Something Went Wrong</b><div style="font-size:12px;margin:8px 0;color:var(--acad-muted);">Our team's been notified. Your progress up to this point is saved.</div><button class="btn btn-outline-primary btn-sm">Try Again</button></div></div>
+      </div>
+    </section>
+
+    <!-- SESSION -->
+    <section class="ds-section" id="sess-expired">
+      <h2>Session Expired</h2>
+      <p class="lede">Interrupts gently — states the fact, offers the one action, keeps the person's place.</p>
+      <button class="btn btn-outline-primary mb-3" data-bs-toggle="modal" data-bs-target="#sessModal">Show session-expired modal</button>
+      <div class="modal fade" id="sessModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+        <div class="modal-body text-center p-4">
+          <div style="font-size:28px;">⏱</div>
+          <h5 class="mt-2">Your session has ended</h5>
+          <p style="font-size:13px;color:var(--acad-muted);">Log in again to continue — your assessment attempt in progress has been saved.</p>
+          <button class="btn btn-primary">Log In</button>
+        </div>
+      </div></div></div>
+    </section>
+
+    <!-- LOCKOUT -->
+    <section class="ds-section" id="lockout">
+      <h2>Suspicious Login / Lockout</h2>
+      <div class="mini-frame">
+        <span class="acad-pill acad-pill--danger">Account temporarily locked</span>
+        <div style="font-size:13px;margin-top:8px;">Too many incorrect attempts. Try again in <b class="acad-mono">14:52</b>, or reset your password.</div>
+        <button class="btn btn-outline-primary btn-sm mt-2">Reset Password</button>
+      </div>
+    </section>
+
+    <!-- OFFLINE / MAINTENANCE -->
+    <section class="ds-section" id="offline">
+      <h2>Offline / Maintenance</h2>
+      <p class="lede">Banners, not blockers — the person keeps working where possible.</p>
+      <div class="mini-frame" style="background:#F6ECDA;border-color:#e2c893;">
+        <span class="acad-pill acad-pill--warning">You're offline</span>
+        <span style="font-size:13px;margin-left:8px;">Answers you've already given are saved. We'll sync everything once you're back online.</span>
+      </div>
+      <div class="mini-frame" style="background:#E3EBF5;border-color:#c3d4ea;">
+        <span class="acad-pill" style="background:#E3EBF5;color:var(--acad-info);">Scheduled maintenance</span>
+        <span style="font-size:13px;margin-left:8px;">Payments and certificate downloads are paused 02:00–03:00 IST tonight. Everything else works as usual.</span>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script>
+$(function(){
+  var $links = $('.dsnav-link');
+  $(window).on('scroll', function(){
+    var pos = $(window).scrollTop() + 40;
+    $('.ds-section').each(function(){
+      var top = $(this).offset().top, id = $(this).attr('id');
+      if(pos >= top){ $links.removeClass('active'); $('a[href="#'+id+'"]').addClass('active'); }
+    });
+  });
+
+  window.demoPay = function(){
+    var $b = $('#demo-pay-btn');
+    $b.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Processing…');
+    setTimeout(function(){
+      $b.removeClass('btn-primary').addClass('btn-success').html('✓ Paid').prop('disabled', true);
+      setTimeout(function(){ $b.removeClass('btn-success').addClass('btn-primary').prop('disabled', false).text('Pay ₹35,000'); }, 1800);
+    }, 1300);
+  };
+
+  window.demoAutosave = function(){
+    $('#autosave-indicator').text('Saving…').css('color', 'var(--acad-ochre)');
+    setTimeout(function(){
+      $('#autosave-indicator').text('All changes saved').css('color', 'var(--acad-success)');
+    }, 900);
+  };
+
+  window.demoNetworkFail = function(){
+    $('#network-fail-msg').show();
+    var n = 1;
+    $('#retry-count').text('(attempt '+n+')');
+    var iv = setInterval(function(){
+      n++;
+      $('#retry-count').text('(attempt '+n+')');
+      if(n >= 3){
+        clearInterval(iv);
+        $('#network-fail-msg').removeClass().addClass('alert').css({background:'#E4F1EA', border:'1px solid #cfe4d9', color:'var(--acad-success)'}).text('Saved successfully.');
+        setTimeout(function(){ $('#network-fail-msg').hide(); }, 1800);
+      }
+    }, 1000);
+  };
+});
+</script>
+</body>
+</html>

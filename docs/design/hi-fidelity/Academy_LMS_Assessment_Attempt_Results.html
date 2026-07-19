@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Academy LMS — Assessment Attempt &amp; Results (Prototype)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --acad-ink:#16262A; --acad-paper:#F5F8F7; --acad-surface:#FFFFFF;
+  --acad-teal:#0F6E62; --acad-teal-dk:#0B5148; --acad-ochre:#B8813A;
+  --acad-success:#1E7A52; --acad-danger:#B23B3B; --acad-info:#2B6CB0;
+  --acad-line:#D9E1DF; --acad-muted:#5B6B6E;
+  --bs-body-bg:var(--acad-paper); --bs-body-color:var(--acad-ink);
+  --bs-body-font-family:'Inter',sans-serif; --bs-font-monospace:'IBM Plex Mono',monospace;
+  --bs-border-color:var(--acad-line); --bs-border-radius:.3rem; --bs-border-radius-sm:.2rem; --bs-border-radius-lg:.5rem;
+  --bs-box-shadow:0 4px 16px rgba(15,38,42,.10); --bs-box-shadow-sm:0 1px 2px rgba(15,38,42,.07);
+  --bs-primary:var(--acad-teal); --bs-primary-rgb:15,110,98;
+  --bs-success:var(--acad-success); --bs-success-rgb:30,122,82;
+  --bs-warning:var(--acad-ochre); --bs-warning-rgb:184,129,58;
+  --bs-danger:var(--acad-danger); --bs-danger-rgb:178,59,59;
+  --bs-info:var(--acad-info); --bs-info-rgb:43,108,176;
+  --bs-link-color:var(--acad-teal); --bs-link-hover-color:var(--acad-teal-dk);
+}
+body{font-family:'Inter',sans-serif;color:var(--acad-ink);}
+h1,h2,h3,h4,.acad-display{font-family:'Libre Franklin',sans-serif;font-weight:700;letter-spacing:-.01em;}
+.acad-mono{font-family:'IBM Plex Mono',monospace;font-feature-settings:"tnum" 1;}
+.acad-eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--acad-muted);}
+:focus-visible{outline:2px solid var(--acad-teal);outline-offset:2px;}
+
+.acad-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px 3px 8px;border-radius:100px;}
+.acad-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;}
+.acad-pill--success{background:#E4F1EA;color:var(--acad-success);}
+.acad-pill--warning{background:#F6ECDA;color:var(--acad-ochre);}
+.acad-pill--danger{background:#F5E4E4;color:var(--acad-danger);}
+.acad-pill--neutral{background:#E8ECEB;color:var(--acad-muted);}
+
+.shell{max-width:820px;margin:0 auto;padding:32px 20px 80px;}
+.screen{display:none;}
+.screen.active{display:block;animation:fadein .2s ease;}
+@keyframes fadein{from{opacity:0;}to{opacity:1;}}
+.flow-card{background:var(--acad-surface);border:1px solid var(--acad-line);border-radius:var(--bs-border-radius-lg);box-shadow:var(--bs-box-shadow-sm);padding:30px;}
+
+.qdot{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--acad-line);display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;background:#fff;}
+.qdot.answered{background:#E4F1EA;border-color:var(--acad-success);color:var(--acad-success);}
+.qdot.flagged{border-color:var(--acad-ochre);position:relative;}
+.qdot.flagged::after{content:"";position:absolute;top:-3px;right:-3px;width:8px;height:8px;border-radius:50%;background:var(--acad-ochre);}
+.qdot.current{outline:2px solid var(--acad-ink);outline-offset:2px;}
+
+.opt-row{border:1px solid var(--acad-line);border-radius:var(--bs-border-radius);padding:11px 14px;margin-bottom:8px;cursor:pointer;font-size:14px;}
+.opt-row:hover{border-color:var(--acad-teal);}
+.opt-row.selected{border-color:var(--acad-teal);background:#F0F7F5;}
+.opt-row.correct{border-color:var(--acad-success);background:#E4F1EA;}
+.opt-row.incorrect{border-color:var(--acad-danger);background:#F5E4E4;}
+
+.proto-panel{position:fixed;top:16px;right:16px;width:250px;background:#122024;color:#d7e6e3;border-radius:10px;padding:14px 16px;font-size:12px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.25);}
+.proto-panel h6{color:#8fa8a4;font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+.proto-panel .btn{font-size:11px;padding:4px 8px;width:100%;margin-bottom:6px;}
+</style>
+</head>
+<body>
+
+<div class="proto-panel">
+  <h6>Prototype Controls</h6>
+  <button class="btn btn-outline-light" id="ctrl-force-pass">Force Pass (skip to result)</button>
+  <button class="btn btn-outline-light" id="ctrl-force-fail">Force Fail (skip to result)</button>
+  <button class="btn btn-outline-light" id="ctrl-reset">↺ Reset attempts to 0</button>
+</div>
+
+<div class="shell">
+
+  <!-- INTRO -->
+  <div class="screen active" id="s-intro">
+    <div class="flow-card">
+      <div class="acad-eyebrow mb-2">Module 2 · Clinical Assessment</div>
+      <h4>Clinical Assessment Quiz</h4>
+      <div class="row g-3 mt-2 mb-3">
+        <div class="col-6 col-md-3"><div class="acad-eyebrow">Questions</div><div class="acad-mono">5</div></div>
+        <div class="col-6 col-md-3"><div class="acad-eyebrow">Time limit</div><div class="acad-mono" id="intro-time">20:00</div></div>
+        <div class="col-6 col-md-3"><div class="acad-eyebrow">Pass mark</div><div class="acad-mono">70%</div></div>
+        <div class="col-6 col-md-3"><div class="acad-eyebrow">Attempt</div><div class="acad-mono" id="intro-attempt">1 of 3</div></div>
+      </div>
+      <p style="font-size:13px;color:var(--acad-muted);">Once started, only one attempt can be active at a time. Answers autosave as you go — closing the tab won't lose your progress.</p>
+      <div id="intro-locked-msg" style="display:none;" class="alert" style="background:#F5E4E4;border:1px solid #e0bcbc;color:var(--acad-danger);"></div>
+      <button class="btn btn-primary" id="start-btn" onclick="startAttempt()">Start Attempt</button>
+    </div>
+  </div>
+
+  <!-- ATTEMPT -->
+  <div class="screen" id="s-attempt">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div><span class="acad-pill acad-pill--warning" id="timer-pill">⏱ 20:00</span> <span style="font-size:11px;color:var(--acad-muted);">(demo timer accelerated)</span></div>
+      <div style="font-size:12px;color:var(--acad-muted);">Question <span id="q-current-num">1</span> of 5</div>
+    </div>
+    <div class="d-flex gap-2 mb-4" id="q-dots"></div>
+    <div class="flow-card">
+      <div class="acad-eyebrow mb-2" id="q-topic"></div>
+      <h5 id="q-text" style="margin-bottom:18px;"></h5>
+      <div id="q-options"></div>
+      <div class="d-flex justify-content-between mt-4">
+        <div>
+          <button class="btn btn-link" id="q-prev" onclick="prevQ()">← Previous</button>
+          <button class="btn btn-outline-secondary btn-sm ms-2" id="q-flag" onclick="toggleFlag()">🚩 Flag for review</button>
+        </div>
+        <div>
+          <button class="btn btn-outline-primary" id="q-next" onclick="nextQ()">Next →</button>
+          <button class="btn btn-primary" id="q-submit" style="display:none;" onclick="confirmSubmit()">Submit Attempt</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="screen" id="s-result">
+    <div class="flow-card text-center" id="result-summary">
+    </div>
+    <div id="result-review" style="display:none;" class="flow-card mt-3">
+      <h6 class="acad-eyebrow mb-2">Answer Review</h6>
+      <table class="table table-sm" id="review-table"><tbody></tbody></table>
+    </div>
+    <div id="result-cooldown" style="display:none;" class="flow-card mt-3 text-center"></div>
+    <div id="result-locked" style="display:none;" class="flow-card mt-3 text-center"></div>
+  </div>
+
+</div>
+
+<div class="modal fade" id="submitModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Submit attempt?</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body" id="submit-modal-body">You have unanswered questions.</div>
+    <div class="modal-footer">
+      <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep answering</button>
+      <button class="btn btn-primary" id="submit-confirm-btn">Submit anyway</button>
+    </div>
+  </div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script>
+$(function(){
+
+var questions = [
+  {topic:'Diagnosis', text:'Which combination of findings best meets consensus criteria for metabolic syndrome?', options:['Elevated LDL alone','Elevated waist circumference + hypertension + elevated fasting glucose','Isolated obesity (BMI ≥30) with no other findings','Elevated HDL with normal glucose'], correct:1},
+  {topic:'Pharmacology', text:'In a patient with type 2 diabetes and obesity, which agent class is often preferred first-line partly for its weight benefit?', options:['Sulfonylureas','Thiazolidinediones','GLP-1 receptor agonists','Insulin (basal)'], correct:2},
+  {topic:'Mechanism', text:'GLP-1 receptor agonists primarily promote weight loss by:', options:['Increasing satiety and slowing gastric emptying','Blocking intestinal fat absorption','Increasing renal glucose excretion','Inhibiting hepatic gluconeogenesis directly'], correct:0},
+  {topic:'Lifestyle Management', text:'Which lifestyle intervention has the strongest evidence for sustained weight loss at 12+ months?', options:['Short-term very-low-calorie diet alone','Combined diet, physical activity, and behavioural therapy','Intermittent unsupervised fasting','Supplement-only regimens'], correct:1},
+  {topic:'Case Interpretation', text:'A patient with BMI 32, waist circumference elevated, and new hypertension most likely has:', options:['Isolated obesity, no further workup needed','Metabolic syndrome — further screening indicated','Type 1 diabetes','Cushing syndrome (confirmed)'], correct:1}
+];
+var PASS_PCT = 70;
+var TIME_LIMIT = 60; // demo seconds standing in for 20:00
+
+var answers = {}, flagged = {}, curQ = 0, attemptNumber = 1, timeLeft = TIME_LIMIT, timerId = null;
+
+function fmtTime(s){
+  var mm = Math.floor(s/60), ss = s%60;
+  return (mm<10?'0':'')+mm+':'+(ss<10?'0':'')+ss;
+}
+
+function updateIntro(){
+  $('#intro-attempt').text(attemptNumber+' of 3');
+  if(attemptNumber > 3){
+    $('#start-btn').hide();
+    $('#intro-locked-msg').show().text('This assessment is locked after 3 failed attempts. Submit a reassessment request from your Result screen, or contact your Academic Evaluator.');
+  } else {
+    $('#start-btn').show();
+    $('#intro-locked-msg').hide();
+  }
+}
+
+window.startAttempt = function(){
+  answers = {}; flagged = {}; curQ = 0; timeLeft = TIME_LIMIT;
+  $('.screen').removeClass('active'); $('#s-attempt').addClass('active');
+  renderDots(); renderQuestion();
+  clearInterval(timerId);
+  timerId = setInterval(function(){
+    timeLeft--;
+    $('#timer-pill').html('⏱ '+fmtTime(timeLeft));
+    if(timeLeft <= 10) $('#timer-pill').removeClass('acad-pill--warning').addClass('acad-pill--danger');
+    if(timeLeft <= 0){ clearInterval(timerId); submitAttempt(true); }
+  }, 1000);
+};
+
+function renderDots(){
+  var html = '';
+  questions.forEach(function(q,i){
+    var cls = (i===curQ?'current ':'') + (answers[i]!==undefined?'answered ':'') + (flagged[i]?'flagged':'');
+    html += '<div class="qdot '+cls+'" data-i="'+i+'">'+(i+1)+'</div>';
+  });
+  $('#q-dots').html(html);
+}
+$(document).on('click', '.qdot', function(){ curQ = parseInt($(this).data('i')); renderQuestion(); renderDots(); });
+
+function renderQuestion(){
+  var q = questions[curQ];
+  $('#q-current-num').text(curQ+1);
+  $('#q-topic').text(q.topic);
+  $('#q-text').text(q.text);
+  var html = '';
+  q.options.forEach(function(opt, i){
+    html += '<div class="opt-row '+(answers[curQ]===i?'selected':'')+'" data-i="'+i+'">'+opt+'</div>';
+  });
+  $('#q-options').html(html);
+  $('#q-prev').prop('disabled', curQ===0);
+  $('#q-flag').toggleClass('btn-outline-secondary', !flagged[curQ]).toggleClass('btn-warning', !!flagged[curQ]);
+  var isLast = curQ === questions.length-1;
+  $('#q-next').toggle(!isLast);
+  $('#q-submit').toggle(isLast);
+}
+$(document).on('click', '.opt-row', function(){
+  answers[curQ] = parseInt($(this).data('i'));
+  renderQuestion(); renderDots();
+});
+window.nextQ = function(){ if(curQ < questions.length-1){ curQ++; renderQuestion(); renderDots(); } };
+window.prevQ = function(){ if(curQ > 0){ curQ--; renderQuestion(); renderDots(); } };
+window.toggleFlag = function(){ flagged[curQ] = !flagged[curQ]; renderQuestion(); renderDots(); };
+
+window.confirmSubmit = function(){
+  var unanswered = questions.length - Object.keys(answers).length;
+  if(unanswered > 0){
+    $('#submit-modal-body').text('You have '+unanswered+' unanswered question(s). Submitting now will score them as incorrect.');
+    new bootstrap.Modal('#submitModal').show();
+  } else {
+    submitAttempt(false);
+  }
+};
+$('#submit-confirm-btn').on('click', function(){
+  bootstrap.Modal.getInstance(document.getElementById('submitModal')).hide();
+  submitAttempt(false);
+});
+
+function submitAttempt(timedOut){
+  clearInterval(timerId);
+  var correct = 0;
+  questions.forEach(function(q,i){ if(answers[i] === q.correct) correct++; });
+  var pct = Math.round((correct/questions.length)*100);
+  var passed = pct >= PASS_PCT;
+  showResult(passed, correct, pct, timedOut, false);
+}
+
+function showResult(passed, correct, pct, timedOut, forced){
+  $('.screen').removeClass('active'); $('#s-result').addClass('active');
+  $('#result-cooldown, #result-locked, #result-review').hide();
+
+  var summaryHtml = '<span class="acad-pill '+(passed?'acad-pill--success':'acad-pill--danger')+'" style="font-size:14px;padding:6px 16px;">'+
+    (passed ? '✓ Passed' : '✕ Not Passed')+' — '+correct+' / '+questions.length+' ('+pct+'%)</span>' +
+    '<div style="font-size:12px;color:var(--acad-muted);margin-top:10px;">Attempt '+attemptNumber+' of 3'+(timedOut?' · time expired':'')+'</div>';
+  $('#result-summary').html(summaryHtml);
+
+  if(passed){
+    summaryHtml += '';
+    $('#result-summary').append('<div class="mt-3"><button class="btn btn-outline-primary btn-sm" id="toggle-review">View Answer Review</button> <button class="btn btn-primary btn-sm" onclick="alert(\'Returns to Course Player (separate flow).\')">Continue</button></div>');
+    renderReview();
+  } else {
+    attemptNumber++;
+    if(attemptNumber > 3){
+      $('#result-locked').show().html(
+        '<span class="acad-pill acad-pill--danger">Assessment Locked</span>' +
+        '<p style="font-size:13px;margin:12px 0;">You have used all 3 permitted attempts. A Course Administrator or Academic Evaluator must grant an additional attempt before you can retry.</p>' +
+        '<button class="btn btn-outline-primary btn-sm" onclick="requestReassessment()">Request Reassessment</button>' +
+        '<div id="reassessment-sent" style="display:none;font-size:12px;color:var(--acad-success);margin-top:10px;">Request sent to your Academic Evaluator.</div>'
+      );
+    } else if(attemptNumber === 2){
+      startCooldown(10, '1-hour cooldown before your next attempt (accelerated to 10s for this demo).');
+    } else if(attemptNumber === 3){
+      startCooldown(16, '24-hour cooldown before your next attempt (accelerated to 16s for this demo).');
+    }
+  }
+  updateIntro();
+}
+window.requestReassessment = function(){ $('#reassessment-sent').show(); };
+
+function startCooldown(seconds, label){
+  var remaining = seconds;
+  $('#result-cooldown').show().html(
+    '<span class="acad-pill acad-pill--warning">Cooldown Active</span>' +
+    '<p style="font-size:13px;margin:12px 0;">'+label+'</p>' +
+    '<div class="acad-mono" id="cooldown-timer" style="font-size:20px;">'+fmtTime(remaining)+'</div>' +
+    '<button class="btn btn-primary btn-sm mt-3" id="retry-btn" disabled onclick="goRetry()">Retry Attempt</button>'
+  );
+  var iv = setInterval(function(){
+    remaining--;
+    $('#cooldown-timer').text(fmtTime(remaining));
+    if(remaining <= 0){
+      clearInterval(iv);
+      $('#retry-btn').prop('disabled', false);
+      $('#cooldown-timer').text('Ready');
+    }
+  }, 1000);
+}
+window.goRetry = function(){ $('.screen').removeClass('active'); $('#s-intro').addClass('active'); updateIntro(); };
+
+function renderReview(){
+  $('#toggle-review').off('click').on('click', function(){
+    $('#result-review').toggle();
+    var html = '';
+    questions.forEach(function(q,i){
+      var ok = answers[i] === q.correct;
+      html += '<tr><td style="width:24px;">'+(i+1)+'</td><td>'+q.text+'</td><td>'+
+        (ok ? '<span class="acad-pill acad-pill--success">Correct</span>' : '<span class="acad-pill acad-pill--danger">Incorrect — correct: '+q.options[q.correct]+'</span>')+
+        '</td></tr>';
+    });
+    $('#review-table tbody').html(html);
+  });
+}
+
+// Prototype controls
+$('#ctrl-force-pass').on('click', function(){
+  questions.forEach(function(q,i){ answers[i] = q.correct; });
+  submitAttempt(false);
+});
+$('#ctrl-force-fail').on('click', function(){
+  questions.forEach(function(q,i){ answers[i] = (q.correct+1) % q.options.length; });
+  submitAttempt(false);
+});
+$('#ctrl-reset').on('click', function(){ attemptNumber = 1; location.hash=''; $('.screen').removeClass('active'); $('#s-intro').addClass('active'); updateIntro(); });
+
+updateIntro();
+});
+</script>
+</body>
+</html>

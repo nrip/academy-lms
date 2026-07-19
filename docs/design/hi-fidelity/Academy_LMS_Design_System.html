@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Academy LMS — Design System v1.0</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKEN LAYER — CSS custom properties, overriding Bootstrap 5.3's
+   own --bs-* variables where possible, plus a small --acad-* set
+   for things Bootstrap has no native token for (spacing ruler,
+   status taxonomy, signature component).
+   ============================================================ */
+:root{
+  /* --- Color: named per frontend-design convention --- */
+  --acad-ink:      #16262A;
+  --acad-paper:    #F5F8F7;
+  --acad-surface:  #FFFFFF;
+  --acad-teal:     #0F6E62;  /* Clinical Teal — primary */
+  --acad-teal-dk:  #0B5148;
+  --acad-ochre:    #B8813A;  /* accent / warning */
+  --acad-success:  #1E7A52;
+  --acad-danger:   #B23B3B;
+  --acad-info:     #2B6CB0;
+  --acad-line:     #D9E1DF;  /* hairline / chart gridline */
+  --acad-muted:    #5B6B6E;
+
+  /* --- Bootstrap variable overrides (theming, not overrides-by-hack) --- */
+  --bs-body-bg: var(--acad-paper);
+  --bs-body-color: var(--acad-ink);
+  --bs-body-font-family: 'Inter', -apple-system, sans-serif;
+  --bs-font-monospace: 'IBM Plex Mono', ui-monospace, monospace;
+  --bs-border-color: var(--acad-line);
+  --bs-border-radius: .3rem;
+  --bs-border-radius-sm: .2rem;
+  --bs-border-radius-lg: .5rem;
+  --bs-box-shadow: 0 4px 16px rgba(15,38,42,.10);
+  --bs-box-shadow-sm: 0 1px 2px rgba(15,38,42,.07);
+
+  --bs-primary: var(--acad-teal);
+  --bs-primary-rgb: 15,110,98;
+  --bs-success: var(--acad-success);
+  --bs-success-rgb: 30,122,82;
+  --bs-warning: var(--acad-ochre);
+  --bs-warning-rgb: 184,129,58;
+  --bs-danger: var(--acad-danger);
+  --bs-danger-rgb: 178,59,59;
+  --bs-info: var(--acad-info);
+  --bs-info-rgb: 43,108,176;
+  --bs-link-color: var(--acad-teal);
+  --bs-link-hover-color: var(--acad-teal-dk);
+
+  /* --- Spacing ruler ("Vital Line" scale) --- */
+  --acad-sp-1: 4px;  --acad-sp-2: 8px;  --acad-sp-3: 12px; --acad-sp-4: 16px;
+  --acad-sp-5: 24px; --acad-sp-6: 32px; --acad-sp-7: 48px; --acad-sp-8: 64px;
+
+  /* --- Motion --- */
+  --acad-fast: 120ms ease;
+  --acad-med: 220ms ease-out;
+}
+@media (prefers-reduced-motion: reduce){ *{animation-duration:.001ms !important; transition-duration:.001ms !important;} }
+
+body{ font-family:'Inter',sans-serif; color:var(--acad-ink); }
+h1,h2,h3,h4,.acad-display{ font-family:'Libre Franklin',sans-serif; font-weight:700; letter-spacing:-.01em; }
+.acad-mono{ font-family:'IBM Plex Mono',monospace; }
+.acad-eyebrow{ font-family:'Inter',sans-serif; font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--acad-muted); }
+code, .acad-mono{ font-feature-settings:"tnum" 1; }
+
+/* ---- Page chrome (reference-page nav; not part of the design system itself) ---- */
+.ds-nav{ width:230px; flex-shrink:0; background:#122024; color:#cfe0dd; height:100vh; position:sticky; top:0; overflow-y:auto; padding:20px 0; }
+.ds-nav h1{ font-size:14px; color:#8fa8a4; padding:0 18px 12px; margin:0; border-bottom:1px solid #24373b; text-transform:uppercase; letter-spacing:.08em; }
+.ds-nav .grp{ padding:14px 18px 4px; font-size:10px; text-transform:uppercase; letter-spacing:.07em; color:#6d8683; }
+.ds-nav a{ display:block; padding:7px 18px; font-size:13px; color:#d7e6e3; text-decoration:none; border-left:3px solid transparent; }
+.ds-nav a:hover{ background:#1a2c30; }
+.ds-nav a.active{ background:#1e3236; border-left-color:var(--acad-teal); color:#fff; font-weight:600; }
+.ds-main{ flex:1; padding:40px 48px; max-width:1180px; }
+.ds-section{ margin-bottom:64px; scroll-margin-top:20px; }
+.ds-section h2{ font-size:26px; margin-bottom:4px; }
+.ds-section .lede{ color:var(--acad-muted); font-size:14px; margin-bottom:28px; max-width:640px; }
+.swatch{ height:84px; border-radius:var(--bs-border-radius); border:1px solid rgba(0,0,0,.06); margin-bottom:8px; }
+.swatch-label{ font-size:12px; } .swatch-hex{ font-size:11px; color:var(--acad-muted); }
+.ruler{ display:flex; align-items:flex-end; gap:2px; height:70px; border-bottom:2px solid var(--acad-ink); margin:20px 0 8px; }
+.ruler .tick{ background:var(--acad-teal); width:2px; opacity:.35; }
+.ruler .tick.major{ opacity:1; width:2px; }
+.type-row{ display:flex; align-items:baseline; gap:18px; padding:14px 0; border-bottom:1px solid var(--acad-line); }
+.type-row .tag{ width:170px; flex-shrink:0; }
+
+/* ============================================================
+   CUSTOM COMPONENT LAYER — "acad-" prefixed, for patterns
+   Bootstrap has no native equivalent for.
+   ============================================================ */
+
+/* Status pill taxonomy — mirrors the SRS's actual status enums */
+.acad-pill{ display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; padding:3px 10px 3px 8px; border-radius:100px; border:1px solid transparent; }
+.acad-pill::before{ content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.acad-pill--success{ background:#E4F1EA; color:var(--acad-success); }
+.acad-pill--warning{ background:#F6ECDA; color:var(--acad-ochre); }
+.acad-pill--danger{  background:#F5E4E4; color:var(--acad-danger); }
+.acad-pill--info{    background:#E3EBF5; color:var(--acad-info); }
+.acad-pill--neutral{ background:#E8ECEB; color:var(--acad-muted); }
+
+/* Vital Line — signature progress / stepper component */
+.acad-vitalline{ position:relative; height:34px; }
+.acad-vitalline .track{ position:absolute; top:16px; left:0; right:0; height:2px; background:var(--acad-line); }
+.acad-vitalline .fill{ position:absolute; top:16px; left:0; height:2px; background:var(--acad-teal); transition:width var(--acad-med); }
+.acad-vitalline .ticks{ position:absolute; top:0; left:0; right:0; height:34px; display:flex; justify-content:space-between; }
+.acad-vitalline .ticks i{ width:2px; height:10px; background:var(--acad-line); margin-top:12px; }
+.acad-vitalline .ticks i.done{ background:var(--acad-teal); height:14px; margin-top:10px; }
+.acad-vitalline .ticks i.now{ background:var(--acad-ink); height:18px; margin-top:8px; width:3px; }
+.acad-vitalline .marker{ position:absolute; top:8px; width:18px; height:18px; border-radius:50%; background:var(--acad-teal); border:3px solid var(--acad-paper); box-shadow:0 0 0 1px var(--acad-teal); transform:translateX(-9px); transition:left var(--acad-med); }
+
+/* Card state variants (course lifecycle) */
+.acad-card-state{ border-left:4px solid var(--acad-line); }
+.acad-card-state--active{ border-left-color:var(--acad-teal); }
+.acad-card-state--scheduled{ border-left-color:var(--acad-ochre); }
+.acad-card-state--suspended, .acad-card-state--withdrawn{ border-left-color:var(--acad-danger); }
+.acad-card-state--completed{ border-left-color:var(--acad-success); }
+
+/* Ticket bubble (internal vs learner-visible) */
+.acad-bubble{ border-radius:var(--bs-border-radius); padding:10px 14px; font-size:13px; margin-bottom:8px; }
+.acad-bubble--learner{ background:#EAF2EE; border:1px solid #cfe4d9; }
+.acad-bubble--internal{ background:#F7F1E2; border:1px dashed #d9c48f; }
+
+/* Skeleton loading */
+@keyframes acadShimmer{ 0%{background-position:-300px 0} 100%{background-position:300px 0} }
+.acad-skel{ background:linear-gradient(90deg,#e8edec 25%,#f4f7f6 37%,#e8edec 63%); background-size:400px 100%; animation:acadShimmer 1.4s ease-in-out infinite; border-radius:var(--bs-border-radius-sm); }
+
+/* Sensitive-permission highlight */
+.acad-sensitive{ background:#FBF1F1; border:1px solid #edd0d0; }
+
+/* Focus ring — kept visible everywhere (accessibility floor) */
+:focus-visible{ outline:2px solid var(--acad-teal); outline-offset:2px; }
+
+.copyhex{ cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="d-flex">
+
+  <nav class="ds-nav">
+    <h1>Academy LMS — Design System</h1>
+    <div class="grp">Foundations</div>
+    <a href="#signature" class="dsnav-link">Signature</a>
+    <a href="#color" class="dsnav-link">Color</a>
+    <a href="#type" class="dsnav-link">Typography</a>
+    <a href="#space" class="dsnav-link">Spacing &amp; Elevation</a>
+    <div class="grp">Components</div>
+    <a href="#buttons" class="dsnav-link">Buttons</a>
+    <a href="#forms" class="dsnav-link">Forms</a>
+    <a href="#status" class="dsnav-link">Status &amp; Tags</a>
+    <a href="#tables" class="dsnav-link">Tables</a>
+    <a href="#cards" class="dsnav-link">Cards</a>
+    <a href="#nav" class="dsnav-link">Navigation &amp; Steps</a>
+    <a href="#progress" class="dsnav-link">Progress — Vital Line</a>
+    <a href="#feedback" class="dsnav-link">Feedback &amp; States</a>
+    <div class="grp">Reference</div>
+    <a href="#architecture" class="dsnav-link">Component Architecture</a>
+  </nav>
+
+  <main class="ds-main">
+
+    <!-- SIGNATURE -->
+    <section class="ds-section" id="signature">
+      <div class="acad-eyebrow">Academy LMS · Design System v1.0</div>
+      <h1 class="acad-display" style="font-size:44px;margin:8px 0 6px;">The Vital Line</h1>
+      <p class="lede" style="font-size:15px;max-width:680px;">
+        A clinical-chart aesthetic for a continuing-education platform: calm, precise, and legible under pressure —
+        because a reviewer verifying a medical registration and a doctor mid-assessment both need the interface
+        to get out of the way. The signature device is a tick-marked measurement line, borrowed from a vitals chart,
+        used everywhere the product shows progress or sequence.
+      </p>
+      <div class="acad-vitalline" style="max-width:520px;margin-top:28px;">
+        <div class="track"></div>
+        <div class="fill" style="width:62%;"></div>
+        <div class="ticks">
+          <i class="done"></i><i class="done"></i><i class="now"></i><i></i><i></i><i></i><i></i>
+        </div>
+      </div>
+      <div class="acad-eyebrow" style="margin-top:6px;">used as: progress bars, wizard steppers, batch-capacity meters</div>
+    </section>
+
+    <!-- COLOR -->
+    <section class="ds-section" id="color">
+      <h2>Color</h2>
+      <p class="lede">Six named colors. No pure black, no bright neon — every hue is pulled slightly toward the teal-gray of the palette so nothing fights for attention on its own.</p>
+      <div class="row g-3">
+        <div class="col-6 col-md-2"><div class="swatch" style="background:var(--acad-ink)"></div><div class="swatch-label">Ink</div><div class="swatch-hex acad-mono">#16262A</div></div>
+        <div class="col-6 col-md-2"><div class="swatch" style="background:var(--acad-paper);border:1px solid #ddd;"></div><div class="swatch-label">Paper</div><div class="swatch-hex acad-mono">#F5F8F7</div></div>
+        <div class="col-6 col-md-2"><div class="swatch" style="background:var(--acad-teal)"></div><div class="swatch-label">Clinical Teal</div><div class="swatch-hex acad-mono">#0F6E62</div></div>
+        <div class="col-6 col-md-2"><div class="swatch" style="background:var(--acad-ochre)"></div><div class="swatch-label">Ochre</div><div class="swatch-hex acad-mono">#B8813A</div></div>
+        <div class="col-6 col-md-2"><div class="swatch" style="background:var(--acad-success)"></div><div class="swatch-label">Success</div><div class="swatch-hex acad-mono">#1E7A52</div></div>
+        <div class="col-6 col-md-2"><div class="swatch" style="background:var(--acad-danger)"></div><div class="swatch-label">Brick</div><div class="swatch-hex acad-mono">#B23B3B</div></div>
+      </div>
+      <p style="font-size:12px;color:var(--acad-muted);margin-top:14px;">Ochre doubles as Bootstrap's <code>warning</code> and as the accent — one hue, two jobs, kept deliberately scarce (Section: Restraint).</p>
+    </section>
+
+    <!-- TYPE -->
+    <section class="ds-section" id="type">
+      <h2>Typography</h2>
+      <p class="lede">Three roles, not one face stretched thin: a display grotesk for structure, Inter for the density of admin tables, and a monospace for anything measured — scores, IDs, timestamps.</p>
+      <div class="type-row"><div class="tag acad-eyebrow">Display / Libre Franklin 700</div><div style="font-family:'Libre Franklin';font-weight:700;font-size:28px;">Course Version Builder</div></div>
+      <div class="type-row"><div class="tag acad-eyebrow">H2 / Libre Franklin 600</div><div style="font-family:'Libre Franklin';font-weight:600;font-size:22px;">Document Review Queue</div></div>
+      <div class="type-row"><div class="tag acad-eyebrow">Body / Inter 400</div><div style="font-size:15px;">Diploma in Metabolic Health — 6-month cohort programme for licensed physicians.</div></div>
+      <div class="type-row"><div class="tag acad-eyebrow">Label / Inter 600, tracked</div><div class="acad-eyebrow" style="font-size:11px;">Required Document</div></div>
+      <div class="type-row"><div class="tag acad-eyebrow">Data / IBM Plex Mono</div><div class="acad-mono">CERT-88213 · 85% · 14:32:07</div></div>
+    </section>
+
+    <!-- SPACING -->
+    <section class="ds-section" id="space">
+      <h2>Spacing &amp; Elevation</h2>
+      <p class="lede">The spacing scale is drawn as a ruler on purpose — it's the same tick language as the Vital Line component below.</p>
+      <div class="ruler">
+        <div class="tick major" style="height:70px;"></div>
+        <div class="tick" style="height:20px;margin-right:6px;"></div>
+        <div class="tick major" style="height:50px;"></div>
+        <div class="tick" style="height:20px;margin-right:6px;"></div>
+        <div class="tick major" style="height:40px;"></div>
+        <div class="tick" style="height:20px;margin-right:6px;"></div>
+        <div class="tick major" style="height:32px;"></div>
+        <div class="tick" style="height:20px;margin-right:6px;"></div>
+        <div class="tick major" style="height:26px;"></div>
+      </div>
+      <div class="d-flex gap-4 acad-mono" style="font-size:11px;color:var(--acad-muted);">
+        <span>4</span><span>8</span><span>12</span><span>16</span><span>24</span><span>32</span><span>48</span><span>64</span>
+      </div>
+      <div class="row mt-4 g-3">
+        <div class="col-md-4"><div class="p-3" style="background:var(--acad-surface);box-shadow:var(--bs-box-shadow-sm);border-radius:var(--bs-border-radius);">shadow-sm — cards</div></div>
+        <div class="col-md-4"><div class="p-3" style="background:var(--acad-surface);box-shadow:var(--bs-box-shadow);border-radius:var(--bs-border-radius-lg);">shadow — modals, dropdowns</div></div>
+        <div class="col-md-4"><div class="p-3" style="background:var(--acad-surface);border:1px solid var(--acad-line);border-radius:var(--bs-border-radius);">border only — inline panels</div></div>
+      </div>
+    </section>
+
+    <!-- BUTTONS -->
+    <section class="ds-section" id="buttons">
+      <h2>Buttons</h2>
+      <p class="lede">Native Bootstrap <code>.btn</code> classes, restyled via the token layer — no custom button CSS needed.</p>
+      <div class="d-flex gap-2 flex-wrap align-items-center mb-3">
+        <button class="btn btn-primary">Approve</button>
+        <button class="btn btn-outline-primary">View document</button>
+        <button class="btn btn-danger">Revoke</button>
+        <button class="btn btn-link">Cancel</button>
+        <button class="btn btn-primary" disabled>Publish (disabled)</button>
+      </div>
+      <p style="font-size:12px;color:var(--acad-muted);">Active/hover/focus states come free from Bootstrap once <code>--bs-primary</code> etc. are retokened — no per-component override needed.</p>
+    </section>
+
+    <!-- FORMS -->
+    <section class="ds-section" id="forms">
+      <h2>Forms</h2>
+      <div class="row g-3" style="max-width:640px;">
+        <div class="col-md-6"><label class="form-label acad-eyebrow">Registration Number</label><input class="form-control" placeholder="MH-2019-04471"></div>
+        <div class="col-md-6"><label class="form-label acad-eyebrow">Profession</label><select class="form-select"><option>Doctor</option><option>Nurse</option></select></div>
+        <div class="col-md-6"><label class="form-label acad-eyebrow">Invalid state</label><input class="form-control is-invalid" value="12/13/2026"><div class="invalid-feedback">Use DD/MM/YYYY — this course starts before that date.</div></div>
+        <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" checked><label class="form-check-label">Visible to learner</label></div></div>
+      </div>
+    </section>
+
+    <!-- STATUS -->
+    <section class="ds-section" id="status">
+      <h2>Status &amp; Tags</h2>
+      <p class="lede">Every pill below maps to a real status enum from the SRS — the taxonomy is fixed, not decorative.</p>
+      <div class="d-flex gap-2 flex-wrap mb-2">
+        <span class="acad-pill acad-pill--success">Approved</span>
+        <span class="acad-pill acad-pill--warning">Under Review</span>
+        <span class="acad-pill acad-pill--danger">Rejected — Name Mismatch</span>
+        <span class="acad-pill acad-pill--info">Reconciliation Pending</span>
+        <span class="acad-pill acad-pill--neutral">Draft</span>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <span class="badge text-bg-light border">Doctor</span>
+        <span class="badge text-bg-light border">6 months</span>
+        <span class="badge text-bg-light border">Cohort</span>
+      </div>
+    </section>
+
+    <!-- TABLES -->
+    <section class="ds-section" id="tables">
+      <h2>Tables</h2>
+      <table class="table table-hover align-middle">
+        <thead><tr><th class="acad-eyebrow">Applicant</th><th class="acad-eyebrow">Doc Type</th><th class="acad-eyebrow">SLA Age</th><th class="acad-eyebrow">Status</th></tr></thead>
+        <tbody>
+          <tr><td>J. Sharma</td><td>MBBS Degree</td><td class="acad-mono">51h</td><td><span class="acad-pill acad-pill--danger">Escalated</span></td></tr>
+          <tr><td>P. Verma</td><td>Council Reg.</td><td class="acad-mono">30h</td><td><span class="acad-pill acad-pill--warning">In Review</span></td></tr>
+          <tr><td>A. Nair</td><td>ID Proof</td><td class="acad-mono">4h</td><td><span class="acad-pill acad-pill--success">Approved</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- CARDS -->
+    <section class="ds-section" id="cards">
+      <h2>Cards — course lifecycle states</h2>
+      <div class="row g-3">
+        <div class="col-md-3"><div class="card acad-card-state acad-card-state--active p-3"><span class="acad-eyebrow">Active</span><div class="acad-mono mt-1">45%</div></div></div>
+        <div class="col-md-3"><div class="card acad-card-state acad-card-state--scheduled p-3"><span class="acad-eyebrow">Scheduled</span><div class="mt-1" style="font-size:13px;">Begins in 12 days</div></div></div>
+        <div class="col-md-3"><div class="card acad-card-state acad-card-state--suspended p-3"><span class="acad-eyebrow">Suspended</span><div class="mt-1" style="font-size:13px;">Contact support</div></div></div>
+        <div class="col-md-3"><div class="card acad-card-state acad-card-state--completed p-3"><span class="acad-eyebrow">Completed</span><div class="acad-mono mt-1">100%</div></div></div>
+      </div>
+    </section>
+
+    <!-- NAV & STEPS -->
+    <section class="ds-section" id="nav">
+      <h2>Navigation &amp; Steps</h2>
+      <ul class="nav nav-tabs mb-4">
+        <li class="nav-item"><a class="nav-link active" href="#">Eligibility</a></li>
+        <li class="nav-item"><a class="nav-link" href="#">Required Documents</a></li>
+        <li class="nav-item"><a class="nav-link" href="#">Curriculum</a></li>
+      </ul>
+      <div class="acad-bubble acad-bubble--learner">Learner-visible reply — appears in the ticket thread.</div>
+      <div class="acad-bubble acad-bubble--internal">Internal note — never shown to the learner.</div>
+    </section>
+
+    <!-- PROGRESS -->
+    <section class="ds-section" id="progress">
+      <h2>Progress — the Vital Line component</h2>
+      <p class="lede">One component, three uses: course progress, wizard stepper, batch capacity. Drag the slider to see it respond.</p>
+      <div class="acad-vitalline" id="vl-demo" style="max-width:520px;">
+        <div class="track"></div>
+        <div class="fill" id="vl-fill" style="width:40%;"></div>
+        <div class="marker" id="vl-marker" style="left:40%;"></div>
+      </div>
+      <input type="range" min="0" max="100" value="40" class="form-range" id="vl-range" style="max-width:520px;">
+    </section>
+
+    <!-- FEEDBACK -->
+    <section class="ds-section" id="feedback">
+      <h2>Feedback &amp; System States</h2>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="alert" style="background:#EAF2EE;border:1px solid #cfe4d9;color:var(--acad-success);">Certificate issued and emailed to the learner.</div>
+          <div class="alert acad-sensitive" style="color:var(--acad-danger);">Removing this permission affects 6 users — review before saving.</div>
+        </div>
+        <div class="col-md-6">
+          <div class="acad-eyebrow mb-2">Loading (skeleton)</div>
+          <div class="acad-skel mb-2" style="height:14px;width:80%;"></div>
+          <div class="acad-skel mb-2" style="height:14px;width:60%;"></div>
+          <div class="acad-eyebrow mt-3 mb-2">Empty state</div>
+          <div class="border rounded p-3" style="font-size:13px;color:var(--acad-muted);">No applications pending review. New submissions will appear here.</div>
+        </div>
+      </div>
+      <button class="btn btn-outline-primary mt-3" id="toastBtn">Show toast</button>
+      <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="acadToast" class="toast" role="alert"><div class="toast-body">Document approved.</div></div>
+      </div>
+    </section>
+
+    <!-- ARCHITECTURE -->
+    <section class="ds-section" id="architecture">
+      <h2>Component Architecture</h2>
+      <p class="lede">How this is meant to be built, given the team's Bootstrap + jQuery + HTML5 stack.</p>
+      <ol style="font-size:14px;line-height:1.8;max-width:760px;">
+        <li><b>Token layer</b> — Bootstrap 5.3's own CSS variables (<code>--bs-primary</code>, <code>--bs-border-radius</code>, <code>--bs-font-monospace</code>, etc.) are retokened in <code>:root</code>, plus a small <code>--acad-*</code> set for the spacing ruler and signature component. No SCSS build step required.</li>
+        <li><b>Component layer</b> — default to native Bootstrap classes (<code>btn</code>, <code>form-control</code>, <code>table</code>, <code>card</code>, <code>modal</code>, <code>toast</code>, <code>nav-tabs</code>, <code>badge</code>, <code>alert</code>) styled by the token layer. Minimizes custom CSS surface area and keeps the Bootstrap upgrade path open.</li>
+        <li><b>Custom layer</b> — a small <code>acad-</code> prefixed set for the handful of patterns Bootstrap has no equivalent for: <code>acad-pill</code> (status taxonomy), <code>acad-vitalline</code> (signature progress/stepper), <code>acad-card-state</code> (course lifecycle), <code>acad-bubble</code> (internal vs. learner-visible).</li>
+        <li><b>Interaction layer</b> — Bootstrap's bundled JS (Popper-based) drives standard components: modal, toast, tabs, dropdowns. jQuery sits alongside it for page-specific behaviour — the section nav on this very page, the Vital Line demo slider, and future flow-specific interactions (stepper logic, live filtering) — rather than fighting Bootstrap's native JS for what it already does well.</li>
+        <li><b>Naming convention</b> — <code>acad-{component}</code>, with BEM-style modifiers: <code>acad-pill--success</code>, <code>acad-card-state--scheduled</code>.</li>
+      </ol>
+    </section>
+
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script>
+$(function(){
+  // Section-nav active-state tracking (jQuery, per architecture note above)
+  var $links = $('.dsnav-link');
+  $links.on('click', function(e){
+    $links.removeClass('active');
+    $(this).addClass('active');
+  });
+  $(window).on('scroll', function(){
+    var pos = $(window).scrollTop() + 40;
+    $('.ds-section').each(function(){
+      var top = $(this).offset().top, id = $(this).attr('id');
+      if(pos >= top){ $links.removeClass('active'); $('a[href="#'+id+'"]').addClass('active'); }
+    });
+  });
+
+  // Vital Line demo — jQuery-driven
+  $('#vl-range').on('input', function(){
+    var v = $(this).val();
+    $('#vl-fill').css('width', v+'%');
+    $('#vl-marker').css('left', v+'%');
+  });
+
+  // Toast demo — native Bootstrap component
+  $('#toastBtn').on('click', function(){
+    new bootstrap.Toast(document.getElementById('acadToast')).show();
+  });
+
+  // Copy hex to clipboard
+  $('.swatch-hex').css('cursor','pointer').on('click', function(){
+    navigator.clipboard.writeText($(this).text());
+  });
+});
+</script>
+</body>
+</html>

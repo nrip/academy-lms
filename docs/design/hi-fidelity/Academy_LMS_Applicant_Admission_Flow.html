@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Academy LMS — Applicant Admission Flow (Prototype)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --acad-ink:#16262A; --acad-paper:#F5F8F7; --acad-surface:#FFFFFF;
+  --acad-teal:#0F6E62; --acad-teal-dk:#0B5148; --acad-ochre:#B8813A;
+  --acad-success:#1E7A52; --acad-danger:#B23B3B; --acad-info:#2B6CB0;
+  --acad-line:#D9E1DF; --acad-muted:#5B6B6E;
+  --bs-body-bg:var(--acad-paper); --bs-body-color:var(--acad-ink);
+  --bs-body-font-family:'Inter',sans-serif; --bs-font-monospace:'IBM Plex Mono',monospace;
+  --bs-border-color:var(--acad-line); --bs-border-radius:.3rem; --bs-border-radius-sm:.2rem; --bs-border-radius-lg:.5rem;
+  --bs-box-shadow:0 4px 16px rgba(15,38,42,.10); --bs-box-shadow-sm:0 1px 2px rgba(15,38,42,.07);
+  --bs-primary:var(--acad-teal); --bs-primary-rgb:15,110,98;
+  --bs-success:var(--acad-success); --bs-success-rgb:30,122,82;
+  --bs-warning:var(--acad-ochre); --bs-warning-rgb:184,129,58;
+  --bs-danger:var(--acad-danger); --bs-danger-rgb:178,59,59;
+  --bs-info:var(--acad-info); --bs-info-rgb:43,108,176;
+  --bs-link-color:var(--acad-teal); --bs-link-hover-color:var(--acad-teal-dk);
+}
+body{font-family:'Inter',sans-serif;color:var(--acad-ink);}
+h1,h2,h3,h4,.acad-display{font-family:'Libre Franklin',sans-serif;font-weight:700;letter-spacing:-.01em;}
+.acad-mono{font-family:'IBM Plex Mono',monospace;font-feature-settings:"tnum" 1;}
+.acad-eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--acad-muted);}
+:focus-visible{outline:2px solid var(--acad-teal);outline-offset:2px;}
+
+.acad-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px 3px 8px;border-radius:100px;}
+.acad-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;}
+.acad-pill--success{background:#E4F1EA;color:var(--acad-success);}
+.acad-pill--warning{background:#F6ECDA;color:var(--acad-ochre);}
+.acad-pill--danger{background:#F5E4E4;color:var(--acad-danger);}
+.acad-pill--info{background:#E3EBF5;color:var(--acad-info);}
+.acad-pill--neutral{background:#E8ECEB;color:var(--acad-muted);}
+
+/* Vital Line stepper */
+.acad-vitalline{position:relative;height:40px;}
+.acad-vitalline .track{position:absolute;top:18px;left:0;right:0;height:2px;background:var(--acad-line);}
+.acad-vitalline .fill{position:absolute;top:18px;left:0;height:2px;background:var(--acad-teal);transition:width .3s ease-out;}
+.acad-vitalline .nodes{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;}
+.acad-vitalline .node{width:16px;height:16px;border-radius:50%;background:var(--acad-surface);border:2px solid var(--acad-line);margin-top:10px;transition:all .3s ease-out;}
+.acad-vitalline .node.done{background:var(--acad-teal);border-color:var(--acad-teal);}
+.acad-vitalline .node.now{border-color:var(--acad-teal);box-shadow:0 0 0 4px rgba(15,110,98,.15);width:18px;height:18px;margin-top:9px;}
+.step-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--acad-muted);margin-top:6px;}
+.step-labels span.now{color:var(--acad-ink);font-weight:700;}
+
+.flow-shell{max-width:760px;margin:0 auto;padding:36px 20px 80px;}
+.flow-card{background:var(--acad-surface);border:1px solid var(--acad-line);border-radius:var(--bs-border-radius-lg);box-shadow:var(--bs-box-shadow-sm);padding:32px;}
+.screen{display:none;}
+.screen.active{display:block;animation:fadein .25s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+.batch-opt{border:1px solid var(--acad-line);border-radius:var(--bs-border-radius);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s;}
+.batch-opt:hover{border-color:var(--acad-teal);}
+.batch-opt.selected{border-color:var(--acad-teal);background:#F0F7F5;}
+.batch-opt.full{opacity:.6;cursor:not-allowed;}
+
+.doc-row{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--acad-line);border-radius:var(--bs-border-radius);padding:12px 14px;margin-bottom:8px;}
+
+.status-track .item{display:flex;gap:12px;padding:10px 0;border-left:2px solid var(--acad-line);margin-left:8px;padding-left:20px;position:relative;}
+.status-track .item::before{content:"";position:absolute;left:-7px;top:14px;width:12px;height:12px;border-radius:50%;background:var(--acad-line);}
+.status-track .item.done::before{background:var(--acad-success);}
+.status-track .item.now::before{background:var(--acad-teal);box-shadow:0 0 0 4px rgba(15,110,98,.15);}
+.status-track .item.rejected::before{background:var(--acad-danger);}
+.status-track .item:last-child{border-left:2px solid transparent;}
+
+/* Prototype control panel — clearly marked as non-product chrome */
+.proto-panel{position:fixed;top:16px;right:16px;width:270px;background:#122024;color:#d7e6e3;border-radius:10px;padding:14px 16px;font-size:12px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.25);}
+.proto-panel h6{color:#8fa8a4;font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+.proto-panel .btn{font-size:11px;padding:4px 8px;}
+.proto-panel select{font-size:12px;}
+.proto-panel .sect{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #24373b;}
+.proto-panel .sect:last-child{border-bottom:none;margin-bottom:0;}
+</style>
+</head>
+<body>
+
+<div class="proto-panel">
+  <h6>Prototype Controls (not part of the product)</h6>
+  <div class="sect">
+    <label class="d-block mb-1" style="color:#fff;">Admission Mode (CourseVersion config)</label>
+    <select id="ctrl-mode" class="form-select form-select-sm">
+      <option value="A">Mode A — Verify then Pay</option>
+      <option value="B">Mode B — Pay then Verify</option>
+      <option value="C">Mode C — Direct, no documents</option>
+    </select>
+  </div>
+  <div class="sect">
+    <label class="d-block mb-1" style="color:#fff;">Batch capacity</label>
+    <div class="form-check form-check-inline">
+      <input class="form-check-input" type="checkbox" id="ctrl-full">
+      <label class="form-check-label" for="ctrl-full">Selected batch is full →waitlist</label>
+    </div>
+  </div>
+  <div class="sect" id="ctrl-review-wrap" style="display:none;">
+    <label class="d-block mb-1" style="color:#fff;">Simulate reviewer decision</label>
+    <button class="btn btn-outline-light" id="ctrl-approve">Approve</button>
+    <button class="btn btn-outline-light" id="ctrl-reject">Reject</button>
+  </div>
+  <div class="sect" id="ctrl-pay-wrap" style="display:none;">
+    <label class="d-block mb-1" style="color:#fff;">Simulate payment outcome</label>
+    <button class="btn btn-outline-light" id="ctrl-pay-success">Success</button>
+    <button class="btn btn-outline-light" id="ctrl-pay-fail">Fail</button>
+  </div>
+  <button class="btn btn-sm btn-outline-light w-100" id="ctrl-restart">↺ Restart flow</button>
+</div>
+
+<div class="flow-shell">
+
+  <div id="stepper-wrap" style="margin-bottom:28px;"></div>
+
+  <div class="flow-card">
+
+    <!-- COURSE DETAIL -->
+    <section class="screen active" id="s-course">
+      <div class="acad-eyebrow mb-2">Course Catalogue</div>
+      <h2 style="font-size:26px;">Diploma in Metabolic Health</h2>
+      <div class="d-flex gap-2 my-2">
+        <span class="badge text-bg-light border">Doctor eligible</span>
+        <span class="badge text-bg-light border">6 months</span>
+        <span class="badge text-bg-light border">Cohort</span>
+      </div>
+      <p style="color:var(--acad-muted);font-size:14px;">A structured six-month programme covering clinical assessment, pharmacological and lifestyle management, and case-based practice in obesity and metabolic disorders.</p>
+      <div class="row mt-3">
+        <div class="col-md-8">
+          <h6 class="acad-eyebrow">Required documents</h6>
+          <ul style="font-size:13px;color:var(--acad-muted);">
+            <li>MBBS Degree Certificate</li>
+            <li>Medical Council Registration (unexpired)</li>
+            <li>Government ID Proof</li>
+          </ul>
+        </div>
+        <div class="col-md-4">
+          <div class="border rounded p-3 text-center">
+            <div class="acad-eyebrow">Fee</div>
+            <div style="font-size:22px;font-weight:700;">₹35,000</div>
+            <div style="font-size:11px;color:var(--acad-muted);">inclusive of GST</div>
+            <div class="acad-mono" style="font-size:10px;color:var(--acad-muted);">Base ₹29,661 + GST ₹5,339</div>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary mt-4" onclick="goTo('s-batch')">Apply Now</button>
+    </section>
+
+    <!-- BATCH SELECT -->
+    <section class="screen" id="s-batch">
+      <h4>Choose a batch</h4>
+      <p class="acad-eyebrow mb-3">Application Start · Batch Select</p>
+      <div class="batch-opt selected" data-batch="jul" onclick="selectBatch(this,'jul')">
+        <div class="d-flex justify-content-between">
+          <div><b>July 2026 Cohort</b><div style="font-size:12px;color:var(--acad-muted);">Version 2 · Starts 01 Jul 2026</div></div>
+          <div id="jul-seats" class="acad-mono" style="font-size:13px;">42 / 60 open</div>
+        </div>
+      </div>
+      <div class="batch-opt" data-batch="jan27" onclick="selectBatch(this,'jan27')">
+        <div class="d-flex justify-content-between">
+          <div><b>January 2027 Cohort</b><div style="font-size:12px;color:var(--acad-muted);">Version 2 · Starts 15 Jan 2027</div></div>
+          <div class="acad-mono" style="font-size:13px;">60 / 60 open</div>
+        </div>
+      </div>
+      <div class="d-flex justify-content-between mt-4">
+        <button class="btn btn-link" onclick="goTo('s-course')">← Back</button>
+        <button class="btn btn-primary" id="batch-continue" onclick="afterBatch()">Continue</button>
+      </div>
+    </section>
+
+    <!-- WAITLIST -->
+    <section class="screen" id="s-waitlist">
+      <h4>You're on the waitlist</h4>
+      <p class="acad-eyebrow mb-3">Waitlist Status</p>
+      <div class="border rounded p-3 mb-3 text-center">
+        <span class="acad-pill acad-pill--warning">Position 3</span>
+        <div style="font-size:12px;color:var(--acad-muted);margin-top:8px;">You'll be notified automatically if a seat opens. No payment is required while waiting.</div>
+      </div>
+      <div class="border rounded p-3 text-center" style="background:#F6ECDA;">
+        <span class="acad-pill acad-pill--warning">⏱ Seat offered — expires in 31:24:07</span>
+        <div style="font-size:12px;color:var(--acad-muted);margin:8px 0;">A seat has opened. Accept within the window to continue your application.</div>
+        <button class="btn btn-primary btn-sm" onclick="goTo('s-profile')">Accept Seat &amp; Continue</button>
+      </div>
+      <button class="btn btn-link mt-3" onclick="goTo('s-batch')">← Choose a different batch</button>
+    </section>
+
+    <!-- PROFILE -->
+    <section class="screen" id="s-profile">
+      <h4>Confirm your profile</h4>
+      <p class="acad-eyebrow mb-3">Personal &amp; Professional Profile</p>
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label acad-eyebrow">Name on certificate</label><input class="form-control" value="Dr. Jyoti Sharma"></div>
+        <div class="col-md-6"><label class="form-label acad-eyebrow">Profession</label><input class="form-control" value="Doctor" disabled></div>
+        <div class="col-md-6"><label class="form-label acad-eyebrow">Registration Number</label><input class="form-control" value="MH-2019-04471"></div>
+        <div class="col-md-6"><label class="form-label acad-eyebrow">Speciality</label><input class="form-control" value="Internal Medicine"></div>
+      </div>
+      <div class="form-check mt-3">
+        <input class="form-check-input" type="checkbox" checked id="certname-confirm">
+        <label class="form-check-label" style="font-size:13px;" for="certname-confirm">This is exactly how my name should appear on any certificate I earn.</label>
+      </div>
+      <div class="d-flex justify-content-between mt-4">
+        <button class="btn btn-link" onclick="goTo('s-batch')">← Back</button>
+        <button class="btn btn-primary" onclick="afterProfile()">Continue</button>
+      </div>
+    </section>
+
+    <!-- DOCUMENTS -->
+    <section class="screen" id="s-documents">
+      <h4>Upload required documents</h4>
+      <p class="acad-eyebrow mb-3" id="doc-subtitle">Document Upload &amp; Status Tracker</p>
+      <div class="doc-row">
+        <div><b style="font-size:13px;">MBBS Degree Certificate</b></div>
+        <span class="acad-pill acad-pill--success">Approved</span>
+      </div>
+      <div class="doc-row">
+        <div><b style="font-size:13px;">Medical Council Registration</b><div style="font-size:11px;color:var(--acad-muted);">PDF or image, up to 10MB</div></div>
+        <span class="acad-pill acad-pill--neutral" id="doc2-pill">Not uploaded</span>
+      </div>
+      <div class="doc-row">
+        <div><b style="font-size:13px;">Government ID Proof</b></div>
+        <span class="acad-pill acad-pill--neutral" id="doc3-pill">Not uploaded</span>
+      </div>
+      <button class="btn btn-outline-primary btn-sm mt-2" id="doc-upload-btn" onclick="uploadDocs()">Upload remaining documents</button>
+      <div class="mt-3" id="doc-review-note" style="display:none;">
+        <div class="alert" style="background:#F6ECDA;border:1px solid #e2c893;color:var(--acad-ochre);font-size:13px;">
+          All documents submitted — under review. Typical turnaround: 48 business hours. Use the Prototype Controls panel to simulate the reviewer's decision.
+        </div>
+      </div>
+      <div class="mt-3" id="doc-rejected-note" style="display:none;">
+        <div class="alert" style="background:#F5E4E4;border:1px solid #e0bcbc;color:var(--acad-danger);font-size:13px;">
+          Medical Council Registration rejected — Name Mismatch. Please resubmit with your registered legal name visible.
+        </div>
+        <button class="btn btn-outline-primary btn-sm" onclick="resubmitDoc()">Resubmit document</button>
+      </div>
+      <div class="d-flex justify-content-between mt-4">
+        <button class="btn btn-link" onclick="goTo('s-profile')">← Back</button>
+        <button class="btn btn-primary" id="doc-continue" style="display:none;" onclick="afterDocuments()">Continue</button>
+      </div>
+    </section>
+
+    <!-- CHECKOUT -->
+    <section class="screen" id="s-checkout">
+      <h4>Payment</h4>
+      <p class="acad-eyebrow mb-3">Checkout</p>
+      <div class="row">
+        <div class="col-md-7">
+          <div class="form-check mb-2"><input class="form-check-input" type="radio" name="pm" checked> UPI</div>
+          <div class="form-check mb-2"><input class="form-check-input" type="radio" name="pm"> Debit / Credit Card</div>
+          <div class="form-check mb-3"><input class="form-check-input" type="radio" name="pm"> Net Banking</div>
+          <div style="font-size:11px;color:var(--acad-muted);">Gateway: Razorpay (auto-selected)</div>
+        </div>
+        <div class="col-md-5">
+          <div class="border rounded p-3">
+            <div class="acad-eyebrow">Order Summary <span style="font-weight:400;text-transform:none;">(GST-inclusive)</span></div>
+            <table class="table table-sm mt-2 mb-0">
+              <tr><td>Base fee</td><td class="text-end acad-mono">₹29,661</td></tr>
+              <tr><td>GST (18%)</td><td class="text-end acad-mono">₹5,339</td></tr>
+              <tr><td><b>Total</b></td><td class="text-end acad-mono"><b>₹35,000</b></td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="d-flex justify-content-between mt-4">
+        <button class="btn btn-link" onclick="goBackFromCheckout()">← Back</button>
+        <button class="btn btn-primary" onclick="pay()">Pay ₹35,000</button>
+      </div>
+    </section>
+
+    <!-- PAYMENT STATUS -->
+    <section class="screen" id="s-payment-status">
+      <h4>Payment Status</h4>
+      <p class="acad-eyebrow mb-3">A-09</p>
+      <div class="border rounded p-4 text-center">
+        <div id="pay-pill" class="mb-2"><span class="acad-pill acad-pill--warning">⏳ Confirming your payment…</span></div>
+        <div id="pay-msg" style="font-size:13px;">We are waiting for confirmation from the gateway.</div>
+        <div id="pay-sub" style="font-size:11px;color:var(--acad-muted);margin:6px 0 14px;">This usually takes a few seconds — driven by a server-side webhook, not this screen closing.</div>
+        <button class="btn btn-primary" id="pay-continue-btn" style="display:none;" onclick="afterPayment()">Continue</button>
+        <button class="btn btn-outline-primary" id="pay-retry-btn" style="display:none;" onclick="pay()">Try again</button>
+      </div>
+    </section>
+
+    <!-- APPLICATION STATUS -->
+    <section class="screen" id="s-application-status">
+      <h4>Application Status</h4>
+      <p class="acad-eyebrow mb-3">A-05</p>
+      <div class="status-track" id="status-track"></div>
+      <div id="admitted-cta" style="display:none;" class="mt-3">
+        <div class="alert" style="background:#EAF2EE;border:1px solid #cfe4d9;color:var(--acad-success);">You're admitted. Welcome to the Diploma in Metabolic Health.</div>
+        <button class="btn btn-primary" onclick="goTo('s-course')">Go to Learner Dashboard →</button>
+      </div>
+      <div id="rejected-cta" style="display:none;" class="mt-3">
+        <div class="alert" style="background:#F5E4E4;border:1px solid #e0bcbc;color:var(--acad-danger);">
+          Your application was not approved after document review. Since payment had already been made (Mode B), a full refund has been initiated automatically.
+        </div>
+        <button class="btn btn-outline-primary" onclick="location.reload()">↺ Restart flow</button>
+      </div>
+    </section>
+
+  </div>
+  <p class="text-center mt-4" style="font-size:11px;color:var(--acad-muted);">High-fidelity clickable prototype — built on the Academy LMS Design System v1.0 tokens (Bootstrap 5 + jQuery).</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script>
+$(function(){
+
+var state = {
+  mode: 'A',
+  batch: 'jul',
+  batchFull: false,
+  docsSubmitted: false,
+  docsOutcome: null,   // 'approved' | 'rejected'
+  paymentDone: false
+};
+
+var STEP_LABELS = {
+  A: ['Batch','Profile','Documents','Payment','Admitted'],
+  B: ['Batch','Profile','Payment','Documents','Admitted'],
+  C: ['Batch','Profile','Payment','Admitted']
+};
+var SCREEN_TO_STEP = {
+  's-batch':'Batch', 's-waitlist':'Batch', 's-profile':'Profile', 's-documents':'Documents',
+  's-checkout':'Payment', 's-payment-status':'Payment', 's-application-status':'Admitted'
+};
+
+function renderStepper(activeScreen){
+  var labels = STEP_LABELS[state.mode];
+  var stepKey = SCREEN_TO_STEP[activeScreen];
+  var idx = labels.indexOf(stepKey);
+  if(activeScreen === 's-course'){ $('#stepper-wrap').html(''); return; }
+  var nodesHtml = '', labelsHtml = '';
+  labels.forEach(function(l, i){
+    var cls = i < idx ? 'done' : (i === idx ? 'now' : '');
+    nodesHtml += '<div class="node '+cls+'"></div>';
+    labelsHtml += '<span class="'+(i===idx?'now':'')+'">'+l+'</span>';
+  });
+  var fillPct = labels.length > 1 ? (idx/(labels.length-1))*100 : 0;
+  $('#stepper-wrap').html(
+    '<div class="acad-vitalline"><div class="track"></div><div class="fill" style="width:'+fillPct+'%;"></div>'+
+    '<div class="nodes">'+nodesHtml+'</div></div><div class="step-labels">'+labelsHtml+'</div>'
+  );
+}
+
+window.goTo = function(id){
+  $('.screen').removeClass('active');
+  $('#'+id).addClass('active');
+  renderStepper(id);
+  $('#ctrl-review-wrap').toggle(id === 's-documents');
+  $('#ctrl-pay-wrap').toggle(id === 's-payment-status');
+  window.scrollTo(0,0);
+};
+
+window.selectBatch = function(el, key){
+  if($(el).hasClass('full')) return;
+  $('.batch-opt').removeClass('selected');
+  $(el).addClass('selected');
+  state.batch = key;
+};
+
+window.afterBatch = function(){
+  if(state.batchFull && state.batch === 'jul'){ goTo('s-waitlist'); return; }
+  goTo('s-profile');
+};
+
+window.afterProfile = function(){
+  if(state.mode === 'A'){ goTo('s-documents'); }
+  else { goTo('s-checkout'); } // Mode B and C both pay next; C has no documents step at all
+};
+
+window.uploadDocs = function(){
+  $('#doc2-pill').removeClass('acad-pill--neutral').addClass('acad-pill--warning').text('Under Review');
+  $('#doc3-pill').removeClass('acad-pill--neutral').addClass('acad-pill--success').text('Approved');
+  $('#doc-upload-btn').hide();
+  $('#doc-review-note').show();
+  state.docsSubmitted = true;
+};
+
+window.resubmitDoc = function(){
+  $('#doc-rejected-note').hide();
+  $('#doc2-pill').removeClass('acad-pill--danger').addClass('acad-pill--warning').text('Under Review');
+  $('#doc-review-note').show();
+};
+
+// Reviewer decision (Prototype Control)
+$('#ctrl-approve').on('click', function(){
+  if(!$('#s-documents').hasClass('active')) return;
+  $('#doc2-pill').removeClass('acad-pill--warning').addClass('acad-pill--success').text('Approved');
+  $('#doc-review-note').hide();
+  state.docsOutcome = 'approved';
+  $('#doc-continue').show();
+});
+$('#ctrl-reject').on('click', function(){
+  if(!$('#s-documents').hasClass('active')) return;
+  $('#doc2-pill').removeClass('acad-pill--warning').addClass('acad-pill--danger').text('Rejected');
+  $('#doc-review-note').hide();
+  $('#doc-rejected-note').show();
+  state.docsOutcome = 'rejected';
+  if(state.mode === 'B'){
+    // Mode B: rejection after payment -> go straight to rejected application status w/ refund messaging
+    setTimeout(function(){ goTo('s-application-status'); renderStatusTrack('rejected'); }, 900);
+  }
+});
+
+window.afterDocuments = function(){
+  goTo('s-checkout');
+};
+
+window.goBackFromCheckout = function(){
+  if(state.mode === 'A'){ goTo('s-documents'); } else { goTo('s-profile'); }
+};
+
+window.pay = function(){
+  goTo('s-payment-status');
+  $('#pay-pill').html('<span class="acad-pill acad-pill--warning">⏳ Confirming your payment…</span>');
+  $('#pay-msg').text('We are waiting for confirmation from the gateway.');
+  $('#pay-sub').text('Driven by a server-side webhook — not by this screen staying open.');
+  $('#pay-continue-btn, #pay-retry-btn').hide();
+  setTimeout(function(){
+    if(!$('#s-payment-status').hasClass('active')) return;
+    paySuccess();
+  }, 1400);
+};
+function paySuccess(){
+  $('#pay-pill').html('<span class="acad-pill acad-pill--success">✓ Payment successful</span>');
+  $('#pay-msg').text('Your invoice has been generated and emailed to you.');
+  $('#pay-sub').text('');
+  $('#pay-continue-btn').show();
+  state.paymentDone = true;
+}
+function payFail(){
+  $('#pay-pill').html('<span class="acad-pill acad-pill--danger">✕ Payment failed</span>');
+  $('#pay-msg').text('Your bank or gateway declined this transaction.');
+  $('#pay-sub').text('No amount has been deducted.');
+  $('#pay-retry-btn').show();
+}
+$('#ctrl-pay-success').on('click', function(){ if($('#s-payment-status').hasClass('active')) paySuccess(); });
+$('#ctrl-pay-fail').on('click', function(){ if($('#s-payment-status').hasClass('active')) payFail(); });
+
+window.afterPayment = function(){
+  if(state.mode === 'B'){ goTo('s-documents'); return; }
+  goTo('s-application-status');
+  renderStatusTrack('admitted');
+};
+
+function renderStatusTrack(outcome){
+  var items = [
+    {label:'Application submitted', done:true},
+  ];
+  if(state.mode !== 'C') items.push({label:'Documents under review', done: state.mode==='A' ? true : (state.docsSubmitted||false)});
+  items.push({label:'Payment', done: state.paymentDone});
+  if(outcome === 'rejected'){
+    items.push({label:'Rejected — refund initiated', cls:'rejected', done:true});
+  } else {
+    items.push({label:'Admitted', cls:'now', done:true});
+  }
+  var html = '';
+  items.forEach(function(it){
+    var cls = it.cls || (it.done ? 'done' : '');
+    html += '<div class="item '+cls+'"><div style="font-size:13px;">'+it.label+'</div></div>';
+  });
+  $('#status-track').html(html);
+  $('#admitted-cta').toggle(outcome === 'admitted');
+  $('#rejected-cta').toggle(outcome === 'rejected');
+}
+
+// Prototype control bindings
+$('#ctrl-mode').on('change', function(){ state.mode = $(this).val(); renderStepper($('.screen.active').attr('id')); });
+$('#ctrl-full').on('change', function(){
+  state.batchFull = $(this).is(':checked');
+  $('#jul-seats').text(state.batchFull ? 'Full' : '42 / 60 open');
+  $('.batch-opt[data-batch="jul"]').toggleClass('full', state.batchFull);
+});
+$('#ctrl-restart').on('click', function(){ location.reload(); });
+
+renderStepper('s-course');
+});
+</script>
+</body>
+</html>

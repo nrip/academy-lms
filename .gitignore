@@ -1,0 +1,36 @@
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+.env.*
+!.env.example
+
+# Dependencies
+/vendor/
+/node_modules/
+
+# IDE & OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs & Cache
+/logs/
+/cache/
+/tmp/
+storage/logs/*
+storage/cache/*
+storage/uploads/*
+
+# Database
+*.sqlite
+
+.DS_Store
+Thumbs.db
+
+
+.phpunit.result.cache
+.phpstan.cache
+coverage/

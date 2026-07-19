@@ -1,0 +1,57 @@
+---
+description: Academy LMS core repository rules
+globs: "**/*"
+alwaysApply: true
+---
+
+Read `/AGENTS.md` and `/docs/README.md` before every task.
+
+The mandatory rules in AGENTS.md §4 are non-negotiable. If a task conflicts with them, stop and report the conflict.
+
+## Key invariants
+- Enrolment is created only when `Application.status = Admitted`.
+- An Application may have multiple Payment attempts; each Payment belongs to the Application through `application_id NOT NULL`.
+- A published or otherwise locked CourseVersion is immutable. Changes require Version N+1.
+- Finance users cannot access DocumentSubmission data, metadata or signed document URLs.
+- All state transitions go through approved state-machine classes, never raw status updates.
+- Every sensitive state change and administrative override writes an atomic audit record.
+- Browser payment callbacks are never trusted as final payment confirmation.
+- Webhook and worker handlers must be idempotent.
+
+## Document authority
+- PRD governs scope and business intent.
+- SRS governs functional behaviour, business rules and state machines.
+- Technical Architecture governs implementation and coding standards.
+- High-fidelity designs govern approved visual and interaction treatment.
+- Screen Inventory governs coverage.
+- Low-fidelity wireframes are supplementary.
+
+If documents conflict, stop and identify the conflicting sections. Do not resolve the conflict by assumption.
+
+## Documentation locations
+- Product requirements: `/docs/product/`
+- Design, inventory and wireframes: `/docs/design/`
+- High-fidelity UX: `/docs/design/high-fidelity/`
+- Technical architecture: `/docs/technical/`
+- Decisions: `/docs/product/DECISION_LOG.md`
+
+## Before editing
+- Read the relevant SRS sections, technical standards and UX files.
+- Inspect existing implementation patterns.
+- For changes affecting more than 3 files, a migration, permissions, payments, state machines or sensitive data, present an implementation plan and wait for approval.
+- Work only within the assigned work-package scope.
+
+## Before completion (Work-Package Report)
+When finishing a task, output a summary using this exact format:
+
+**Title:** [Task Name]
+**Files changed:** [List of files]
+**Database migrations:** [Yes/No - list them if Yes]
+**Permissions affected:** [List or "None"]
+**State transitions affected:** [List or "None"]
+**Tests added:** [List or "None"]
+**Commands run:** [e.g., `composer install`, `phpunit`]
+**Assumptions made:** [List or "None"]
+**Known limitations / Blockers:** [List or "None"]
+
+Do not claim completion if required tests were not run or did not pass.

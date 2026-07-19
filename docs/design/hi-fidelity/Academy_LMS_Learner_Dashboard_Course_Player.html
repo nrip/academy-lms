@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Academy LMS — Learner Dashboard &amp; Course Player (Prototype)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --acad-ink:#16262A; --acad-paper:#F5F8F7; --acad-surface:#FFFFFF;
+  --acad-teal:#0F6E62; --acad-teal-dk:#0B5148; --acad-ochre:#B8813A;
+  --acad-success:#1E7A52; --acad-danger:#B23B3B; --acad-info:#2B6CB0;
+  --acad-line:#D9E1DF; --acad-muted:#5B6B6E;
+  --bs-body-bg:var(--acad-paper); --bs-body-color:var(--acad-ink);
+  --bs-body-font-family:'Inter',sans-serif; --bs-font-monospace:'IBM Plex Mono',monospace;
+  --bs-border-color:var(--acad-line); --bs-border-radius:.3rem; --bs-border-radius-sm:.2rem; --bs-border-radius-lg:.5rem;
+  --bs-box-shadow:0 4px 16px rgba(15,38,42,.10); --bs-box-shadow-sm:0 1px 2px rgba(15,38,42,.07);
+  --bs-primary:var(--acad-teal); --bs-primary-rgb:15,110,98;
+  --bs-success:var(--acad-success); --bs-success-rgb:30,122,82;
+  --bs-warning:var(--acad-ochre); --bs-warning-rgb:184,129,58;
+  --bs-danger:var(--acad-danger); --bs-danger-rgb:178,59,59;
+  --bs-info:var(--acad-info); --bs-info-rgb:43,108,176;
+  --bs-link-color:var(--acad-teal); --bs-link-hover-color:var(--acad-teal-dk);
+}
+body{font-family:'Inter',sans-serif;color:var(--acad-ink);}
+h1,h2,h3,h4,.acad-display{font-family:'Libre Franklin',sans-serif;font-weight:700;letter-spacing:-.01em;}
+.acad-mono{font-family:'IBM Plex Mono',monospace;font-feature-settings:"tnum" 1;}
+.acad-eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--acad-muted);}
+:focus-visible{outline:2px solid var(--acad-teal);outline-offset:2px;}
+
+.acad-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px 3px 8px;border-radius:100px;}
+.acad-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;}
+.acad-pill--success{background:#E4F1EA;color:var(--acad-success);}
+.acad-pill--warning{background:#F6ECDA;color:var(--acad-ochre);}
+.acad-pill--danger{background:#F5E4E4;color:var(--acad-danger);}
+.acad-pill--neutral{background:#E8ECEB;color:var(--acad-muted);}
+
+.acad-vitalline{position:relative;height:14px;}
+.acad-vitalline .track{position:absolute;top:6px;left:0;right:0;height:3px;background:var(--acad-line);border-radius:2px;}
+.acad-vitalline .fill{position:absolute;top:6px;left:0;height:3px;background:var(--acad-teal);border-radius:2px;transition:width .25s ease-out;}
+
+.topbar{background:var(--acad-surface);border-bottom:1px solid var(--acad-line);padding:14px 32px;display:flex;justify-content:space-between;align-items:center;}
+.shell{max-width:1080px;margin:0 auto;padding:28px 20px 80px;}
+.screen{display:none;}
+.screen.active{display:block;}
+
+.acad-card-state{border-left:4px solid var(--acad-line);border-radius:var(--bs-border-radius);}
+.acad-card-state--active{border-left-color:var(--acad-teal);}
+.acad-card-state--scheduled{border-left-color:var(--acad-ochre);}
+.acad-card-state--suspended{border-left-color:var(--acad-danger);}
+.acad-card-state--completed{border-left-color:var(--acad-success);}
+
+.player-shell{display:flex;gap:0;border:1px solid var(--acad-line);border-radius:var(--bs-border-radius-lg);overflow:hidden;background:var(--acad-surface);box-shadow:var(--bs-box-shadow-sm);}
+.player-nav{width:270px;flex-shrink:0;background:#F0F4F3;border-right:1px solid var(--acad-line);padding:10px;}
+.mod-item{display:flex;align-items:center;gap:10px;padding:11px 10px;border-radius:var(--bs-border-radius);cursor:pointer;margin-bottom:4px;font-size:13px;}
+.mod-item:hover{background:#e4ecea;}
+.mod-item.current{background:#DCEDE8;font-weight:600;}
+.mod-item.locked{color:var(--acad-muted);cursor:not-allowed;}
+.mod-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;border:1.5px solid var(--acad-line);}
+.mod-icon.done{background:var(--acad-teal);border-color:var(--acad-teal);color:#fff;}
+.mod-icon.current{border-color:var(--acad-teal);color:var(--acad-teal);}
+.mod-icon.locked{background:#e4e8e7;color:var(--acad-muted);}
+.player-main{flex:1;padding:26px 30px;}
+.video-box{background:#16262A;border-radius:var(--bs-border-radius);height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#cfe0dd;position:relative;}
+.video-box .playbtn{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;}
+.video-progress{position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(255,255,255,.2);}
+.video-progress .fill{height:100%;background:var(--acad-teal);width:0%;transition:width .3s linear;}
+.toast-mini{position:fixed;bottom:20px;right:20px;background:var(--acad-ink);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;z-index:99;max-width:280px;}
+.toast-mini.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div><span class="acad-eyebrow">Academy LMS</span> <b style="margin-left:8px;">Dr. Jyoti Sharma</b></div>
+  <div id="topbar-back" style="display:none;"><button class="btn btn-sm btn-outline-primary" onclick="showDashboard()">← Back to Dashboard</button></div>
+</div>
+
+<div class="shell">
+
+  <!-- DASHBOARD -->
+  <div class="screen active" id="s-dashboard">
+    <h4>Good afternoon, Dr. Sharma</h4>
+    <p class="acad-eyebrow mb-4">Learner Dashboard</p>
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="border rounded p-3 h-100">
+          <span class="acad-eyebrow">Continue</span>
+          <div style="font-size:14px;font-weight:600;margin:4px 0;">Clinical Assessment</div>
+          <div class="acad-vitalline mb-2"><div class="track"></div><div class="fill" id="dash-progress-fill" style="width:45%;"></div></div>
+          <button class="btn btn-primary btn-sm" onclick="showPlayer()">Resume Module 2</button>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="border rounded p-3 h-100">
+          <span class="acad-eyebrow">Assessments Due</span>
+          <div style="font-size:13px;margin-top:6px;">Clinical Assessment quiz — due in 5 days</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="border rounded p-3 h-100">
+          <span class="acad-eyebrow">Access Expires</span>
+          <div style="font-size:13px;margin-top:6px;">Diploma in Metabolic Health — 01 Jul 2027</div>
+        </div>
+      </div>
+    </div>
+
+    <h6 class="acad-eyebrow mb-2">My Courses</h6>
+
+    <div class="card acad-card-state acad-card-state--active p-3 mb-2">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <b>Diploma in Metabolic Health</b>
+          <div style="font-size:12px;color:var(--acad-muted);">6-month cohort · Module 2 of 4</div>
+        </div>
+        <div class="text-end">
+          <span class="acad-pill acad-pill--success">Active</span>
+          <div class="acad-mono" style="font-size:13px;margin-top:4px;" id="dash-pct">45%</div>
+        </div>
+      </div>
+      <div class="acad-vitalline mt-2"><div class="track"></div><div class="fill" id="dash-progress-fill-2" style="width:45%;"></div></div>
+      <button class="btn btn-outline-primary btn-sm mt-2" style="width:fit-content;" onclick="showPlayer()">Resume →</button>
+    </div>
+
+    <div class="card acad-card-state acad-card-state--completed p-3 mb-2">
+      <div class="d-flex justify-content-between align-items-center">
+        <div><b>Obesity Basics (4-hr)</b><div style="font-size:12px;color:var(--acad-muted);">Single module</div></div>
+        <span class="acad-pill acad-pill--success">Completed — 100%</span>
+      </div>
+    </div>
+
+    <div class="card acad-card-state acad-card-state--scheduled p-3 mb-2">
+      <div class="d-flex justify-content-between align-items-center">
+        <div><b>Advanced Nutrition Certificate</b><div style="font-size:12px;color:var(--acad-muted);">Admitted · begins 03 Aug 2026 (12 days)</div></div>
+        <span class="acad-pill acad-pill--warning">Scheduled</span>
+      </div>
+      <div style="font-size:12px;margin-top:8px;"><a href="#" onclick="return showToast('Orientation material opened (simulated).')">View orientation material</a></div>
+    </div>
+
+    <div class="card acad-card-state acad-card-state--suspended p-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <div><b>Pediatric Metabolic Care</b><div style="font-size:12px;color:var(--acad-muted);">Access paused</div></div>
+        <span class="acad-pill acad-pill--danger">Suspended</span>
+      </div>
+      <div style="font-size:12px;margin-top:8px;"><a href="#" onclick="return showToast('This opens a Support ticket, category: Course Access.')">Contact support to resolve →</a></div>
+    </div>
+  </div>
+
+  <!-- COURSE PLAYER -->
+  <div class="screen" id="s-player">
+    <h5 class="mb-3">Diploma in Metabolic Health</h5>
+    <div class="player-shell">
+      <div class="player-nav" id="mod-nav"></div>
+      <div class="player-main">
+        <div class="acad-eyebrow" id="player-mod-label">Module 2 · Clinical Assessment</div>
+        <h4 id="player-mod-title" style="margin:4px 0 14px;">Recognising Metabolic Syndrome</h4>
+        <div class="video-box" id="video-box">
+          <div class="playbtn" id="play-btn" onclick="playVideo()">▶</div>
+          <div style="font-size:12px;margin-top:10px;color:#9fc0bb;" id="video-pct">0% watched</div>
+          <div class="video-progress"><div class="fill" id="video-fill"></div></div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <div style="font-size:12px;color:var(--acad-muted);">Completion rule: video ≥ 90% watched</div>
+          <button class="btn btn-primary" id="mark-complete-btn" disabled onclick="markComplete()">Mark Module Complete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast-mini" id="mini-toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script>
+$(function(){
+
+var modules = [
+  {id:1, title:'Foundations of Metabolic Health', sub:'Introduction &amp; Screening', status:'done'},
+  {id:2, title:'Clinical Assessment', sub:'Recognising Metabolic Syndrome', status:'current', watched:0},
+  {id:3, title:'Management Plans', sub:'Requires Module 2', status:'locked-seq'},
+  {id:4, title:'Pharmacological Approaches', sub:'Unlocks 01 Sep 2026', status:'locked-date'}
+];
+var videoTimer = null;
+
+window.showToast = function(msg){
+  $('#mini-toast').text(msg).addClass('show');
+  setTimeout(function(){ $('#mini-toast').removeClass('show'); }, 2200);
+  return false;
+};
+
+window.showDashboard = function(){
+  $('.screen').removeClass('active'); $('#s-dashboard').addClass('active');
+  $('#topbar-back').hide();
+  updateDashboardProgress();
+};
+window.showPlayer = function(){
+  $('.screen').removeClass('active'); $('#s-player').addClass('active');
+  $('#topbar-back').show();
+  renderModuleNav();
+  loadModule(currentModuleId());
+};
+
+function currentModuleId(){
+  var cur = modules.find(function(m){ return m.status === 'current'; });
+  return cur ? cur.id : modules[0].id;
+}
+
+function renderModuleNav(){
+  var html = '';
+  modules.forEach(function(m){
+    var iconCls = m.status === 'done' ? 'done' : (m.status === 'current' ? 'current' : 'locked');
+    var iconChar = m.status === 'done' ? '✓' : (m.status === 'current' ? '▶' : '🔒');
+    var rowCls = m.status === 'current' ? 'current' : (m.status.indexOf('locked') === 0 ? 'locked' : '');
+    html += '<div class="mod-item '+rowCls+'" data-id="'+m.id+'">' +
+      '<span class="mod-icon '+iconCls+'">'+iconChar+'</span>' +
+      '<span>Module '+m.id+' — '+m.title+'</span></div>';
+  });
+  $('#mod-nav').html(html);
+}
+$(document).on('click', '.mod-item', function(){
+  var id = parseInt($(this).data('id'));
+  var m = modules.find(function(x){ return x.id === id; });
+  if(m.status === 'locked-seq'){ showToast('Locked — complete Module '+(id-1)+' first.'); return; }
+  if(m.status === 'locked-date'){ showToast('Locked — unlocks 01 Sep 2026.'); return; }
+  loadModule(id);
+});
+
+function loadModule(id){
+  var m = modules.find(function(x){ return x.id === id; });
+  $('.mod-item').removeClass('active-view');
+  $('.mod-item[data-id="'+id+'"]').addClass('active-view');
+  $('#player-mod-label').text('Module '+id+' · '+m.title);
+  $('#player-mod-title').text(m.sub);
+  var watched = (m.status === 'done') ? 100 : (m.watched || 0);
+  $('#video-fill').css('width', watched+'%');
+  $('#video-pct').text(watched+'% watched');
+  $('#mark-complete-btn').prop('disabled', !(watched >= 90) || m.status === 'done')
+    .text(m.status === 'done' ? 'Completed ✓' : 'Mark Module Complete');
+  $('#play-btn').text(m.status === 'done' ? '✓' : '▶');
+  clearInterval(videoTimer);
+  window.activeModuleId = id;
+}
+
+window.playVideo = function(){
+  var m = modules.find(function(x){ return x.id === window.activeModuleId; });
+  if(m.status === 'done') return;
+  clearInterval(videoTimer);
+  videoTimer = setInterval(function(){
+    m.watched = Math.min(100, (m.watched||0) + 4);
+    $('#video-fill').css('width', m.watched+'%');
+    $('#video-pct').text(m.watched+'% watched');
+    if(m.watched >= 90){ $('#mark-complete-btn').prop('disabled', false); }
+    if(m.watched >= 100){ clearInterval(videoTimer); }
+  }, 300);
+};
+
+window.markComplete = function(){
+  var id = window.activeModuleId;
+  var m = modules.find(function(x){ return x.id === id; });
+  m.status = 'done';
+  // unlock next sequential module if it was locked-seq
+  var next = modules.find(function(x){ return x.id === id+1; });
+  if(next && next.status === 'locked-seq'){ next.status = 'current'; next.watched = 0; }
+  renderModuleNav();
+  loadModule(next && next.status === 'current' ? next.id : id);
+  updateDashboardProgress();
+  showToast('Module '+id+' marked complete.'+(next && next.status==='current' ? ' Module '+next.id+' unlocked.' : ''));
+};
+
+function updateDashboardProgress(){
+  var done = modules.filter(function(m){ return m.status === 'done'; }).length;
+  var pct = Math.round((done / modules.length) * 100);
+  $('#dash-progress-fill, #dash-progress-fill-2').css('width', pct+'%');
+  $('#dash-pct').text(pct+'%');
+}
+
+renderModuleNav();
+updateDashboardProgress();
+});
+</script>
+</body>
+</html>
