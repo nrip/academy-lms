@@ -1,0 +1,47 @@
+/* Base application stylesheet — Phase 0 (no production components). */
+
+body {
+  color: var(--acad-ink);
+  background: var(--acad-paper);
+}
+
+.acad-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.acad-shell__header {
+  border-bottom: 1px solid var(--acad-line);
+  background: var(--acad-surface);
+  padding: var(--acad-sp-4) var(--acad-sp-5);
+}
+
+.acad-shell__brand {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--acad-teal);
+  text-decoration: none;
+}
+
+.acad-shell__main {
+  flex: 1;
+  padding: var(--acad-sp-6) var(--acad-sp-5);
+}
+
+.acad-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--acad-muted);
+}
+
+.acad-smoke-panel {
+  max-width: 40rem;
+  background: var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  padding: var(--acad-sp-6);
+  box-shadow: var(--bs-box-shadow-sm);
+}

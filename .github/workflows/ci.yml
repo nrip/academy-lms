@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main, foundation/**, feature/**]
+  pull_request:
+
+jobs:
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: academy_lms_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      APP_ENV: ci
+      APP_DEBUG: "false"
+      FORCE_HTTPS: "false"
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: academy_lms_ci
+      DB_USER: root
+      DB_PASSWORD: root
+      LOG_PATH: storage/logs/ci.log
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo_mysql, mbstring, json
+          coverage: none
+          tools: composer:v2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Validate Composer
+        run: composer validate --strict
+
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Composer audit
+        run: composer audit
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Copy frontend assets
+        run: npm run assets:install
+
+      - name: PHP syntax check
+        run: find src config public/index.php tests -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: PHP-CS-Fixer dry run
+        run: vendor/bin/php-cs-fixer fix --dry-run --diff --config=.php-cs-fixer.dist.php
+
+      - name: PHPStan
+        run: vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
+
+      - name: PHPUnit
+        run: vendor/bin/phpunit --configuration=phpunit.xml.dist
+
+      - name: Phinx migrate validation
+        run: vendor/bin/phinx migrate -e ci -c phinx.php

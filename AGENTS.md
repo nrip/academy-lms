@@ -424,7 +424,7 @@ These are authoritative. When in doubt, they override any inference.
 | Low-fidelity Wireframes v3 | Approved |
 | High-fidelity Prototypes (9 flows) | Approved |
 | Design System v1.0 | Approved |
-| Technical Architecture v1.1 | Approved for Build |
+| Technical Architecture v1.1 | Approved for Phase 0 Foundation Build and Build Preparation (broader functional build subject to SRS conditional approvals and Decision Log) |
 
 **If a request conflicts with any of these documents, stop and raise the conflict.**
 

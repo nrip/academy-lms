@@ -8,6 +8,7 @@
 # Dependencies
 /vendor/
 /node_modules/
+/bin/composer
 
 # IDE & OS files
 .idea/
@@ -15,22 +16,33 @@
 *.swp
 *.swo
 *~
+.DS_Store
+Thumbs.db
 
 # Logs & Cache
 /logs/
 /cache/
 /tmp/
 storage/logs/*
+!storage/logs/.gitkeep
 storage/cache/*
+!storage/cache/.gitkeep
 storage/uploads/*
+!storage/uploads/.gitkeep
+storage/sessions/*
+!storage/sessions/.gitkeep
+storage/tmp/*
+!storage/tmp/.gitkeep
 
 # Database
 *.sqlite
+database/dumps/*
+!database/dumps/.gitkeep
 
-.DS_Store
-Thumbs.db
-
-
+# Tooling caches
 .phpunit.result.cache
+.phpunit.cache/
+.php-cs-fixer.cache
 .phpstan.cache
+.phpstan.result.cache
 coverage/

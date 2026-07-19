@@ -1,0 +1,24 @@
+# Example nginx snippet for Academy LMS public document root.
+# Set root to .../public and deny access to application source paths.
+
+server {
+    listen 80;
+    server_name academy.local;
+    root /var/www/academy-lms/public;
+    index index.php;
+
+    location / {
+        try_files $uri /index.php$is_args$args;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+    }
+
+    location ~ ^/(src|config|database|tests|storage|vendor|templates|bin)/ {
+        deny all;
+        return 404;
+    }
+}
