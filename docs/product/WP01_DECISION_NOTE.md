@@ -10,12 +10,12 @@
 
 | ID | Topic | Outcome |
 | --- | --- | --- |
-| WP01-A | Session + rate-limit store | **Approved:** MySQL for both for the initial production vertical slice, subject to load testing and review before horizontal scaling. Implementation requirements below. |
+| WP01-A | Session + rate-limit store | **Approved (Product Owner):** MySQL for both for the initial production vertical slice, subject to load testing and review before horizontal scaling. Implementation requirements below. Technical Lead approval of failure-behaviour/security detail: **Pending**. |
 | WP01-B | Email verification | **Pending** (recommendation remains Amazon SES until recorded Approved in Decision Log). |
 | WP01-C | Mobile verification | **Preferred but Pending:** SMS OTP. Production SMS **not** approved until provider, DLT, sender, templates, SLA, fallback and commercials are approved. Provider-neutral interface + fake/sandbox adapter allowed for development. Does **not** block WP-01A; **blocks WP-01B production completion**. |
-| WP01-D | TOTP package | **Approved:** `spomky-labs/otphp`, subject to pinning, licence review, composer audit, encrypted secrets, hashed recovery codes, no secrets in logs, audited enrolment/reset/recovery. |
-| WP01-E | Reviewer object scope | **Approved (amended):** Course, CourseVersion, and/or Batch assignments; union of active assignments; permission **and** scope required; no automatic future CourseVersions without explicit `include_future_versions`; effective dates, revocation history, creator/revoker, audit. |
-| WP01-F | Hosting region | **Approved:** AWS `ap-south-1` as primary production-region **working assumption**, subject to final infrastructure, backup, logging, residency and DR approval. Region choice alone does **not** satisfy all compliance requirements. |
+| WP01-D | TOTP package | **Approved (Product Owner):** `spomky-labs/otphp`, subject to pinning, licence review, composer audit, encrypted secrets, hashed recovery codes, no secrets in logs, audited enrolment/reset/recovery. Technical Lead implementation review: **Pending**. |
+| WP01-E | Reviewer object scope | **Approved (Product Owner, amended):** Course, CourseVersion, and/or Batch assignments; union of active assignments; permission **and** scope required; no automatic future CourseVersions without explicit `include_future_versions`; effective dates, revocation history, creator/revoker, audit. Technical Lead schema review: **Pending**. |
+| WP01-F | Hosting region | **Approved (Product Owner):** AWS `ap-south-1` as primary production-region **working assumption**, subject to final infrastructure, backup, logging, residency and DR approval. Region choice alone does **not** satisfy all compliance requirements. Technical Lead / hosting final approval: **Pending**. |
 
 ---
 
@@ -35,7 +35,13 @@ Closes Phase 0 Decision **D9** for initial slice build.
 
 **Decision text:** Approved for the initial production architecture, subject to load testing and review before horizontal scaling.
 
-**Review triggers (must prompt re-evaluation, including possible move to Redis):**
+**Why MySQL sessions + MySQL rate limiting (not MySQL sessions + Redis rate limiting) for the initial profile:**
+
+- Avoid a second production datastore for the initial traffic profile
+- Reduce operational, monitoring and failover complexity
+- Retain explicit review triggers so rate limiting can later migrate to Redis **independently** of sessions if load testing warrants it
+
+**Review triggers (must prompt re-evaluation, including possible move of rate limiting and/or sessions to Redis):**
 
 - Database contention from session/rate-limit writes
 - Transactional latency impact
@@ -48,8 +54,14 @@ Closes Phase 0 Decision **D9** for initial slice build.
 - Indexed expiry columns
 - Scheduled cleanup of expired rows
 - **Hashed** session identifiers at rest
-- **Atomic** rate-limit updates
-- Documented failure behaviour (e.g. store unavailable → safe deny / fail closed for auth-sensitive actions; behaviour recorded in runbook/tests)
+- **Atomic** rate-limit counter updates only, e.g.  
+  `INSERT ... ON DUPLICATE KEY UPDATE hit_count = hit_count + 1`  
+  **No** read-in-PHP-then-update counter pattern is permitted
+- Unique **bucket/window** keys for rate-limit rows
+- Expiry cleanup for rate-limit buckets
+- **Endpoint-specific** failure behaviour when the rate-limit store errors
+- Authentication and OTP rate-limit failure behaviour must be **documented and security reviewed**
+- Documented failure behaviour for session store unavailable (fail closed for auth-sensitive actions)
 
 | Aspect | Detail |
 | --- | --- |
@@ -57,6 +69,8 @@ Closes Phase 0 Decision **D9** for initial slice build.
 | **Operational** | Single primary datastore; monitor purge job and table growth. |
 | **Dependency / package** | In-repo PDO-backed adapters preferred; any Composer session package needs explicit approval. |
 | **Cost / hosting** | No extra cache tier for initial slice. |
+| **Product Owner approval** | Nrip Nihalani, 2026-07-19 |
+| **Technical Lead approval** | **Pending** (implementation/security review of failure behaviour and atomic counter design) |
 
 ---
 
@@ -111,6 +125,11 @@ Subject to:
 - **No** secret or provisioning URI in logs
 - **Audited** enrolment, reset and recovery-code use
 
+| Approver | Status |
+| --- | --- |
+| Product Owner (Nrip Nihalani), 2026-07-19 | **Approved** (package choice) |
+| Technical Lead | **Pending** (version pin, licence, audit, secret-handling review at implementation) |
+
 ---
 
 ## Decision E — Reviewer object-scope schema
@@ -136,6 +155,11 @@ Assignments may target any of:
 - Creator and revoker identity
 - Audit events on create, amend, revoke
 
+| Approver | Status |
+| --- | --- |
+| Product Owner (Nrip Nihalani), 2026-07-19 | **Approved** |
+| Technical Lead | **Pending** (schema/index review at WP-01B implementation) |
+
 ---
 
 ## Decision F — Hosting / India-region assumptions
@@ -145,6 +169,11 @@ Assignments may target any of:
 - Primary production-region **working assumption** for slice design.
 - Subject to final approval of infrastructure, backup, logging, residency and disaster-recovery designs.
 - **Do not** treat region selection alone as satisfying DPDP or other compliance obligations (NFR-SEC-2 and legal review remain).
+
+| Approver | Status |
+| --- | --- |
+| Product Owner (Nrip Nihalani), 2026-07-19 | **Approved** (working assumption) |
+| Technical Lead / hosting owner | **Pending** final infrastructure, backup, logging, residency and DR approval |
 
 ---
 

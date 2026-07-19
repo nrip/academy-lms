@@ -45,7 +45,7 @@ Transactional notifications **beyond identity OTP** land in **WP-07** (no separa
 
 - `audit_log` schema and append-only writer
 - Transactional outbox
-- Shared **MySQL** session store and **MySQL** rate-limit store (separate tables; hashed session IDs; indexed expiries; scheduled cleanup; atomic rate-limit updates; documented failure behaviour) per WP01-A
+- Shared **MySQL** session store and **MySQL** rate-limit store (separate tables; hashed session IDs; indexed expiries; scheduled cleanup; **atomic** rate-limit increments via `INSERT … ON DUPLICATE KEY UPDATE hit_count = hit_count + 1` or equivalent — **no** read-in-PHP-then-update; unique bucket/window keys; expiry cleanup; endpoint-specific failure behaviour; auth and OTP failure behaviour documented and security reviewed) per WP01-A
 - CSRF middleware
 - Rate limiting (Architecture §5.2.1)
 - Security middleware completion (session + CSRF + rate limit wired into Phase 0 pipeline)
@@ -107,6 +107,15 @@ Transactional notifications **beyond identity OTP** land in **WP-07** (no separa
 
 **In scope:** Application submit + eligibility; **complete** `ApplicationStateMachine` matrix (unit-tested for every allowed and disallowed pair); DocumentSubmission upload + malware-scan gate; **complete** `DocumentSubmissionStateMachine` per State Machine Addendum; **real** Finance SoD tests (repository, signed URL, HTTP).
 
+**Acceptance criteria (additional — current-row enforcement):**
+
+- `document_submissions` includes nullable `current_marker`
+- Active/current submission uses `current_marker = 1`; historical or Superseded rows use `current_marker = NULL`
+- Unique constraint on `(application_id, requirement_id, current_marker)`
+- Resubmission runs in a transaction: `SELECT … FOR UPDATE` on the current row → mark Superseded and `current_marker = NULL` → insert new row with `current_marker = 1` → audit/outbox → commit
+- Database unique constraint remains the final concurrency defence
+- Stuck `scan_status = pending` beyond configured SLA: operational alert + retry handling; never enter reviewer queue or treat as clean; exhausted retries require manual ops resolution (timeouts/backoff configurable until scanner selected)
+
 **Depends on:** WP-02; malware scanner + S3 + queue decisions; State Machine Addendum (`SM-DOC-1`) approved.
 
 ---
@@ -123,7 +132,7 @@ Transactional notifications **beyond identity OTP** land in **WP-07** (no separa
 
 **Branch:** `slice/wp05-payment-checkout`
 
-**In scope:** Payment attempts on Application; Razorpay order/checkout; **complete** `PaymentStateMachine` matrix; A-06/A-09 confirming UI (browser non-authoritative).
+**In scope:** Payment attempts on Application; Razorpay order/checkout; **complete** `PaymentStateMachine` matrix (AGENTS.md §6.3 — Payment Status); A-06/A-09 confirming UI (browser non-authoritative).
 
 **Payment rule:** Decision Log **PAY-ATTEMPT-1**.
 
@@ -132,6 +141,8 @@ Transactional notifications **beyond identity OTP** land in **WP-07** (no separa
 ## WP-06 — Webhook, Admission and Enrolment
 
 **Branch:** `slice/wp06-webhook-admit-enrolment`
+
+**Gate:** Before WP-06 begins, approved functional amendments affecting Admissions, DocumentSubmission, Payments and Reviewer Scope must be consolidated into **SRS v6.1** (Decision Log `SRS-V61-1`). Owner: Product Owner Nrip Nihalani; technical validation: Technical Lead.
 
 **In scope:** Signature-verified webhook; durable idempotent gateway events; worker; capacity locking; Application → Admitted; Enrolment create; **complete** `EnrolmentStateMachine` matrix; one net successful payable outcome enforcement; optional invoice if separately approved.
 

@@ -91,31 +91,52 @@ While scan is outstanding: **`status = Uploaded`** and **`scan_status = pending`
 ### 4.1 New row; prior row immutable
 
 - Resubmission **creates a new `DocumentSubmission` row**.
-- The prior row remains **immutable** and is marked **`Superseded`** when the new row is accepted as the replacement attempt (at upload acceptance for that requirement).
+- The prior row remains **immutable**, is marked **`Superseded`**, and has `current_marker` set to **`NULL`** in the same transaction as the new current row (§4.4).
 - Do **not** overwrite previously reviewed submissions (including Approved, Rejected, Resubmission Requested content, verification notes, or file object keys).
-
-### 4.2 Retry after scan failure or malware detection
-
-1. Current row transitions **Uploaded → Failed Security Scan** (and `scan_status = failed`); object remains quarantined.  
-2. Learner initiates retry → **new** DocumentSubmission row with `status = Uploaded`, `scan_status = pending`.  
-3. Prior failed row → **Superseded** (immutable).  
-4. New row follows scan → Under Review or Failed Security Scan again.
-
-Same pattern applies when status is **Resubmission Requested**: learner upload creates a new row; the Resubmission Requested row becomes **Superseded**.
 
 ### 4.3 Current submission per requirement
 
-For each `(application_id, requirement_id)`:
+For each `(application_id, requirement_id)` the **current** submission is enforced in the database:
 
-- The **current submission** is the single non-terminal row that is not `Superseded` and not `Expired`, preferring the latest by `created_at` / `document_id` if multiple non-superseded rows would otherwise exist (implementation must enforce at most one “open” current row per requirement).
-- Open/current statuses: `Uploaded`, `Under Review`, `Resubmission Requested`, `Failed Security Scan` (awaiting learner retry), or `Approved` (satisfied).
-- Historical rows (`Superseded`, and prior `Rejected`/`Failed Security Scan` after supersession) remain queryable for audit.
+| Column | Rule |
+| --- | --- |
+| `current_marker` | Nullable. Active/current row: `current_marker = 1`. Historical / Superseded (and other non-current) rows: `current_marker = NULL`. |
+| Unique constraint | `UNIQUE (application_id, requirement_id, current_marker)` — with MySQL, multiple `NULL` markers are allowed for history; at most one row may hold `current_marker = 1` per application+requirement. |
 
-Application “documents complete / under review” logic uses **current** submissions only.
+Application “documents complete / under review” logic uses the row where `current_marker = 1` only.
 
-### 4.4 Reviewer access to prior versions
+### 4.4 Resubmission transaction (mandatory)
 
-- Reviewers with permission **and** object scope may view **prior versions** (Superseded / historically Rejected / historically Failed Security Scan metadata) for the same requirement, via explicit history UI (R-03 / detail history).
+Resubmission (including retry after Failed Security Scan) **must** run in a single database transaction:
+
+1. `SELECT … FOR UPDATE` the existing current row (`current_marker = 1`)
+2. Mark it **Superseded** and set `current_marker = NULL`
+3. Insert the new submission with `current_marker = 1`, `status = Uploaded`, `scan_status = pending`
+4. Write audit and outbox records
+5. Commit
+
+The unique constraint on `(application_id, requirement_id, current_marker)` remains the **final concurrency defence**.
+
+### 4.5 Retry after scan failure or malware detection
+
+1. Current row transitions **Uploaded → Failed Security Scan** (and `scan_status = failed`); object remains quarantined.  
+2. Learner initiates retry → transactional resubmission (§4.4) creating a **new** row.  
+3. New row follows scan → Under Review or Failed Security Scan again.
+
+### 4.6 Stuck malware scans (pending beyond SLA)
+
+A submission that remains `scan_status = pending` beyond the **configured SLA** must:
+
+- generate an **operational alert**, and
+- enter **retry handling**.
+
+It must **never** enter the reviewer queue or be treated as clean. Exhausted retries require **manual operational resolution**.
+
+Timeout, retry count and backoff values remain **configurable** until the malware scanner product is selected.
+
+### 4.7 Reviewer access to prior versions
+
+- Reviewers with permission **and** object scope may view **prior versions** (`current_marker IS NULL`, including Superseded / historically Rejected / historically Failed Security Scan metadata) for the same requirement, via explicit history UI (R-03 / detail history).
 - **Failed Security Scan** file content remains quarantined: reviewers must **not** receive signed URLs to malware-positive objects.
 - Prior **clean** versions may be viewed via short-lived signed URLs under the same SoD rules (Finance never).
 - VerificationAuditLog remains append-only per document version.
@@ -128,10 +149,10 @@ A DocumentSubmission enters the **reviewer queue** (R-01) if and only if **all**
 
 1. `status = Under Review`
 2. `scan_status = clean`
-3. The row is the **current** submission for its `(application_id, requirement_id)` (not `Superseded`)
+3. `current_marker = 1` (current submission for its `(application_id, requirement_id)`)
 4. The acting reviewer satisfies **permission** and **object scope** for the related Application’s course / course version / batch
 
-Transition **Uploaded → Under Review** may occur only when `scan_status` becomes `clean`. Queue listing filters on the conditions above; UI filters are non-authoritative.
+Transition **Uploaded → Under Review** may occur only when `scan_status` becomes `clean`. A row with `scan_status = pending` (including past SLA) must never be queued or treated as clean (§4.6). Queue listing filters on the conditions above; UI filters are non-authoritative.
 
 ---
 
@@ -149,7 +170,7 @@ Application transition pairs remain those in SRS §18.1 / AGENTS.md §6.1 (full 
 
 ## 7. Payment and Enrolment
 
-- Payment transitions: AGENTS.md §6.3 / Architecture — full matrix when introduced in WP-05.  
+- Payment transitions: AGENTS.md §6.3 — Payment Status / Architecture — full matrix when introduced in WP-05.  
 - Enrolment transitions: SRS §18.2 — full matrix when introduced in WP-06.  
 - Payment attempt rule: Decision Log **PAY-ATTEMPT-1**.
 
@@ -161,8 +182,10 @@ Application transition pairs remain those in SRS §18.1 / AGENTS.md §6.1 (full 
 | --- | --- |
 | Business status vs scan status separation (§2) | Approved |
 | New-row resubmission; prior row Superseded and immutable (§4) | Approved |
-| Current submission definition (§4.3) | Approved |
-| Retry after scan failure (§4.2) | Approved |
-| Reviewer prior-version access rules (§4.4) | Approved |
+| Current submission via `current_marker` + unique constraint (§4.3) | Approved |
+| Resubmission transaction + concurrency defence (§4.4) | Approved |
+| Stuck scan SLA / retry / never queue as clean (§4.6) | Approved |
+| Retry after scan failure (§4.5) | Approved |
+| Reviewer prior-version access rules (§4.7) | Approved |
 | Queue-entry condition (§5) | Approved |
 | Transition matrix (§3) | Approved for Mode A slice implementation |
