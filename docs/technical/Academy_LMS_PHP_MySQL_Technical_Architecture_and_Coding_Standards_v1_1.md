@@ -8,8 +8,9 @@ PHP 8.4 | MySQL 8.4 LTS | jQuery 3.x | Bootstrap 5.3
 | **Document**        | **Value**                                                                                  |
 | ------------------- | ------------------------------------------------------------------------------------------ |
 | Version             | 1.1                                                                                        |
-| Status              | Draft for Technical Review and Build Preparation - Critical Enforcement Additions Included |
-| Companion documents | PRD v1.0, SRS v6.0, approved low-fidelity UX baseline, high-fidelity designs in progress   |
+| Status              | Approved for Phase 0 Foundation Build and Build Preparation. The broader functional build remains subject to the open decisions and conditional approvals identified in the SRS and Decision Log. |
+| Companion documents | PRD v1.0, SRS v6.0, approved low-fidelity UX baseline, high-fidelity designs under `/docs/design/high-fidelity/`, Decision Log |
+
 | Audience            | Product Management, Engineering, QA, DevOps, Security, AI coding agents                    |
 | Prepared for        | Academy LMS Product and Engineering Team                                                   |
 | Date                | July 2026                                                                                  |
@@ -22,7 +23,7 @@ PHP 8.4 | MySQL 8.4 LTS | jQuery 3.x | Bootstrap 5.3
 | **Version** | **Date**  | **Status**                 | **Summary**                                                                                                                                                                            |
 | ----------- | --------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1.0         | July 2026 | Draft for Technical Review | Initial architecture, coding, security, database, integration, deployment and quality standards.                                                                                       |
-| 1.1         | July 2026 | Draft for Technical Review | Added explicit state-machine enforcement, CourseVersion immutability controls, rate-limit defaults, timezone conversion rules, database connection management, and upload-size limits. |
+| 1.1         | July 2026 | Approved for Phase 0 Foundation Build and Build Preparation | Added explicit state-machine enforcement, CourseVersion immutability controls, rate-limit defaults, timezone conversion rules, database connection management, and upload-size limits. Status reconciled for Phase 0 foundation build; broader functional build remains subject to SRS conditional approvals and the Decision Log. |
 
 ## Approval Roles
 
@@ -1105,7 +1106,7 @@ The first complete slice should be:
 - Final high-fidelity design system and component specification.
 
 **Formal disposition  
-**This document should be reviewed and approved before production coding begins. Foundation spikes and repository setup may proceed while high-fidelity design is completed, provided no unresolved product policy is silently implemented.
+**This document is approved for Phase 0 Foundation Build and Build Preparation. The broader functional build remains subject to the open decisions and conditional approvals identified in the SRS and Decision Log. No unresolved product policy may be silently implemented.
 
 # Appendix A - Coding Style Summary
 

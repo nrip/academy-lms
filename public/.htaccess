@@ -1,0 +1,6 @@
+# Deny access to everything except front controller assets handled by the web server.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>

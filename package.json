@@ -1,0 +1,15 @@
+{
+  "name": "academy-lms",
+  "private": true,
+  "description": "Frontend asset dependencies for Academy LMS (Phase 0: Bootstrap + jQuery only)",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bootstrap": "5.3.3",
+    "jquery": "3.7.1"
+  },
+  "scripts": {
+    "assets:install": "node bin/install-frontend-assets.mjs"
+  }
+}

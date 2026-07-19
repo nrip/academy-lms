@@ -1,0 +1,10 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - config
+        - public/index.php
+    excludePaths:
+        - database
+        - templates
+    treatPhpDocTypesAsCertain: false
