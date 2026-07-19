@@ -51,6 +51,7 @@ academy-lms/
 │   │   ├── Certificates/
 │   │   ├── Notifications/
 │   │   ├── Support/
+│   │   ├── Audit/
 │   │   └── Reporting/
 │   ├── Application/      # Use-case orchestration, commands, queries, DTOs
 │   ├── Infrastructure/   # PDO, S3, SQS, Razorpay, Mux, Mail adapters
