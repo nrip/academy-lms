@@ -19,7 +19,32 @@ use Dotenv\Dotenv;
  *     options: array<int, mixed>
  *   },
  *   logging: array{name: string, level: string, path: string, json: bool},
- *   security: array{trusted_proxies: list<string>, force_https: bool},
+ *   security: array{
+ *     trusted_proxies: list<string>,
+ *     force_https: bool,
+ *     rate_limit_pepper: string,
+ *     session: array{
+ *       cookie_secure: bool,
+ *       cookies: array{session_name: string, csrf_name: string},
+ *       activity_write_throttle_seconds: int,
+ *       required_path_prefixes: list<string>,
+ *       timeouts: array{
+ *         default: array{idle_seconds: int, absolute_seconds: int},
+ *         privileged: array{idle_seconds: int, absolute_seconds: int}
+ *       }
+ *     },
+ *     rate_limit: array{
+ *       policies: array<string, array{limit: int, window_seconds: int, failure: string}>,
+ *       path_policies: array<string, string>
+ *     },
+ *     outbox: array{
+ *       lease_seconds: int,
+ *       max_attempts: int,
+ *       backoff_base_seconds: int,
+ *       backoff_cap_seconds: int,
+ *       transport: string
+ *     }
+ *   },
  *   paths: array{root: string, templates: string, storage: string, public: string}
  * }
  */
@@ -57,6 +82,18 @@ $string = static function (string $key, string $default = ''): string {
     return (string) $value;
 };
 
+$int = static function (string $key, int $default): int {
+    $value = $_ENV[$key] ?? $_SERVER[$key] ?? false;
+    if ($value === false) {
+        $value = getenv($key);
+    }
+    if ($value === false || $value === '') {
+        return $default;
+    }
+
+    return (int) $value;
+};
+
 $env = strtolower($string('APP_ENV', 'local'));
 $debug = $bool('APP_DEBUG', $env !== 'production');
 
@@ -69,6 +106,10 @@ $logPath = $string('LOG_PATH', 'storage/logs/app.log');
 if (!str_starts_with($logPath, '/')) {
     $logPath = $root . '/' . $logPath;
 }
+
+$securityBuilder = require __DIR__ . '/security.php';
+$security = $securityBuilder($env, $bool, $string, $int);
+$security['trusted_proxies'] = $trustedProxies;
 
 return [
     'app' => [
@@ -98,13 +139,7 @@ return [
         'path' => $logPath,
         'json' => !in_array($env, ['local', 'testing'], true),
     ],
-    'security' => [
-        'trusted_proxies' => $trustedProxies,
-        'force_https' => $bool('FORCE_HTTPS', $env === 'production'),
-        // Deferred stores (Decision D9) — configuration keys reserved only:
-        // 'session_store' => null,
-        // 'rate_limit_store' => null,
-    ],
+    'security' => $security,
     'paths' => [
         'root' => $root,
         'templates' => $root . '/templates',

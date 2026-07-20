@@ -4,38 +4,38 @@ declare(strict_types=1);
 
 /*
 |--------------------------------------------------------------------------
-| Middleware pipeline documentation (Architecture §5.2)
+| Middleware pipeline (Architecture §5.2 + WP-01A)
 |--------------------------------------------------------------------------
 |
-| Implemented in Phase 0 (see config/container.php Kernel wiring):
+| Observed execution order is covered by tests — do not rely only on this list.
+|
+| Outer → inner:
 |   1. TrustedProxyMiddleware
 |   2. RequestIdMiddleware
-|   3. ExceptionHandlerMiddleware
-|   4. SecurityHeadersMiddleware
-|   5. Router / controller dispatch (RouteRequestHandler)
+|   3. ExceptionHandlerMiddleware  (outer catcher; applies SecurityHeaderPolicy on errors)
+|   4. SecurityHeadersMiddleware   (success path; shared SecurityHeaderPolicy)
+|   5. SessionMiddleware
+|   6. AuthenticationMiddleware
+|   7. CsrfMiddleware
+|   8. RateLimitMiddleware
+|   9. Router / controller
 |
-| Reserved for later work packages — do not add fake/pass-through middleware:
-|   - Session loading
-|   - Authentication
-|   - CSRF validation
-|   - Rate limiting
-|   - Permission enforcement
-|
-| Shared session/rate-limit store implementation is deferred (Decision D9).
+| Still deferred (not stubbed):
+|   - Permission enforcement (WP-01B+)
 */
 
 return [
-    'phase0' => [
+    'pipeline' => [
         'Academy\\Http\\Middleware\\TrustedProxyMiddleware',
         'Academy\\Http\\Middleware\\RequestIdMiddleware',
         'Academy\\Http\\Middleware\\ExceptionHandlerMiddleware',
         'Academy\\Http\\Middleware\\SecurityHeadersMiddleware',
+        'Academy\\Http\\Middleware\\SessionMiddleware',
+        'Academy\\Http\\Middleware\\AuthenticationMiddleware',
+        'Academy\\Http\\Middleware\\CsrfMiddleware',
+        'Academy\\Http\\Middleware\\RateLimitMiddleware',
     ],
     'deferred' => [
-        'Session',
-        'Authentication',
-        'Csrf',
-        'RateLimiting',
         'Permission',
     ],
 ];

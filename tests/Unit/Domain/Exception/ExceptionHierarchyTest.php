@@ -7,10 +7,13 @@ namespace Academy\Tests\Unit\Domain\Exception;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\AuthorizationException;
 use Academy\Domain\Exception\ConflictException;
+use Academy\Domain\Exception\CsrfException;
 use Academy\Domain\Exception\DomainException;
 use Academy\Domain\Exception\DomainRuleException;
 use Academy\Domain\Exception\ExternalServiceException;
 use Academy\Domain\Exception\NotFoundException;
+use Academy\Domain\Exception\RateLimitExceededException;
+use Academy\Domain\Exception\ServiceUnavailableException;
 use Academy\Domain\Exception\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -23,7 +26,11 @@ final class ExceptionHierarchyTest extends TestCase
     #[DataProvider('exceptionProvider')]
     public function testExceptionsExtendDomainException(string $class): void
     {
-        $exception = new $class();
+        $exception = match ($class) {
+            ValidationException::class => new ValidationException('Invalid'),
+            RateLimitExceededException::class => new RateLimitExceededException(30),
+            default => new $class(),
+        };
         self::assertInstanceOf(DomainException::class, $exception);
     }
 
@@ -40,6 +47,9 @@ final class ExceptionHierarchyTest extends TestCase
             'conflict' => [ConflictException::class],
             'domain_rule' => [DomainRuleException::class],
             'external' => [ExternalServiceException::class],
+            'csrf' => [CsrfException::class],
+            'rate_limit' => [RateLimitExceededException::class],
+            'service_unavailable' => [ServiceUnavailableException::class],
         ];
     }
 
