@@ -77,7 +77,10 @@ final class PdoSchedulerLock
         return $stmt->rowCount() === 1;
     }
 
-    public function release(string $lockName, string $lockedBy): void
+    /**
+     * @return bool True when this owner actually released the lock
+     */
+    public function release(string $lockName, string $lockedBy): bool
     {
         $pdo = $this->connections->connection();
         $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
@@ -93,5 +96,7 @@ final class PdoSchedulerLock
             $lockName,
             $lockedBy,
         ]);
+
+        return $stmt->rowCount() === 1;
     }
 }

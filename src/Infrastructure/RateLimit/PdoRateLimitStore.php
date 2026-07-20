@@ -18,6 +18,9 @@ use PDO;
  * - ROW_COUNT() = 1 → INSERT path → hit_count is 1
  * - otherwise → UPDATE path → LAST_INSERT_ID() holds the post-update hit_count
  *   (MySQL ON DUPLICATE KEY UPDATE returns ROW_COUNT 2 when a row is updated)
+ *
+ * The unconditional `updated_at = ?` assignment is load-bearing: without it, a
+ * no-op-looking UPDATE can yield ROW_COUNT() = 0 and break the decision branch.
  */
 final class PdoRateLimitStore implements RateLimitStore
 {
@@ -31,7 +34,7 @@ final class PdoRateLimitStore implements RateLimitStore
         string $policyKey,
         \DateTimeImmutable $windowStartsAt,
         \DateTimeImmutable $windowEndsAt,
-    ): array {
+    ): int {
         $pdo = $this->connections->connection();
         $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
         $nowStr = $now->format('Y-m-d H:i:s.u');
@@ -49,7 +52,7 @@ final class PdoRateLimitStore implements RateLimitStore
                 window_starts_at = IF(window_ends_at > ?, window_starts_at, VALUES(window_starts_at)),
                 window_ends_at = IF(window_ends_at > ?, window_ends_at, VALUES(window_ends_at)),
                 policy_key = VALUES(policy_key),
-                updated_at = ?',
+                updated_at = ?', // load-bearing for ROW_COUNT(): forces UPDATE path to report 2, not 0
         );
 
         $upsert->execute([
@@ -74,21 +77,8 @@ final class PdoRateLimitStore implements RateLimitStore
         if ($countRow === false) {
             throw new \RuntimeException('Empty rate-limit decision count.');
         }
-        $hitCount = (int) $countRow['hit_count'];
 
-        $windowStmt = $pdo->prepare(
-            'SELECT window_ends_at FROM rate_limit_buckets WHERE bucket_key = ? LIMIT 1',
-        );
-        $windowStmt->execute([$bucketKey]);
-        $windowRow = $windowStmt->fetch(PDO::FETCH_ASSOC);
-        if ($windowRow === false) {
-            throw new \RuntimeException('Rate-limit bucket missing after upsert.');
-        }
-
-        return [
-            'hit_count' => $hitCount,
-            'window_ends_at' => new \DateTimeImmutable((string) $windowRow['window_ends_at'], new \DateTimeZone('UTC')),
-        ];
+        return (int) $countRow['hit_count'];
     }
 
     public function deleteExpired(\DateTimeImmutable $now, int $limit = 1000): int

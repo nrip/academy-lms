@@ -29,14 +29,27 @@ interface OutboxRepository
         int $limit = 10,
     ): array;
 
-    public function markPublished(int $id, \DateTimeImmutable $now): void;
+    /**
+     * @return bool True when this claim still owns the message and the update applied
+     */
+    public function markPublished(
+        int $id,
+        string $lockedBy,
+        string $claimToken,
+        \DateTimeImmutable $now,
+    ): bool;
 
+    /**
+     * @return bool True when this claim still owns the message and the update applied
+     */
     public function markRetryOrDead(
         int $id,
+        string $lockedBy,
+        string $claimToken,
         int $attemptCount,
         int $maxAttempts,
         string $error,
         \DateTimeImmutable $now,
         int $backoffSeconds,
-    ): void;
+    ): bool;
 }

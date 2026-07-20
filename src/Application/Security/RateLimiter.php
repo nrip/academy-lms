@@ -55,13 +55,13 @@ final class RateLimiter
 
         $bucketKey = $this->keys->bucketKey($policyKey, $dimensionType, $normalized);
         $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
-        $windowEnds = $now->modify('+' . $policy['window_seconds'] . ' seconds');
+        [$windowStarts, $windowEnds] = $this->fixedWindowBounds($now, $policy['window_seconds']);
 
         try {
-            $result = $this->store->incrementAndGetCount(
+            $hitCount = $this->store->incrementAndGetCount(
                 $bucketKey,
                 $policyKey,
-                $now,
+                $windowStarts,
                 $windowEnds,
             );
         } catch (Throwable $exception) {
@@ -70,10 +70,25 @@ final class RateLimiter
             return;
         }
 
-        if ($result['hit_count'] > $policy['limit']) {
-            $retryAfter = max(1, $result['window_ends_at']->getTimestamp() - $now->getTimestamp());
+        if ($hitCount > $policy['limit']) {
+            $retryAfter = max(1, $windowEnds->getTimestamp() - $now->getTimestamp());
             throw new RateLimitExceededException($retryAfter);
         }
+    }
+
+    /**
+     * Fixed window: boundaries are deterministic from request time + window size.
+     *
+     * @return array{0: \DateTimeImmutable, 1: \DateTimeImmutable}
+     */
+    private function fixedWindowBounds(\DateTimeImmutable $now, int $windowSeconds): array
+    {
+        $epoch = $now->getTimestamp();
+        $startTs = intdiv($epoch, $windowSeconds) * $windowSeconds;
+        $windowStarts = (new \DateTimeImmutable('@' . $startTs))->setTimezone(new \DateTimeZone('UTC'));
+        $windowEnds = $windowStarts->modify('+' . $windowSeconds . ' seconds');
+
+        return [$windowStarts, $windowEnds];
     }
 
     /**

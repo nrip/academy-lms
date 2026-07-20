@@ -51,8 +51,8 @@ final class Wp01aSecurityHttpTest extends TestCase
                 'SecurityHeaders',
                 'Session',
                 'Authentication',
-                'Csrf',
                 'RateLimit',
+                'Csrf',
             ],
             $payload['observed_order'],
         );
@@ -162,6 +162,35 @@ final class Wp01aSecurityHttpTest extends TestCase
         self::assertNotNull($last);
         self::assertSame(429, $last->getStatusCode());
         self::assertNotSame('', $last->getHeaderLine('Retry-After'));
+    }
+
+    public function testRepeatedInvalidCsrfEventuallyReceives429(): void
+    {
+        $boot = $this->bootSession();
+        $cookies = [
+            $this->sessionCookieName => $boot['session'],
+            $this->csrfCookieName => $boot['csrf'],
+        ];
+
+        $statuses = [];
+        for ($i = 0; $i < 4; ++$i) {
+            $request = new ServerRequest(
+                ['REMOTE_ADDR' => '203.0.113.55'],
+                [],
+                'http://localhost/__wp01a/limited',
+                'POST',
+            );
+            $request = $request
+                ->withHeader('Accept', 'application/json')
+                ->withHeader('X-CSRF-Token', 'definitely-invalid')
+                ->withCookieParams($cookies);
+            $response = ApplicationFactory::handle($request);
+            $statuses[] = $response->getStatusCode();
+        }
+
+        self::assertContains(403, $statuses);
+        self::assertSame(429, $statuses[3]);
+        self::assertSame([403, 403, 403, 429], $statuses);
     }
 
     public function testProbeRoutesReturn404InProduction(): void

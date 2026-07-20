@@ -11,6 +11,10 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
+/**
+ * Runs before CSRF. Dimensions must be trusted/session/path/IP only —
+ * never unvalidated request-body fields.
+ */
 final class RateLimitMiddleware implements MiddlewareInterface
 {
     use RecordsMiddlewareOrder;
@@ -52,7 +56,7 @@ final class RateLimitMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        // Default authenticated mutating actions
+        // Default authenticated mutating actions (user id from session AuthContext)
         if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
             /** @var AuthContext|null $auth */
             $auth = $request->getAttribute(AuthenticationMiddleware::ATTR_AUTH);
@@ -68,6 +72,7 @@ final class RateLimitMiddleware implements MiddlewareInterface
 
     private function applyNamedPolicy(ServerRequestInterface $request, string $policyKey): void
     {
+        // Trusted IP / explicit middleware attributes only — never body fields.
         $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0';
         $dimensions = $request->getAttribute('rate_limit.dimensions');
         if (!is_array($dimensions) || $dimensions === []) {

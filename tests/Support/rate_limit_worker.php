@@ -20,12 +20,12 @@ if ($bucketKey === '') {
 
 $store = new PdoRateLimitStore(DatabaseTestCase::connectionFactory());
 $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-$result = $store->incrementAndGetCount(
+$hitCount = $store->incrementAndGetCount(
     $bucketKey,
     'test.tight',
     $now,
     $now->modify('+60 seconds'),
 );
 
-echo (string) $result['hit_count'];
+echo (string) $hitCount;
 exit(0);

@@ -7,6 +7,7 @@ namespace Academy\Infrastructure\Session;
 use Academy\Domain\Security\SessionRecord;
 use Academy\Domain\Security\SessionRepository;
 use Academy\Infrastructure\Database\ConnectionFactory;
+use LogicException;
 use PDO;
 
 /**
@@ -47,6 +48,7 @@ final class PdoSessionRepository implements SessionRepository
         ?string $userAgentHash,
     ): SessionRecord {
         $pdo = $this->connections->connection();
+        $this->assertNoAmbientTransaction($pdo);
         $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare(
@@ -71,7 +73,6 @@ final class PdoSessionRepository implements SessionRepository
                 'idle_expires_at' => $idleExpiresAt->format('Y-m-d H:i:s.u'),
                 'updated_at' => $ts,
             ]);
-            $id = (int) $pdo->lastInsertId();
             $pdo->commit();
         } catch (\Throwable $exception) {
             if ($pdo->inTransaction()) {
@@ -97,6 +98,7 @@ final class PdoSessionRepository implements SessionRepository
         \DateTimeImmutable $idleExpiresAt,
     ): void {
         $pdo = $this->connections->connection();
+        $this->assertNoAmbientTransaction($pdo);
         $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare(
@@ -131,6 +133,7 @@ final class PdoSessionRepository implements SessionRepository
     public function updateCsrfHash(int $sessionId, string $csrfTokenHash): void
     {
         $pdo = $this->connections->connection();
+        $this->assertNoAmbientTransaction($pdo);
         $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare(
@@ -157,6 +160,7 @@ final class PdoSessionRepository implements SessionRepository
         \DateTimeImmutable $idleExpiresAt,
     ): void {
         $pdo = $this->connections->connection();
+        $this->assertNoAmbientTransaction($pdo);
         $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare(
@@ -181,10 +185,12 @@ final class PdoSessionRepository implements SessionRepository
     public function revoke(int $sessionId, \DateTimeImmutable $revokedAt): void
     {
         $pdo = $this->connections->connection();
+        $this->assertNoAmbientTransaction($pdo);
         $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare(
-                'UPDATE sessions SET revoked_at = ?, updated_at = ? WHERE session_id = ?',
+                'UPDATE sessions SET revoked_at = ?, updated_at = ?
+                 WHERE session_id = ? AND revoked_at IS NULL',
             );
             $ts = $revokedAt->format('Y-m-d H:i:s.u');
             $stmt->execute([$ts, $ts, $sessionId]);
@@ -200,6 +206,7 @@ final class PdoSessionRepository implements SessionRepository
     public function bindUser(int $sessionId, int $userId): void
     {
         $pdo = $this->connections->connection();
+        $this->assertNoAmbientTransaction($pdo);
         $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare(
@@ -233,6 +240,15 @@ final class PdoSessionRepository implements SessionRepository
         $stmt->execute([$nowStr, $nowStr]);
 
         return $stmt->rowCount();
+    }
+
+    private function assertNoAmbientTransaction(PDO $pdo): void
+    {
+        if ($pdo->inTransaction()) {
+            throw new LogicException(
+                'Session write refused: PDO connection is already inside an ambient transaction.',
+            );
+        }
     }
 
     /**

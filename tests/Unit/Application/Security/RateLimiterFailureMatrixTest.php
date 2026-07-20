@@ -16,7 +16,7 @@ final class RateLimiterFailureMatrixTest extends TestCase
     public function testFailClosedPoliciesThrow503(): void
     {
         $store = new class () implements RateLimitStore {
-            public function incrementAndGetCount(string $bucketKey, string $policyKey, \DateTimeImmutable $windowStartsAt, \DateTimeImmutable $windowEndsAt): array
+            public function incrementAndGetCount(string $bucketKey, string $policyKey, \DateTimeImmutable $windowStartsAt, \DateTimeImmutable $windowEndsAt): int
             {
                 throw new \RuntimeException('db down');
             }
@@ -47,7 +47,7 @@ final class RateLimiterFailureMatrixTest extends TestCase
     public function testFailOpenPoliciesDoNotThrow(): void
     {
         $store = new class () implements RateLimitStore {
-            public function incrementAndGetCount(string $bucketKey, string $policyKey, \DateTimeImmutable $windowStartsAt, \DateTimeImmutable $windowEndsAt): array
+            public function incrementAndGetCount(string $bucketKey, string $policyKey, \DateTimeImmutable $windowStartsAt, \DateTimeImmutable $windowEndsAt): int
             {
                 throw new \RuntimeException('db down');
             }

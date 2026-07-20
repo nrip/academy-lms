@@ -44,19 +44,37 @@ final class OutboxRelayService
         foreach ($claimed as $message) {
             try {
                 $this->transport->publish($message->eventType, $message->payload, $message->idempotencyKey);
-                $this->repository->markPublished($message->id, new \DateTimeImmutable('now', new \DateTimeZone('UTC')));
-                ++$processed;
+                if ($this->repository->markPublished(
+                    $message->id,
+                    $message->lockedBy,
+                    $message->claimToken,
+                    new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
+                )) {
+                    ++$processed;
+                } else {
+                    $this->logger->warning('Outbox markPublished skipped: lease ownership lost.', [
+                        'outbox_message_id' => $message->id,
+                        'locked_by' => $message->lockedBy,
+                    ]);
+                }
             } catch (\Throwable $exception) {
                 $backoff = $this->backoffSeconds($message->attemptCount);
-                $this->repository->markRetryOrDead(
+                $accepted = $this->repository->markRetryOrDead(
                     $message->id,
+                    $message->lockedBy,
+                    $message->claimToken,
                     $message->attemptCount,
                     $this->maxAttempts,
                     $exception->getMessage(),
                     new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
                     $backoff,
                 );
-                if ($message->attemptCount >= $this->maxAttempts) {
+                if (!$accepted) {
+                    $this->logger->warning('Outbox markRetryOrDead skipped: lease ownership lost.', [
+                        'outbox_message_id' => $message->id,
+                        'locked_by' => $message->lockedBy,
+                    ]);
+                } elseif ($message->attemptCount >= $this->maxAttempts) {
                     $this->logger->critical('Outbox message moved to dead letter.', [
                         'outbox_message_id' => $message->id,
                         'event_type' => $message->eventType,

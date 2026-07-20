@@ -18,6 +18,8 @@ final class OutboxMessage
         public readonly string $idempotencyKey,
         public readonly string $status,
         public readonly int $attemptCount,
+        public readonly string $lockedBy,
+        public readonly string $claimToken,
     ) {
     }
 }

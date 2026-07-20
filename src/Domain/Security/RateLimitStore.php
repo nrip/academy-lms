@@ -10,14 +10,15 @@ interface RateLimitStore
      * Atomically increments (or resets) the bucket and returns the decision count
      * for THIS statement on THIS connection. No intervening statements allowed.
      *
-     * @return array{hit_count: int, window_ends_at: \DateTimeImmutable}
+     * Retry-After is derived by the caller from the fixed window boundary already
+     * computed for the request — this method does not re-read window_ends_at.
      */
     public function incrementAndGetCount(
         string $bucketKey,
         string $policyKey,
         \DateTimeImmutable $windowStartsAt,
         \DateTimeImmutable $windowEndsAt,
-    ): array;
+    ): int;
 
     /**
      * @return int Deleted row count
