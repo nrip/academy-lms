@@ -295,7 +295,7 @@ return static function (): ContainerInterface {
 
         Kernel::class => static function (ContainerInterface $c): Kernel {
             // Observed order (outer → inner): TrustedProxy → RequestId → ExceptionHandler
-            // → SecurityHeaders → Session → Authentication → CSRF → RateLimit → Router
+            // → SecurityHeaders → Session → Authentication → RateLimit → CSRF → Router
             $middleware = [
                 $c->get(TrustedProxyMiddleware::class),
                 $c->get(RequestIdMiddleware::class),
@@ -303,8 +303,8 @@ return static function (): ContainerInterface {
                 $c->get(SecurityHeadersMiddleware::class),
                 $c->get(SessionMiddleware::class),
                 $c->get(AuthenticationMiddleware::class),
-                $c->get(CsrfMiddleware::class),
                 $c->get(RateLimitMiddleware::class),
+                $c->get(CsrfMiddleware::class),
             ];
 
             return new Kernel($middleware, $c->get(RouteRequestHandler::class));

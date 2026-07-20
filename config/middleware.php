@@ -16,8 +16,8 @@ declare(strict_types=1);
 |   4. SecurityHeadersMiddleware   (success path; shared SecurityHeaderPolicy)
 |   5. SessionMiddleware
 |   6. AuthenticationMiddleware
-|   7. CsrfMiddleware
-|   8. RateLimitMiddleware
+|   7. RateLimitMiddleware         (pre-CSRF; IP/session/path dimensions only)
+|   8. CsrfMiddleware
 |   9. Router / controller
 |
 | Still deferred (not stubbed):
@@ -32,8 +32,8 @@ return [
         'Academy\\Http\\Middleware\\SecurityHeadersMiddleware',
         'Academy\\Http\\Middleware\\SessionMiddleware',
         'Academy\\Http\\Middleware\\AuthenticationMiddleware',
-        'Academy\\Http\\Middleware\\CsrfMiddleware',
         'Academy\\Http\\Middleware\\RateLimitMiddleware',
+        'Academy\\Http\\Middleware\\CsrfMiddleware',
     ],
     'deferred' => [
         'Permission',
