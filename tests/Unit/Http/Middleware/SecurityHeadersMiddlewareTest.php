@@ -16,7 +16,7 @@ final class SecurityHeadersMiddlewareTest extends TestCase
 {
     public function testAddsBaselineSecurityHeaders(): void
     {
-        $middleware = new SecurityHeadersMiddleware(false);
+        $middleware = new SecurityHeadersMiddleware(new \Academy\Http\Security\SecurityHeaderPolicy(false));
         $handler = new class () implements RequestHandlerInterface {
             public function handle(ServerRequestInterface $request): ResponseInterface
             {

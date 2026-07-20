@@ -11,6 +11,8 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 final class RequestIdMiddleware implements MiddlewareInterface
 {
+    use RecordsMiddlewareOrder;
+
     public const ATTRIBUTE = 'request_id';
     public const HEADER = 'X-Request-Id';
 
@@ -22,6 +24,12 @@ final class RequestIdMiddleware implements MiddlewareInterface
         $request = $request
             ->withAttribute(self::ATTRIBUTE, $requestId)
             ->withHeader(self::HEADER, $requestId);
+
+        if ($request->getHeaderLine('X-WP01A-Trace') === '1') {
+            $request = $request->withAttribute('middleware.trace', true);
+        }
+
+        $request = $this->trace($request, 'RequestId');
 
         $response = $handler->handle($request);
 

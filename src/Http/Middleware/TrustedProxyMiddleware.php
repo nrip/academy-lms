@@ -16,6 +16,8 @@ use Psr\Http\Server\RequestHandlerInterface;
  */
 final class TrustedProxyMiddleware implements MiddlewareInterface
 {
+    use RecordsMiddlewareOrder;
+
     /**
      * @param list<string> $trustedProxies
      */
@@ -27,6 +29,8 @@ final class TrustedProxyMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
+        $request = $this->trace($request, 'TrustedProxy');
+
         if ($this->trustedProxies !== []) {
             $remoteAddr = $request->getServerParams()['REMOTE_ADDR'] ?? null;
             if (is_string($remoteAddr) && in_array($remoteAddr, $this->trustedProxies, true)) {

@@ -27,5 +27,12 @@
         <env name="APP_DEBUG" value="true"/>
         <env name="FORCE_HTTPS" value="false"/>
         <env name="LOG_PATH" value="storage/logs/test.log"/>
+        <env name="RATE_LIMIT_PEPPER" value="phpunit-rate-limit-pepper"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="3306"/>
+        <env name="DB_NAME" value="academy_lms_test"/>
+        <env name="DB_USER" value="root"/>
+        <env name="DB_PASSWORD" value=""/>
+        <env name="OUTBOX_TRANSPORT" value="unconfigured"/>
     </php>
 </phpunit>
