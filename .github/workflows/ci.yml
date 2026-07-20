@@ -25,7 +25,7 @@ jobs:
           --health-retries=10
 
     env:
-      APP_ENV: ci
+      APP_ENV: testing
       APP_DEBUG: "false"
       FORCE_HTTPS: "false"
       DB_HOST: 127.0.0.1
