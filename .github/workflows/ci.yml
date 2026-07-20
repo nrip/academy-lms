@@ -77,8 +77,8 @@ jobs:
       - name: PHPStan
         run: vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
 
+      - name: Phinx migrate
+        run: vendor/bin/phinx migrate -e ci -c phinx.php
+
       - name: PHPUnit
         run: vendor/bin/phpunit --configuration=phpunit.xml.dist
-
-      - name: Phinx migrate validation
-        run: vendor/bin/phinx migrate -e ci -c phinx.php
