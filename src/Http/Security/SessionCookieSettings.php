@@ -47,6 +47,17 @@ final class SessionCookieSettings
         return $this->buildSetCookie($this->csrfCookieName, $rawCsrf, false);
     }
 
+    /**
+     * @return list<string>
+     */
+    public function clearCookieHeaders(): array
+    {
+        return [
+            $this->buildClearCookie($this->sessionCookieName, true),
+            $this->buildClearCookie($this->csrfCookieName, false),
+        ];
+    }
+
     public function buildSetCookie(string $name, string $value, bool $httpOnly): string
     {
         $this->validateCookieName($name);
@@ -64,6 +75,25 @@ final class SessionCookieSettings
         }
         if ($this->domain !== '' && !str_starts_with($name, '__Host-')) {
             $parts[] = 'Domain=' . $this->domain;
+        }
+
+        return implode('; ', $parts);
+    }
+
+    private function buildClearCookie(string $name, bool $httpOnly): string
+    {
+        $parts = [
+            $name . '=',
+            'Path=' . $this->path,
+            'SameSite=' . $this->sameSite,
+            'Max-Age=0',
+            'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+        ];
+        if ($httpOnly) {
+            $parts[] = 'HttpOnly';
+        }
+        if ($this->secure) {
+            $parts[] = 'Secure';
         }
 
         return implode('; ', $parts);

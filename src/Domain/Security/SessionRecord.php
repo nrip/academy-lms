@@ -20,6 +20,7 @@ final class SessionRecord
         public readonly \DateTimeImmutable $absoluteExpiresAt,
         public readonly \DateTimeImmutable $idleExpiresAt,
         public readonly ?\DateTimeImmutable $revokedAt,
+        public readonly ?int $authVersion = null,
     ) {
     }
 

@@ -6,6 +6,7 @@ namespace Academy\Http\Middleware;
 
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\AuthorizationException;
+use Academy\Domain\Exception\AuthVersionCeilingException;
 use Academy\Domain\Exception\ConflictException;
 use Academy\Domain\Exception\CsrfException;
 use Academy\Domain\Exception\DomainRuleException;
@@ -15,6 +16,8 @@ use Academy\Domain\Exception\RateLimitExceededException;
 use Academy\Domain\Exception\ServiceUnavailableException;
 use Academy\Domain\Exception\ValidationException;
 use Academy\Http\Security\SecurityHeaderPolicy;
+use Academy\Http\Security\SessionCookieClearance;
+use Academy\Http\Security\SessionCookieSettings;
 use Academy\Infrastructure\View\PhpRenderer;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -33,6 +36,7 @@ final class ExceptionHandlerMiddleware implements MiddlewareInterface
         private readonly LoggerInterface $logger,
         private readonly PhpRenderer $renderer,
         private readonly SecurityHeaderPolicy $securityHeaders,
+        private readonly SessionCookieSettings $sessionCookies,
         private readonly bool $debug,
         private readonly string $environment,
     ) {
@@ -42,11 +46,41 @@ final class ExceptionHandlerMiddleware implements MiddlewareInterface
     {
         $request = $this->trace($request, 'ExceptionHandler');
 
+        $clearance = new SessionCookieClearance();
+        $request = $request->withAttribute(SessionCookieClearance::ATTR, $clearance);
+
         try {
             return $handler->handle($request);
         } catch (Throwable $exception) {
-            return $this->securityHeaders->apply($request, $this->toResponse($request, $exception));
+            $response = $this->toResponse($request, $exception);
+            if ($clearance->shouldClear()) {
+                $response = $this->withClearedSessionCookies($response);
+            }
+
+            return $this->securityHeaders->apply($request, $response);
         }
+    }
+
+    private function withClearedSessionCookies(ResponseInterface $response): ResponseInterface
+    {
+        $kept = [];
+        foreach ($response->getHeader('Set-Cookie') as $header) {
+            $name = strtolower(strtok($header, '=') ?: '');
+            if ($name !== strtolower($this->sessionCookies->sessionCookieName)
+                && $name !== strtolower($this->sessionCookies->csrfCookieName)) {
+                $kept[] = $header;
+            }
+        }
+
+        $response = $response->withoutHeader('Set-Cookie');
+        foreach ($kept as $header) {
+            $response = $response->withAddedHeader('Set-Cookie', $header);
+        }
+        foreach ($this->sessionCookies->clearCookieHeaders() as $header) {
+            $response = $response->withAddedHeader('Set-Cookie', $header);
+        }
+
+        return $response;
     }
 
     private function toResponse(ServerRequestInterface $request, Throwable $exception): ResponseInterface
@@ -118,6 +152,7 @@ final class ExceptionHandlerMiddleware implements MiddlewareInterface
             $exception instanceof AuthorizationException => [403, 'FORBIDDEN', $exception->getMessage(), [], []],
             $exception instanceof NotFoundException => [404, 'NOT_FOUND', $exception->getMessage(), [], []],
             $exception instanceof ConflictException => [409, 'CONFLICT', $exception->getMessage(), [], []],
+            $exception instanceof AuthVersionCeilingException => [409, 'CONFLICT', $exception->getMessage(), [], []],
             $exception instanceof RateLimitExceededException => [
                 429,
                 'RATE_LIMIT_EXCEEDED',
@@ -147,6 +182,7 @@ final class ExceptionHandlerMiddleware implements MiddlewareInterface
 
         return str_contains($accept, 'application/json')
             || str_starts_with($path, '/health')
-            || str_starts_with($path, '/api/');
+            || str_starts_with($path, '/api/')
+            || str_starts_with($path, '/admin/');
     }
 }

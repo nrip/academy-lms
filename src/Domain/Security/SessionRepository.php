@@ -41,7 +41,19 @@ interface SessionRepository
 
     public function revoke(int $sessionId, \DateTimeImmutable $revokedAt): void;
 
-    public function bindUser(int $sessionId, int $userId): void;
+    /**
+     * Bind user and copy users.auth_version onto the session (own short TX).
+     *
+     * @param array<string, mixed> $payloadMerge Merged into existing payload (e.g. auth_stage)
+     */
+    public function bindUser(int $sessionId, int $userId, int $authVersion, array $payloadMerge = []): void;
+
+    /**
+     * Physically revoke all non-revoked sessions for a user. Own short TX only.
+     *
+     * @return int Number of sessions revoked
+     */
+    public function revokeAllForUser(int $userId, \DateTimeImmutable $revokedAt): int;
 
     /**
      * @return int Number of deleted rows
