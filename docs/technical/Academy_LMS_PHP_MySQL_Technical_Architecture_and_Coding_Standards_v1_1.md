@@ -307,11 +307,13 @@ All requests must enter through public/index.php. Web-server configuration must 
 - Security headers
 - Session loading
 - Authentication
-- CSRF validation for browser state-changing requests
 - Rate limiting
+- CSRF validation for browser state-changing requests
 - Permission enforcement
 - Controller dispatch
 - Central exception handling and structured logging
+
+> **WP01-G (Approved 2026-07-20):** Rate limiting runs **before** CSRF. This supersedes the earlier §5.2 draft that listed CSRF before RateLimit. Rationale: throttling must also cover invalid/missing CSRF traffic. Route-level permission middleware continues to execute only after League\Route has matched the route. CSRF validation on mutating requests is unchanged. See Decision Log `WP01-G`.
 
 ### 5.2.1 Rate-limiting defaults
 
