@@ -62,8 +62,13 @@ final class CsrfAndRateLimitKeyTest extends TestCase
                 {
                 }
 
-                public function bindUser(int $sessionId, int $userId): void
+                public function bindUser(int $sessionId, int $userId, int $authVersion, array $payloadMerge = []): void
                 {
+                }
+
+                public function revokeAllForUser(int $userId, \DateTimeImmutable $revokedAt): int
+                {
+                    return 0;
                 }
 
                 public function deleteExpired(\DateTimeImmutable $now, int $limit = 1000): int

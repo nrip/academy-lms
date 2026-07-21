@@ -5,19 +5,25 @@ declare(strict_types=1);
 use Academy\Application\Audit\AuditRedactor;
 use Academy\Application\Audit\AuditService;
 use Academy\Application\Outbox\OutboxRelayService;
+use Academy\Application\RBAC\AuthorizationService;
+use Academy\Application\RBAC\RoleAssignmentService;
 use Academy\Application\Security\CsrfTokenManager;
 use Academy\Application\Security\RateLimiter;
 use Academy\Application\Security\RateLimitKeyFactory;
 use Academy\Application\Security\SessionService;
 use Academy\Domain\Audit\AuditWriter;
+use Academy\Domain\Identity\UserSecuritySnapshotRepository;
 use Academy\Domain\Outbox\OutboxRepository;
 use Academy\Domain\Outbox\OutboxTransport;
 use Academy\Domain\Outbox\OutboxWriter;
+use Academy\Domain\RBAC\PermissionRepository;
+use Academy\Domain\RBAC\RoleRepository;
 use Academy\Domain\Security\RateLimitStore;
 use Academy\Domain\Security\SessionRepository;
 use Academy\Http\Controllers\HealthController;
 use Academy\Http\Controllers\SmokeController;
 use Academy\Http\Controllers\Wp01aProbeController;
+use Academy\Http\Controllers\Wp01bRbacProbeController;
 use Academy\Http\Kernel;
 use Academy\Http\Middleware\AuthenticationMiddleware;
 use Academy\Http\Middleware\CsrfMiddleware;
@@ -27,17 +33,21 @@ use Academy\Http\Middleware\RequestIdMiddleware;
 use Academy\Http\Middleware\SecurityHeadersMiddleware;
 use Academy\Http\Middleware\SessionMiddleware;
 use Academy\Http\Middleware\TrustedProxyMiddleware;
+use Academy\Http\Routing\RouteAccess;
 use Academy\Http\Routing\RouteRequestHandler;
 use Academy\Http\Security\SecurityHeaderPolicy;
 use Academy\Http\Security\SessionCookieSettings;
 use Academy\Infrastructure\Audit\PdoAuditWriter;
 use Academy\Infrastructure\Database\ConnectionFactory;
 use Academy\Infrastructure\Database\TransactionManager;
+use Academy\Infrastructure\Identity\PdoUserSecuritySnapshotRepository;
 use Academy\Infrastructure\Logging\LoggerFactory;
 use Academy\Infrastructure\Outbox\InMemoryOutboxTransport;
 use Academy\Infrastructure\Outbox\PdoOutboxRepository;
 use Academy\Infrastructure\Outbox\UnconfiguredOutboxTransport;
 use Academy\Infrastructure\RateLimit\PdoRateLimitStore;
+use Academy\Infrastructure\RBAC\PdoPermissionRepository;
+use Academy\Infrastructure\RBAC\PdoRoleRepository;
 use Academy\Infrastructure\Scheduler\PdoSchedulerLock;
 use Academy\Infrastructure\Session\PdoSessionRepository;
 use Academy\Infrastructure\View\Escaper;
@@ -165,6 +175,28 @@ return static function (): ContainerInterface {
             $c->get(AuditRedactor::class),
         ),
 
+        UserSecuritySnapshotRepository::class => static fn (ContainerInterface $c): UserSecuritySnapshotRepository => new PdoUserSecuritySnapshotRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        RoleRepository::class => static fn (ContainerInterface $c): RoleRepository => new PdoRoleRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        PermissionRepository::class => static fn (ContainerInterface $c): PermissionRepository => new PdoPermissionRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AuthorizationService::class => static fn (ContainerInterface $c): AuthorizationService => new AuthorizationService(
+            $c->get(PermissionRepository::class),
+        ),
+        RoleAssignmentService::class => static fn (ContainerInterface $c): RoleAssignmentService => new RoleAssignmentService(
+            $c->get(TransactionManager::class),
+            $c->get(RoleRepository::class),
+            $c->get(AuditService::class),
+            $c->get(SessionService::class),
+        ),
+        RouteAccess::class => static fn (ContainerInterface $c): RouteAccess => new RouteAccess(
+            $c->get(AuthorizationService::class),
+        ),
+
         PdoOutboxRepository::class => static fn (ContainerInterface $c): PdoOutboxRepository => new PdoOutboxRepository(
             $c->get(ConnectionFactory::class),
         ),
@@ -218,6 +250,34 @@ return static function (): ContainerInterface {
                 $router->post('/__wp01a/probe', [Wp01aProbeController::class, 'probe']);
                 $router->get('/__wp01a/protected', [Wp01aProbeController::class, 'protected']);
                 $router->post('/__wp01a/limited', [Wp01aProbeController::class, 'limited']);
+
+                /** @var RouteAccess $access */
+                $access = $c->get(RouteAccess::class);
+                // Probe routes exist only in testing — outside testing they must 404 (not merely auth-deny).
+                $access->requirePermission(
+                    $router->get('/admin/__wp01b/rbac/allow', [Wp01bRbacProbeController::class, 'allow']),
+                    'rbac.role.view',
+                );
+                $access->requirePermission(
+                    $router->get('/admin/__wp01b/rbac/deny', [Wp01bRbacProbeController::class, 'deny']),
+                    'document.metadata.view',
+                );
+                $access->requirePermission(
+                    $router->get('/admin/__wp01b/rbac/document', [Wp01bRbacProbeController::class, 'document']),
+                    'document.metadata.view',
+                );
+                $access->requirePermission(
+                    $router->get('/admin/__wp01b/rbac/refund', [Wp01bRbacProbeController::class, 'refund']),
+                    'finance.refund.approve',
+                );
+                $access->requirePermission(
+                    $router->get('/admin/__wp01b/rbac/item/{id}', [Wp01bRbacProbeController::class, 'parameterized']),
+                    'rbac.role.view',
+                );
+                $access->requirePermission(
+                    $router->get('/admin/__wp01b/rbac/unknown', [Wp01bRbacProbeController::class, 'unknown']),
+                    'does.not.exist.permission',
+                );
             }
 
             return $router;
@@ -232,6 +292,7 @@ return static function (): ContainerInterface {
             $c->get(PhpRenderer::class),
         ),
         Wp01aProbeController::class => static fn (): Wp01aProbeController => new Wp01aProbeController(),
+        Wp01bRbacProbeController::class => static fn (): Wp01bRbacProbeController => new Wp01bRbacProbeController(),
 
         TrustedProxyMiddleware::class => static function (ContainerInterface $c): TrustedProxyMiddleware {
             /** @var array{trusted_proxies: list<string>, force_https: bool} $security */
@@ -245,11 +306,20 @@ return static function (): ContainerInterface {
         ExceptionHandlerMiddleware::class => static function (ContainerInterface $c): ExceptionHandlerMiddleware {
             /** @var array{debug: bool, env: string} $app */
             $app = $c->get('config.app');
+            /** @var array{
+             *   session: array{
+             *     cookie_secure: bool,
+             *     cookies: array{session_name: string, csrf_name: string}
+             *   }
+             * } $security
+             */
+            $security = $c->get('config.security');
 
             return new ExceptionHandlerMiddleware(
                 $c->get(LoggerInterface::class),
                 $c->get(PhpRenderer::class),
                 $c->get(SecurityHeaderPolicy::class),
+                SessionCookieSettings::fromSessionConfig($security['session']),
                 $app['debug'],
                 $app['env'],
             );
@@ -277,7 +347,22 @@ return static function (): ContainerInterface {
             );
         },
 
-        AuthenticationMiddleware::class => static fn (): AuthenticationMiddleware => new AuthenticationMiddleware(),
+        AuthenticationMiddleware::class => static function (ContainerInterface $c): AuthenticationMiddleware {
+            /** @var array{
+             *   session: array{
+             *     cookie_secure: bool,
+             *     cookies: array{session_name: string, csrf_name: string}
+             *   }
+             * } $security
+             */
+            $security = $c->get('config.security');
+
+            return new AuthenticationMiddleware(
+                $c->get(UserSecuritySnapshotRepository::class),
+                $c->get(SessionService::class),
+                SessionCookieSettings::fromSessionConfig($security['session']),
+            );
+        },
 
         CsrfMiddleware::class => static fn (ContainerInterface $c): CsrfMiddleware => new CsrfMiddleware(
             $c->get(SessionService::class),
@@ -296,6 +381,7 @@ return static function (): ContainerInterface {
         Kernel::class => static function (ContainerInterface $c): Kernel {
             // Observed order (outer → inner): TrustedProxy → RequestId → ExceptionHandler
             // → SecurityHeaders → Session → Authentication → RateLimit → CSRF → Router
+            // Permission enforcement is route-level only (RequirePermissionMiddleware via RouteAccess).
             $middleware = [
                 $c->get(TrustedProxyMiddleware::class),
                 $c->get(RequestIdMiddleware::class),

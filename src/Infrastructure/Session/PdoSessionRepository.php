@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Academy\Infrastructure\Session;
 
+use Academy\Domain\Identity\AuthVersion;
 use Academy\Domain\Security\SessionRecord;
 use Academy\Domain\Security\SessionRepository;
 use Academy\Infrastructure\Database\ConnectionFactory;
@@ -24,7 +25,7 @@ final class PdoSessionRepository implements SessionRepository
     {
         $pdo = $this->connections->connection();
         $stmt = $pdo->prepare(
-            'SELECT session_id, session_token_hash, user_id, payload, csrf_token_hash,
+            'SELECT session_id, session_token_hash, user_id, auth_version, payload, csrf_token_hash,
                     created_at, last_activity_at, absolute_expires_at, idle_expires_at, revoked_at
              FROM sessions WHERE session_token_hash = :hash LIMIT 1',
         );
@@ -53,10 +54,10 @@ final class PdoSessionRepository implements SessionRepository
         try {
             $stmt = $pdo->prepare(
                 'INSERT INTO sessions (
-                    session_token_hash, user_id, payload, csrf_token_hash, ip_address, user_agent_hash,
+                    session_token_hash, user_id, auth_version, payload, csrf_token_hash, ip_address, user_agent_hash,
                     created_at, last_activity_at, absolute_expires_at, idle_expires_at, revoked_at, updated_at
                 ) VALUES (
-                    :token_hash, NULL, :payload, :csrf_hash, :ip, :ua_hash,
+                    :token_hash, NULL, NULL, :payload, :csrf_hash, :ip, :ua_hash,
                     :created_at, :last_activity_at, :absolute_expires_at, :idle_expires_at, NULL, :updated_at
                 )',
             );
@@ -203,21 +204,64 @@ final class PdoSessionRepository implements SessionRepository
         }
     }
 
-    public function bindUser(int $sessionId, int $userId): void
+    public function bindUser(int $sessionId, int $userId, int $authVersion, array $payloadMerge = []): void
+    {
+        $pdo = $this->connections->connection();
+        $this->assertNoAmbientTransaction($pdo);
+        $pdo->beginTransaction();
+        try {
+            $existing = $pdo->prepare('SELECT payload FROM sessions WHERE session_id = :id AND revoked_at IS NULL FOR UPDATE');
+            $existing->execute(['id' => $sessionId]);
+            $row = $existing->fetch(PDO::FETCH_ASSOC);
+            if ($row === false) {
+                throw new \RuntimeException('Session not found for bind.');
+            }
+            /** @var array<string, mixed> $payload */
+            $payload = json_decode((string) $row['payload'], true, 512, JSON_THROW_ON_ERROR);
+            foreach ($payloadMerge as $key => $value) {
+                $payload[$key] = $value;
+            }
+
+            $stmt = $pdo->prepare(
+                'UPDATE sessions SET user_id = :user_id, auth_version = :auth_version, payload = :payload, updated_at = :now
+                 WHERE session_id = :id AND revoked_at IS NULL',
+            );
+            $stmt->execute([
+                'user_id' => $userId,
+                'auth_version' => $authVersion,
+                'payload' => json_encode($payload, JSON_THROW_ON_ERROR),
+                'now' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u'),
+                'id' => $sessionId,
+            ]);
+            $pdo->commit();
+        } catch (\Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
+    public function revokeAllForUser(int $userId, \DateTimeImmutable $revokedAt): int
     {
         $pdo = $this->connections->connection();
         $this->assertNoAmbientTransaction($pdo);
         $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare(
-                'UPDATE sessions SET user_id = :user_id, updated_at = :now WHERE session_id = :id AND revoked_at IS NULL',
+                'UPDATE sessions SET revoked_at = :revoked_at, updated_at = :updated_at
+                 WHERE user_id = :user_id AND revoked_at IS NULL',
             );
+            $ts = $revokedAt->format('Y-m-d H:i:s.u');
             $stmt->execute([
+                'revoked_at' => $ts,
+                'updated_at' => $ts,
                 'user_id' => $userId,
-                'now' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u'),
-                'id' => $sessionId,
             ]);
+            $count = $stmt->rowCount();
             $pdo->commit();
+
+            return $count;
         } catch (\Throwable $exception) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -272,6 +316,7 @@ final class PdoSessionRepository implements SessionRepository
             revokedAt: $row['revoked_at'] !== null
                 ? new \DateTimeImmutable((string) $row['revoked_at'], new \DateTimeZone('UTC'))
                 : null,
+            authVersion: $row['auth_version'] !== null ? AuthVersion::fromDatabase($row['auth_version']) : null,
         );
     }
 }

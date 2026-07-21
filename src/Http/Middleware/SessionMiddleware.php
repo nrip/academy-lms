@@ -6,6 +6,7 @@ namespace Academy\Http\Middleware;
 
 use Academy\Application\Security\SessionService;
 use Academy\Domain\Exception\ServiceUnavailableException;
+use Academy\Http\Security\SessionCookieClearance;
 use Academy\Http\Security\SessionCookieSettings;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -79,6 +80,13 @@ final class SessionMiddleware implements MiddlewareInterface
 
         $response = $handler->handle($request);
 
+        // SessionCookieClearance is authoritative. Do not query the store (e.g. isActive)
+        // to decide clearance — Auth already decided; physical revoke is best-effort only.
+        $clearance = $request->getAttribute(SessionCookieClearance::ATTR);
+        if ($clearance instanceof SessionCookieClearance && $clearance->shouldClear()) {
+            return $this->withClearedCookiesOnly($response);
+        }
+
         if ($loaded['set_cookie'] || $rawToken !== $loaded['raw_token']) {
             $response = $this->withSessionCookie($response, $loaded['raw_token']);
             $response = $this->withCsrfCookie($response, $rawCsrf);
@@ -120,5 +128,36 @@ final class SessionMiddleware implements MiddlewareInterface
             'Set-Cookie',
             $this->cookies->buildCsrfSetCookie($rawCsrf),
         );
+    }
+
+    /**
+     * Drop any live session/CSRF Set-Cookie headers and emit only clearing directives.
+     */
+    private function withClearedCookiesOnly(ResponseInterface $response): ResponseInterface
+    {
+        $kept = [];
+        foreach ($response->getHeader('Set-Cookie') as $header) {
+            if (!$this->isManagedCookieHeader($header)) {
+                $kept[] = $header;
+            }
+        }
+
+        $response = $response->withoutHeader('Set-Cookie');
+        foreach ($kept as $header) {
+            $response = $response->withAddedHeader('Set-Cookie', $header);
+        }
+        foreach ($this->cookies->clearCookieHeaders() as $header) {
+            $response = $response->withAddedHeader('Set-Cookie', $header);
+        }
+
+        return $response;
+    }
+
+    private function isManagedCookieHeader(string $header): bool
+    {
+        $name = strtolower(strtok($header, '=') ?: '');
+
+        return $name === strtolower($this->cookies->sessionCookieName)
+            || $name === strtolower($this->cookies->csrfCookieName);
     }
 }

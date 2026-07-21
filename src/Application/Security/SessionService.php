@@ -135,6 +135,47 @@ final class SessionService
         }
     }
 
+    /**
+     * Bind a user to the session outside any ambient domain transaction.
+     *
+     * @param array<string, mixed> $payloadMerge
+     */
+    public function bindUser(SessionRecord $session, int $userId, int $authVersion, array $payloadMerge = []): SessionRecord
+    {
+        try {
+            $this->sessions->bindUser($session->sessionId, $userId, $authVersion, $payloadMerge);
+            $record = $this->sessions->findByTokenHash($session->tokenHash);
+            if ($record === null) {
+                throw new ServiceUnavailableException('Session store unavailable.');
+            }
+
+            return $record;
+        } catch (ServiceUnavailableException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->logger->critical('Session bind failed.', ['exception' => $exception::class]);
+            throw new ServiceUnavailableException('Session store unavailable.');
+        }
+    }
+
+    /**
+     * Best-effort physical revocation after a committed role mutation.
+     * Failures must not roll back the role mutation; auth_version remains the logical backstop.
+     */
+    public function revokeAllForUser(int $userId): int
+    {
+        try {
+            return $this->sessions->revokeAllForUser($userId, $this->now());
+        } catch (Throwable $exception) {
+            $this->logger->critical('Failed to revoke sessions after role mutation.', [
+                'exception' => $exception::class,
+                'user_id' => $userId,
+            ]);
+
+            return 0;
+        }
+    }
+
     public function hashToken(string $rawToken): string
     {
         return hash('sha256', $rawToken);
@@ -214,6 +255,7 @@ final class SessionService
                 $session->absoluteExpiresAt,
                 $idleExpires,
                 $session->revokedAt,
+                $session->authVersion,
             );
         }
 

@@ -16,6 +16,7 @@
 | WP01-D | TOTP package | **Approved (Product Owner):** `spomky-labs/otphp`, subject to pinning, licence review, composer audit, encrypted secrets, hashed recovery codes, no secrets in logs, audited enrolment/reset/recovery. Technical Lead implementation review: **Pending**. |
 | WP01-E | Reviewer object scope | **Approved (Product Owner, amended):** Course, CourseVersion, and/or Batch assignments; union of active assignments; permission **and** scope required; no automatic future CourseVersions without explicit `include_future_versions`; effective dates, revocation history, creator/revoker, audit. Technical Lead schema review: **Pending**. |
 | WP01-F | Hosting region | **Approved (Product Owner):** AWS `ap-south-1` as primary production-region **working assumption**, subject to final infrastructure, backup, logging, residency and DR approval. Region choice alone does **not** satisfy all compliance requirements. Technical Lead / hosting final approval: **Pending**. |
+| WP01-G | Middleware order: RateLimit before CSRF | **Approved (2026-07-20):** Retain **Session → Authentication → RateLimit → CSRF → Route Dispatch**. Supersedes Technical Architecture §5.2 CSRF-before-RateLimit ordering. Rate limits apply to invalid-CSRF traffic; does not weaken CSRF on mutating requests; route-level permission remains post-match only. See Decision Log. |
 
 ---
 
