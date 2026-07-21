@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 /*
 |--------------------------------------------------------------------------
-| Middleware pipeline (Architecture §5.2 + WP-01A + WP-01B-1)
+| Middleware pipeline (Architecture §5.2 as amended by WP01-G + WP-01A/B-1)
 |--------------------------------------------------------------------------
 |
+| WP01-G (Approved 2026-07-20): RateLimit before CSRF is authoritative and
+| supersedes the earlier Architecture §5.2 CSRF-before-RateLimit ordering.
 | Observed execution order is covered by tests — do not rely only on this list.
 |
 | Outer → inner (Kernel):
@@ -16,7 +18,7 @@ declare(strict_types=1);
 |   4. SecurityHeadersMiddleware   (success path; shared SecurityHeaderPolicy)
 |   5. SessionMiddleware
 |   6. AuthenticationMiddleware    (security snapshot; no route metadata)
-|   7. RateLimitMiddleware         (pre-CSRF; IP/session/path dimensions only)
+|   7. RateLimitMiddleware         (WP01-G: before CSRF; IP/session/path dimensions only)
 |   8. CsrfMiddleware
 |   9. Router / controller
 |
