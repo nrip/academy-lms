@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Academy\Infrastructure\Outbox;
 
+use Academy\Domain\Outbox\OutboxEventFilter;
 use Academy\Domain\Outbox\OutboxMessage;
 use Academy\Domain\Outbox\OutboxRepository;
 use Academy\Domain\Outbox\OutboxWriter;
@@ -88,11 +89,94 @@ final class PdoOutboxRepository implements OutboxRepository, OutboxWriter
         int $leaseSeconds,
         int $limit = 10,
     ): array {
+        return $this->claimFiltered($lockedBy, $now, $leaseSeconds, null, $limit);
+    }
+
+    /**
+     * @param list<string> $eventTypes
+     * @return list<OutboxMessage>
+     */
+    public function claimByEventTypes(
+        string $lockedBy,
+        \DateTimeImmutable $now,
+        int $leaseSeconds,
+        array $eventTypes,
+        int $limit = 10,
+    ): array {
+        if ($eventTypes === []) {
+            throw new \InvalidArgumentException('claimByEventTypes requires at least one event type.');
+        }
+
+        return $this->claimFiltered(
+            $lockedBy,
+            $now,
+            $leaseSeconds,
+            OutboxEventFilter::includeOnly(array_values($eventTypes)),
+            $limit,
+        );
+    }
+
+    /**
+     * @param list<string> $eventTypes
+     * @return list<OutboxMessage>
+     */
+    public function claimExcludingEventTypes(
+        string $lockedBy,
+        \DateTimeImmutable $now,
+        int $leaseSeconds,
+        array $eventTypes,
+        int $limit = 10,
+    ): array {
+        if ($eventTypes === []) {
+            throw new \InvalidArgumentException('claimExcludingEventTypes requires at least one event type.');
+        }
+
+        return $this->claimFiltered(
+            $lockedBy,
+            $now,
+            $leaseSeconds,
+            OutboxEventFilter::excluding(array_values($eventTypes)),
+            $limit,
+        );
+    }
+
+    /**
+     * @return list<OutboxMessage>
+     */
+    private function claimFiltered(
+        string $lockedBy,
+        \DateTimeImmutable $now,
+        int $leaseSeconds,
+        ?OutboxEventFilter $filter,
+        int $limit,
+    ): array {
         $pdo = $this->connections->connection();
         $pdo->beginTransaction();
         try {
             $nowStr = $now->format('Y-m-d H:i:s.u');
             $lockExpires = $now->modify('+' . $leaseSeconds . ' seconds')->format('Y-m-d H:i:s.u');
+
+            $params = [
+                'pending' => 'pending',
+                'processing' => 'processing',
+                'failed' => 'failed',
+                'now1' => $nowStr,
+                'now2' => $nowStr,
+                'now3' => $nowStr,
+            ];
+            $eventSql = '';
+            if ($filter !== null) {
+                $placeholders = [];
+                foreach ($filter->eventTypes as $i => $type) {
+                    $key = 'et' . $i;
+                    $placeholders[] = ':' . $key;
+                    $params[$key] = $type;
+                }
+                $inList = implode(', ', $placeholders);
+                $eventSql = $filter->mode === OutboxEventFilter::MODE_INCLUDE
+                    ? ' AND event_type IN (' . $inList . ')'
+                    : ' AND event_type NOT IN (' . $inList . ')';
+            }
 
             $select = $pdo->prepare(
                 'SELECT outbox_message_id FROM outbox_messages
@@ -100,18 +184,11 @@ final class PdoOutboxRepository implements OutboxRepository, OutboxWriter
                     (status = :pending AND available_at <= :now1)
                     OR (status = :processing AND lock_expires_at IS NOT NULL AND lock_expires_at < :now2)
                     OR (status = :failed AND available_at <= :now3)
-                 )
+                 )' . $eventSql . '
                  ORDER BY outbox_message_id ASC
                  LIMIT ' . (int) $limit . ' FOR UPDATE SKIP LOCKED',
             );
-            $select->execute([
-                'pending' => 'pending',
-                'processing' => 'processing',
-                'failed' => 'failed',
-                'now1' => $nowStr,
-                'now2' => $nowStr,
-                'now3' => $nowStr,
-            ]);
+            $select->execute($params);
             $ids = array_map(static fn (array $r): int => (int) $r['outbox_message_id'], $select->fetchAll(PDO::FETCH_ASSOC));
             if ($ids === []) {
                 $pdo->commit();

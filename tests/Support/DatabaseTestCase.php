@@ -87,7 +87,12 @@ final class DatabaseTestCase
     {
         putenv('APP_ENV=testing');
         $_ENV['APP_ENV'] = 'testing';
-        $configArray = require dirname(__DIR__, 2) . '/phinx.php';
+        $_SERVER['APP_ENV'] = 'testing';
+        self::syncDbEnvForPhinx();
+        $root = dirname(__DIR__, 2);
+        $configArray = require $root . '/phinx.php';
+        $configArray['paths']['migrations'] = $root . '/database/migrations';
+        $configArray['paths']['seeds'] = $root . '/database/seeds';
         $config = new Config($configArray);
         $manager = new Manager($config, new StringInput(''), new NullOutput());
         $manager->migrate('testing');
@@ -103,6 +108,9 @@ final class DatabaseTestCase
         $pdo = self::pdo();
         $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
         foreach ([
+            'token_confirmation_contexts',
+            'verification_challenges',
+            'verification_tokens',
             'sessions',
             'rate_limit_buckets',
             'outbox_messages',
@@ -278,5 +286,21 @@ SQL);
             '+91' . random_int(6000000000, 9999999999),
             [RoleKeys::SUPER_ADMIN],
         );
+    }
+
+    private static function syncDbEnvForPhinx(): void
+    {
+        $map = [
+            'DB_HOST' => getenv('DB_HOST') ?: '127.0.0.1',
+            'DB_PORT' => getenv('DB_PORT') ?: '3306',
+            'DB_NAME' => getenv('DB_NAME') ?: 'academy_lms_test',
+            'DB_USER' => getenv('DB_USER') ?: 'root',
+            'DB_PASSWORD' => getenv('DB_PASSWORD') !== false ? (string) getenv('DB_PASSWORD') : '',
+        ];
+        foreach ($map as $key => $value) {
+            putenv($key . '=' . $value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
     }
 }

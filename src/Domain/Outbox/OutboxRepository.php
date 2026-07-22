@@ -30,6 +30,30 @@ interface OutboxRepository
     ): array;
 
     /**
+     * @param list<string> $eventTypes
+     * @return list<OutboxMessage>
+     */
+    public function claimByEventTypes(
+        string $lockedBy,
+        \DateTimeImmutable $now,
+        int $leaseSeconds,
+        array $eventTypes,
+        int $limit = 10,
+    ): array;
+
+    /**
+     * @param list<string> $eventTypes
+     * @return list<OutboxMessage>
+     */
+    public function claimExcludingEventTypes(
+        string $lockedBy,
+        \DateTimeImmutable $now,
+        int $leaseSeconds,
+        array $eventTypes,
+        int $limit = 10,
+    ): array;
+
+    /**
      * @return bool True when this claim still owns the message and the update applied
      */
     public function markPublished(

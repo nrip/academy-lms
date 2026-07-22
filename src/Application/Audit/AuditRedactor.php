@@ -24,6 +24,15 @@ final class AuditRedactor
         'cookie',
         'secret',
         'token',
+        'delivery_ciphertext',
+        'ciphertext',
+        'nonce',
+        'pepper',
+        'confirmation',
+        'provider_response',
+        'provider_body',
+        'link_token',
+        'raw_token',
     ];
 
     /**
