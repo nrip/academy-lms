@@ -1,6 +1,6 @@
 # WP-02 — Course Detail, Batch Select and Draft Application
 
-**Branch:** `slice/wp02-course-detail-draft-application`  
+**Branch:** `slice/wp02-course-detail-draft-application`
 **Authority:** VERTICAL_SLICE_ROADMAP WP-02, APP-DRAFT-1, VS-SCOPE-1, SRS §4–5/§7–8/§17, Architecture §7.3.1/§8.2, Screen Inventory G-02 + A-03 (+ minimal G-01 catalogue for discovery).
 
 ## Scope choices (no Blocker)

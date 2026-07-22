@@ -16,6 +16,7 @@ interface BatchRepository
     public function listByCourseVersionId(int $courseVersionId): array;
 
     /**
+     * @param list<int> $courseVersionIds
      * @return list<Batch>
      */
     public function listByCourseVersionIds(array $courseVersionIds): array;

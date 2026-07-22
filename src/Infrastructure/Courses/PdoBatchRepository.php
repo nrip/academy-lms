@@ -48,6 +48,10 @@ final class PdoBatchRepository implements BatchRepository
         return $this->listByCourseVersionIds([$courseVersionId]);
     }
 
+    /**
+     * @param list<int> $courseVersionIds
+     * @return list<Batch>
+     */
     public function listByCourseVersionIds(array $courseVersionIds): array
     {
         if ($courseVersionIds === []) {

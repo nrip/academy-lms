@@ -4,39 +4,38 @@ declare(strict_types=1);
 
 namespace Academy\Domain\Courses;
 
+use InvalidArgumentException;
+
 /**
- * DECIMAL-safe fee/GST display helpers. Uses bcmath when available (never
- * float arithmetic on money); falls back to number_format-based rounding
- * only when the bcmath extension is unavailable. Display-only — persisted
- * money values remain DECIMAL columns computed server-side elsewhere.
+ * DECIMAL-safe fee/GST display helpers.
+ * Arithmetic is done in integer paise (1/100 of currency unit) to avoid float
+ * and to keep PHPStan-friendly types. Display-only — persisted money remains
+ * DECIMAL columns.
  */
 final class FeeDisplay
 {
     public static function effectiveBaseFee(Batch $batch, CourseVersion $version): string
     {
-        return $batch->feeOverride ?? $version->standardFee;
+        return self::formatPaise(self::toPaise($batch->feeOverride ?? $version->standardFee));
     }
 
     public static function gstAmount(string $baseFee, string $gstRatePercent): string
     {
-        if (self::hasBcMath()) {
-            $raw = bcdiv(bcmul($baseFee, $gstRatePercent, 6), '100', 6);
+        $basePaise = self::toPaise($baseFee);
+        $rateBasisPoints = self::toBasisPoints($gstRatePercent);
+        // gst_paise = round_half_up(base_paise * rate_bp / 10000)
+        $numerator = $basePaise * $rateBasisPoints;
+        $gstPaise = intdiv($numerator + 5000 * ($numerator >= 0 ? 1 : -1), 10000);
 
-            return self::roundHalfUp($raw, 2);
-        }
-
-        return number_format(((float) $baseFee * (float) $gstRatePercent) / 100, 2, '.', '');
+        return self::formatPaise($gstPaise);
     }
 
     public static function inclusiveAmount(string $baseFee, string $gstRatePercent): string
     {
-        $gst = self::gstAmount($baseFee, $gstRatePercent);
+        $basePaise = self::toPaise($baseFee);
+        $gstPaise = self::toPaise(self::gstAmount($baseFee, $gstRatePercent));
 
-        if (self::hasBcMath()) {
-            return bcadd($baseFee, $gst, 2);
-        }
-
-        return number_format((float) $baseFee + (float) $gst, 2, '.', '');
+        return self::formatPaise($basePaise + $gstPaise);
     }
 
     /**
@@ -44,36 +43,63 @@ final class FeeDisplay
      */
     public static function formatted(string $amount, string $currency): string
     {
-        $negative = str_starts_with($amount, '-');
-        $abs = $negative ? substr($amount, 1) : $amount;
-        $parts = explode('.', $abs, 2);
-        $whole = $parts[0] === '' ? '0' : $parts[0];
-        $fraction = isset($parts[1]) ? substr($parts[1] . '00', 0, 2) : '00';
+        $paise = self::toPaise($amount);
+        $negative = $paise < 0;
+        $abs = abs($paise);
+        $whole = intdiv($abs, 100);
+        $fraction = str_pad((string) ($abs % 100), 2, '0', STR_PAD_LEFT);
 
+        $wholeStr = (string) $whole;
         $grouped = '';
-        $len = strlen($whole);
+        $len = strlen($wholeStr);
         for ($i = 0; $i < $len; $i++) {
             if ($i > 0 && ($len - $i) % 3 === 0) {
                 $grouped .= ',';
             }
-            $grouped .= $whole[$i];
+            $grouped .= $wholeStr[$i];
         }
 
         return $currency . ' ' . ($negative ? '-' : '') . $grouped . '.' . $fraction;
     }
 
-    private static function roundHalfUp(string $value, int $scale): string
+    private static function toPaise(string $decimal): int
     {
-        $negative = str_starts_with($value, '-');
-        $unsigned = $negative ? substr($value, 1) : $value;
-        $extended = bcadd($unsigned, '0.' . str_repeat('0', $scale) . '5', $scale + 1);
-        $rounded = bcdiv($extended, '1', $scale);
+        $trimmed = trim($decimal);
+        if (preg_match('/^(-?)(\d+)(?:\.(\d{0,2}))?$/', $trimmed, $matches) !== 1) {
+            throw new InvalidArgumentException('Fee values must be plain decimal strings with at most 2 fractional digits.');
+        }
 
-        return ($negative && (float) $rounded !== 0.0 ? '-' : '') . $rounded;
+        $sign = $matches[1] === '-' ? -1 : 1;
+        $whole = (int) $matches[2];
+        $fraction = str_pad($matches[3] ?? '', 2, '0', STR_PAD_RIGHT);
+
+        return $sign * ($whole * 100 + (int) $fraction);
     }
 
-    private static function hasBcMath(): bool
+    /**
+     * Convert a percent like "18.00" into basis points (1800 = 18.00%).
+     */
+    private static function toBasisPoints(string $percent): int
     {
-        return extension_loaded('bcmath');
+        $trimmed = trim($percent);
+        if (preg_match('/^(-?)(\d+)(?:\.(\d{0,2}))?$/', $trimmed, $matches) !== 1) {
+            throw new InvalidArgumentException('GST rate must be a plain decimal percent string.');
+        }
+
+        $sign = $matches[1] === '-' ? -1 : 1;
+        $whole = (int) $matches[2];
+        $fraction = str_pad($matches[3] ?? '', 2, '0', STR_PAD_RIGHT);
+
+        return $sign * ($whole * 100 + (int) $fraction);
+    }
+
+    private static function formatPaise(int $paise): string
+    {
+        $negative = $paise < 0;
+        $abs = abs($paise);
+        $whole = intdiv($abs, 100);
+        $fraction = str_pad((string) ($abs % 100), 2, '0', STR_PAD_LEFT);
+
+        return ($negative ? '-' : '') . $whole . '.' . $fraction;
     }
 }
