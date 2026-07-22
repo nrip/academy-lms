@@ -7,8 +7,10 @@ namespace Academy\Application\RBAC;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\AuthorizationException;
 use Academy\Domain\Exception\ServiceUnavailableException;
+use Academy\Domain\Identity\AccountStatus;
 use Academy\Domain\Identity\AuthStage;
 use Academy\Domain\RBAC\MfaAssuranceAllowList;
+use Academy\Domain\RBAC\PendingVerificationAllowList;
 use Academy\Domain\RBAC\PermissionRepository;
 use Academy\Domain\Security\AuthContext;
 use Throwable;
@@ -52,6 +54,12 @@ final class AuthorizationService
 
         if (!in_array($permissionKey, $keys, true)) {
             throw new AuthorizationException('Permission denied.');
+        }
+
+        if ($context->accountStatus === AccountStatus::PENDING_VERIFICATION) {
+            if (!PendingVerificationAllowList::contains($permissionKey)) {
+                throw new AuthorizationException('Permission denied.');
+            }
         }
 
         if ($context->authStage === AuthStage::FULLY_AUTHENTICATED) {
