@@ -158,6 +158,26 @@ final class RegistrationConcurrencyTest extends TestCase
             {
                 throw new RuntimeException('forced mid-transaction failure (concurrency suite)');
             }
+
+            public function findByUserId(int $userId): ?\Academy\Domain\Identity\LearnerProfile
+            {
+                throw new RuntimeException('Not used in this test.');
+            }
+
+            public function findById(int $profileId): ?\Academy\Domain\Identity\LearnerProfile
+            {
+                throw new RuntimeException('Not used in this test.');
+            }
+
+            public function updatePersonal(int $profileId, int $expectedVersion, array $fields, \DateTimeImmutable $now): int
+            {
+                throw new RuntimeException('Not used in this test.');
+            }
+
+            public function updateProfessional(int $profileId, int $expectedVersion, array $fields, \DateTimeImmutable $now): int
+            {
+                throw new RuntimeException('Not used in this test.');
+            }
         };
 
         $service = new RegistrationService(

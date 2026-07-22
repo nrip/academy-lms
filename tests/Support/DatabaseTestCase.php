@@ -120,6 +120,7 @@ final class DatabaseTestCase
             'outbox_messages',
             'scheduler_locks',
             'user_roles',
+            'learner_qualifications',
             'learner_profiles',
             'users',
         ] as $table) {
@@ -206,6 +207,33 @@ SQL);
         }
 
         return ['user_id' => $userId, 'auth_version' => $authVersion];
+    }
+
+    /**
+     * Ensures a learner_profiles stub row exists for the user and returns its id.
+     */
+    public static function ensureLearnerProfileStub(int $userId): int
+    {
+        $pdo = self::pdo();
+        $existing = $pdo->prepare('SELECT learner_profile_id FROM learner_profiles WHERE user_id = :user_id');
+        $existing->execute(['user_id' => $userId]);
+        $row = $existing->fetch(PDO::FETCH_ASSOC);
+        if ($row !== false) {
+            return (int) $row['learner_profile_id'];
+        }
+
+        $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $insert = $pdo->prepare(
+            'INSERT INTO learner_profiles (user_id, row_version, created_at, updated_at)
+             VALUES (:user_id, 1, :created_at, :updated_at)',
+        );
+        $insert->execute([
+            'user_id' => $userId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return (int) $pdo->lastInsertId();
     }
 
     public static function roleId(string $roleKey): int
