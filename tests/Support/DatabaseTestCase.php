@@ -111,6 +111,7 @@ final class DatabaseTestCase
         $pdo = self::pdo();
         $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
         foreach ([
+            'password_reset_authorizations',
             'token_confirmation_contexts',
             'verification_challenges',
             'verification_tokens',

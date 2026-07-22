@@ -118,6 +118,26 @@ final class RegistrationPasswordHashOrderTest extends TestCase
                 throw new \LogicException('Must not be called.');
             }
 
+            public function findCredentialsByEmailForUpdate(string $normalizedEmail): ?array
+            {
+                throw new \LogicException('Must not be called.');
+            }
+
+            public function applyFailedLogin(int $userId, array $state): void
+            {
+                throw new \LogicException('Must not be called.');
+            }
+
+            public function applySuccessfulLogin(int $userId, array $state, ?string $rehashedPassword): void
+            {
+                throw new \LogicException('Must not be called.');
+            }
+
+            public function applyPasswordReset(int $userId, string $passwordHash, \DateTimeImmutable $now): array
+            {
+                throw new \LogicException('Must not be called.');
+            }
+
             public function applyEmailVerification(int $userId, \DateTimeImmutable $now): array
             {
                 throw new \LogicException('Must not be called.');

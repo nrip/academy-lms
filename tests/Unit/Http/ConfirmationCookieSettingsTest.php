@@ -16,12 +16,16 @@ final class ConfirmationCookieSettingsTest extends TestCase
 
         self::assertSame(ConfirmationCookieSettings::EMAIL_CONFIRM_PLAIN, $settings->emailConfirmCookieName);
         self::assertSame(ConfirmationCookieSettings::RESET_CONFIRM_PLAIN, $settings->resetConfirmCookieName);
+        self::assertSame(ConfirmationCookieSettings::RESET_AUTH_PLAIN, $settings->resetAuthCookieName);
         self::assertNotSame($settings->emailConfirmCookieName, $settings->resetConfirmCookieName);
+        self::assertNotSame($settings->resetConfirmCookieName, $settings->resetAuthCookieName);
 
         $email = $settings->buildSetCookie('email_verify', 'abc');
         $reset = $settings->buildSetCookie('password_reset', 'abc');
+        $auth = $settings->buildResetAuthSetCookie('def');
         self::assertStringStartsWith('acad_email_confirm=', $email);
         self::assertStringStartsWith('acad_reset_confirm=', $reset);
+        self::assertStringStartsWith('acad_reset_auth=', $auth);
         self::assertStringContainsString('HttpOnly', $email);
         self::assertStringContainsString('Path=/', $email);
         self::assertStringNotContainsString('Domain=', $email);
@@ -34,6 +38,7 @@ final class ConfirmationCookieSettingsTest extends TestCase
         new ConfirmationCookieSettings(
             ConfirmationCookieSettings::EMAIL_CONFIRM_HOST,
             ConfirmationCookieSettings::RESET_CONFIRM_HOST,
+            ConfirmationCookieSettings::RESET_AUTH_HOST,
             false,
         );
     }
@@ -53,13 +58,25 @@ final class ConfirmationCookieSettingsTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Path=/');
-        new ConfirmationCookieSettings('acad_email_confirm', 'acad_reset_confirm', false, path: '/app');
+        new ConfirmationCookieSettings(
+            'acad_email_confirm',
+            'acad_reset_confirm',
+            'acad_reset_auth',
+            false,
+            path: '/app',
+        );
     }
 
     public function testDomainRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Domain');
-        new ConfirmationCookieSettings('acad_email_confirm', 'acad_reset_confirm', false, domain: 'example.com');
+        new ConfirmationCookieSettings(
+            'acad_email_confirm',
+            'acad_reset_confirm',
+            'acad_reset_auth',
+            false,
+            domain: 'example.com',
+        );
     }
 }
