@@ -62,6 +62,8 @@ return static function (string $env, callable $bool, callable $string, callable 
         'auth.password_reset.account' => ['limit' => 3, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
         'auth.password_reset.ip' => ['limit' => 10, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
         'auth.registration' => ['limit' => 10, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
+        'auth.verify_link.ip' => ['limit' => 20, 'window_seconds' => 15 * 60, 'failure' => 'fail_closed'],
+        'auth.verify_link.token' => ['limit' => 10, 'window_seconds' => 15 * 60, 'failure' => 'fail_closed'],
         'public.certificate_verify' => ['limit' => 60, 'window_seconds' => 60, 'failure' => 'fail_open'],
         'authenticated.default' => ['limit' => 120, 'window_seconds' => 60, 'failure' => 'fail_closed'],
         'authenticated.read' => ['limit' => 120, 'window_seconds' => 60, 'failure' => 'fail_open'],
@@ -78,6 +80,65 @@ return static function (string $env, callable $bool, callable $string, callable 
     }
 
     $requiredPathPrefixes = $env === 'testing' ? ['/__wp01a/protected'] : [];
+
+    $softSecretsAllowed = in_array($env, ['local', 'testing', 'ci'], true);
+
+    $tokenPepper = $string('TOKEN_PEPPER', '');
+    if ($tokenPepper === '' && $softSecretsAllowed) {
+        $tokenPepper = 'local-ci-token-pepper-not-for-production';
+    }
+    if ($tokenPepper === '') {
+        throw new InvalidArgumentException('TOKEN_PEPPER must be configured.');
+    }
+
+    $otpPepper = $string('OTP_PEPPER', '');
+    if ($otpPepper === '' && $softSecretsAllowed) {
+        $otpPepper = 'local-ci-otp-pepper-not-for-production';
+    }
+    if ($otpPepper === '') {
+        throw new InvalidArgumentException('OTP_PEPPER must be configured.');
+    }
+    if ($otpPepper === $tokenPepper || $otpPepper === $rateLimitPepper) {
+        throw new InvalidArgumentException('OTP_PEPPER must differ from TOKEN_PEPPER and RATE_LIMIT_PEPPER.');
+    }
+
+    $deliveryKey = $string('NOTIFICATION_DELIVERY_KEY', '');
+    if ($deliveryKey === '' && $softSecretsAllowed) {
+        // 32 zero bytes, base64 — tests/local only.
+        $deliveryKey = base64_encode(str_repeat("\0", 32));
+    }
+    if ($deliveryKey === '') {
+        throw new InvalidArgumentException('NOTIFICATION_DELIVERY_KEY must be configured.');
+    }
+    $deliveryKeyPrevious = $string('NOTIFICATION_DELIVERY_KEY_PREVIOUS', '');
+    $deliveryKeyVersion = $int('NOTIFICATION_DELIVERY_KEY_VERSION', 1);
+    if ($deliveryKeyVersion < 1) {
+        throw new InvalidArgumentException('NOTIFICATION_DELIVERY_KEY_VERSION must be a positive SMALLINT.');
+    }
+
+    $emailAdapter = $string('NOTIFICATION_EMAIL_ADAPTER', '');
+    $smsAdapter = $string('NOTIFICATION_SMS_ADAPTER', '');
+    if ($emailAdapter === '') {
+        $emailAdapter = match ($env) {
+            'testing', 'ci' => 'recording',
+            'local' => 'local_file',
+            default => 'unavailable',
+        };
+    }
+    if ($smsAdapter === '') {
+        $smsAdapter = match ($env) {
+            'testing', 'ci' => 'recording',
+            default => 'unavailable',
+        };
+    }
+    if (in_array($env, ['staging', 'production'], true)) {
+        if (in_array($emailAdapter, ['recording', 'local_file'], true)) {
+            throw new InvalidArgumentException('Recording/local email adapters are forbidden in staging/production.');
+        }
+        if ($smsAdapter === 'recording') {
+            throw new InvalidArgumentException('Recording SMS adapters are forbidden in staging/production.');
+        }
+    }
 
     return [
         'trusted_proxies' => [], // populated by app.php after proxy parsing
@@ -112,6 +173,24 @@ return static function (string $env, callable $bool, callable $string, callable 
             'backoff_base_seconds' => $int('OUTBOX_BACKOFF_BASE_SECONDS', 5),
             'backoff_cap_seconds' => $int('OUTBOX_BACKOFF_CAP_SECONDS', 3600),
             'transport' => $string('OUTBOX_TRANSPORT', 'unconfigured'),
+        ],
+        'identity_tokens' => [
+            'token_pepper' => $tokenPepper,
+            'otp_pepper' => $otpPepper,
+            'confirmation_context_ttl_seconds' => $int('TOKEN_CONFIRMATION_CONTEXT_TTL_SECONDS', 900),
+            'confirmation_cleanup_retention_days' => $int('TOKEN_CONFIRMATION_CLEANUP_RETENTION_DAYS', 7),
+            'confirmation_cleanup_batch_size' => $int('TOKEN_CONFIRMATION_CLEANUP_BATCH_SIZE', 1000),
+            'cookie_secure' => $cookieSecure,
+            'use_host_prefix' => $useHostPrefix,
+        ],
+        'notifications' => [
+            'delivery_key' => $deliveryKey,
+            'delivery_key_previous' => $deliveryKeyPrevious === '' ? null : $deliveryKeyPrevious,
+            'delivery_key_version' => $deliveryKeyVersion,
+            'delivery_key_previous_version' => $deliveryKeyPrevious === '' ? null : max(1, $deliveryKeyVersion - 1),
+            'email_adapter' => $emailAdapter,
+            'sms_adapter' => $smsAdapter,
+            'local_mail_path' => $string('NOTIFICATION_LOCAL_MAIL_PATH', 'storage/mail'),
         ],
     ];
 };

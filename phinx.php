@@ -47,7 +47,7 @@ return [
             'adapter' => 'mysql',
             'host' => $getenv('DB_HOST', '127.0.0.1'),
             'name' => $getenv('DB_NAME', 'academy_lms_test'),
-            'user' => $getenv('DB_USER', 'academy'),
+            'user' => $getenv('DB_USER', 'root'),
             'pass' => $getenv('DB_PASSWORD', ''),
             'port' => (int) $getenv('DB_PORT', '3306'),
             'charset' => $getenv('DB_CHARSET', 'utf8mb4'),

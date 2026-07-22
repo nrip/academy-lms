@@ -3,14 +3,18 @@
 declare(strict_types=1);
 
 /**
- * CLI entry for WP-01A operational jobs.
+ * CLI entry for WP-01A / WP-01B-2a operational jobs.
  *
  * Usage:
  *   php bin/jobs.php session:cleanup
  *   php bin/jobs.php rate-limit:cleanup
  *   php bin/jobs.php outbox:relay
+ *   php bin/jobs.php notification:deliver
+ *   php bin/jobs.php token-confirmation:cleanup
  */
 
+use Academy\Application\Identity\TokenConfirmationCleanupService;
+use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
 use Academy\Application\Outbox\OutboxRelayService;
 use Academy\Domain\Security\RateLimitStore;
 use Academy\Domain\Security\SessionRepository;
@@ -74,9 +78,30 @@ $exit = match ($command) {
 
         return 0;
     })(),
+    'notification:deliver' => (static function () use ($container, $workerId): int {
+        $processed = $container->get(IdentityNotificationDeliveryWorker::class)->run($workerId);
+        fwrite(STDOUT, "notification:deliver processed={$processed}\n");
+
+        return 0;
+    })(),
+    'token-confirmation:cleanup' => (static function () use ($container, $lock, $workerId): int {
+        if (!$lock->acquire('token_confirmation_cleanup', $workerId, 120)) {
+            fwrite(STDERR, "Could not acquire token_confirmation_cleanup lock\n");
+
+            return 1;
+        }
+        try {
+            $deleted = $container->get(TokenConfirmationCleanupService::class)->run();
+            fwrite(STDOUT, "token-confirmation:cleanup deleted={$deleted}\n");
+
+            return 0;
+        } finally {
+            $lock->release('token_confirmation_cleanup', $workerId);
+        }
+    })(),
     default => (static function () use ($command): int {
         fwrite(STDERR, "Unknown command: {$command}\n");
-        fwrite(STDERR, "Commands: session:cleanup | rate-limit:cleanup | outbox:relay\n");
+        fwrite(STDERR, "Commands: session:cleanup | rate-limit:cleanup | outbox:relay | notification:deliver | token-confirmation:cleanup\n");
 
         return 1;
     })(),

@@ -50,6 +50,7 @@ final class LoggerFactory
         }
 
         $logger->pushHandler($handler);
+        $logger->pushProcessor(new SensitiveDataProcessor());
 
         return $logger;
     }
