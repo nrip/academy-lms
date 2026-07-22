@@ -8,10 +8,14 @@ use Academy\Application\Admissions\ApplicationDeclarationService;
 use Academy\Application\Admissions\ApplicationSubmitService;
 use Academy\Application\Admissions\ApplicationWorkspaceService;
 use Academy\Application\Admissions\DraftApplicationService;
+use Academy\Application\Review\LearnerCorrectionResubmitService;
 use Academy\Domain\Admissions\ApplicationDraftFactory;
+use Academy\Domain\Credentials\DocumentRejectionReasonCode;
+use Academy\Domain\Credentials\DocumentSubmissionStatus;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\ConflictException;
 use Academy\Domain\Exception\DomainRuleException;
+use Academy\Domain\Exception\ValidationException;
 use Academy\Domain\Security\AuthContext;
 use Academy\Http\Middleware\AuthenticationMiddleware;
 use Academy\Http\Middleware\SessionMiddleware;
@@ -29,6 +33,7 @@ final class ApplicationController
         private readonly ApplicationWorkspaceService $workspace,
         private readonly ApplicationDeclarationService $declarations,
         private readonly ApplicationSubmitService $submissions,
+        private readonly LearnerCorrectionResubmitService $correctionResubmit,
         private readonly PhpRenderer $renderer,
     ) {
     }
@@ -50,11 +55,13 @@ final class ApplicationController
     {
         $applicationId = (int) ($args['id'] ?? 0);
         $view = $this->workspace->getOwn($this->auth($request), $applicationId);
+        $query = $request->getQueryParams();
 
         $html = $this->renderer->render('pages/applications/show', [
             'title' => 'My application',
             'csrf' => $this->csrf($request),
             'view' => $view,
+            'flashOk' => isset($query['ok']) ? (string) $query['ok'] : null,
         ]);
 
         return new HtmlResponse($html);
@@ -141,6 +148,61 @@ final class ApplicationController
         return new HtmlResponse($html);
     }
 
+    /**
+     * @param array<string, string> $args
+     */
+    public function corrections(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        $applicationId = (int) ($args['id'] ?? 0);
+        $view = $this->workspace->getOwn($this->auth($request), $applicationId);
+
+        if (!$view->application->allowsLearnerDocumentCorrection()) {
+            throw new DomainRuleException('Application is not awaiting corrections.');
+        }
+
+        $correctionItems = [];
+        foreach ($view->requirements as $requirement) {
+            $document = $view->currentDocumentsByRequirementId[$requirement->requirementId] ?? null;
+            if ($document === null || $document->status !== DocumentSubmissionStatus::RESUBMISSION_REQUESTED) {
+                continue;
+            }
+
+            $correctionItems[] = [
+                'requirement' => $requirement,
+                'document' => $document,
+                'reasonLabel' => $document->rejectionReasonCode !== null
+                    ? DocumentRejectionReasonCode::label($document->rejectionReasonCode)
+                    : '',
+            ];
+        }
+
+        $html = $this->renderer->render('pages/applications/corrections', [
+            'title' => 'Correction required',
+            'csrf' => $this->csrf($request),
+            'view' => $view,
+            'correctionItems' => $correctionItems,
+        ]);
+
+        return new HtmlResponse($html);
+    }
+
+    /**
+     * @param array<string, string> $args
+     */
+    public function resubmitCorrections(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        $applicationId = (int) ($args['id'] ?? 0);
+        $body = (array) $request->getParsedBody();
+
+        $this->correctionResubmit->resubmit(
+            $this->auth($request),
+            $applicationId,
+            $this->intField($body, 'state_version'),
+        );
+
+        return new RedirectResponse('/applications/' . $applicationId . '?ok=resubmitted', 303);
+    }
+
     private function renderEdit(ServerRequestInterface $request, mixed $view, ?string $error, int $status): ResponseInterface
     {
         $html = $this->renderer->render('pages/applications/edit', [
@@ -151,6 +213,24 @@ final class ApplicationController
         ]);
 
         return new HtmlResponse($html, $status);
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     */
+    private function intField(array $body, string $key): int
+    {
+        $value = $body[$key] ?? null;
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_string($value) && preg_match('/^\d+$/', trim($value)) === 1) {
+            return (int) trim($value);
+        }
+
+        throw new ValidationException('Please provide valid application details.', [
+            $key => ['A valid ' . $key . ' is required.'],
+        ]);
     }
 
     private function csrf(ServerRequestInterface $request): string

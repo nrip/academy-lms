@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use Academy\Domain\Admissions\ApplicationStatus;
+
 /** @var \Academy\Infrastructure\View\Escaper $e */
 /** @var string $title */
 /** @var string $csrf */
 /** @var \Academy\Application\Admissions\ApplicationWorkspaceView $view */
+/** @var string|null $flashOk */
 
 $application = $view->application;
 
@@ -17,6 +20,29 @@ ob_start();
         <?= $e->html($application->applicationNumber) ?>
         <span class="badge bg-secondary text-uppercase"><?= $e->html($application->status) ?></span>
     </h1>
+
+    <?php if ($flashOk === 'resubmitted'): ?>
+        <div class="alert alert-success" role="status"><?= $e->html('Your corrections have been resubmitted for review.') ?></div>
+    <?php endif; ?>
+
+    <?php if ($application->status === ApplicationStatus::RESUBMISSION_REQUESTED): ?>
+        <div class="alert alert-warning" role="status">
+            <?= $e->html('Your reviewer has requested document corrections.') ?>
+            <a class="alert-link" href="/applications/<?= $e->attr($application->applicationId) ?>/corrections"><?= $e->html('View corrections') ?></a>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($application->status === ApplicationStatus::PAYMENT_PENDING): ?>
+        <div class="alert alert-info" role="status">
+            <?= $e->html('Your application has been approved. Payment will be the next step — checkout is not available yet.') ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($application->status === ApplicationStatus::REJECTED): ?>
+        <div class="alert alert-danger" role="status">
+            <?= $e->html('Your application was not approved.') ?>
+        </div>
+    <?php endif; ?>
 
     <?php if ($view->blockers !== []): ?>
         <div class="alert alert-warning" role="status">

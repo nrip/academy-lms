@@ -8,12 +8,25 @@ declare(strict_types=1);
 /** @var \Academy\Application\Admissions\ApplicationWorkspaceView $view */
 
 $application = $view->application;
+$correctionMode = $application->allowsLearnerDocumentCorrection();
 
 ob_start();
 ?>
-<div class="acad-application-documents" data-application-id="<?= $e->attr($application->applicationId) ?>" data-csrf="<?= $e->attr($csrf) ?>">
+<div
+    class="acad-application-documents"
+    data-application-id="<?= $e->attr($application->applicationId) ?>"
+    data-csrf="<?= $e->attr($csrf) ?>"
+    data-correction-mode="<?= $correctionMode ? '1' : '0' ?>"
+>
     <p class="acad-eyebrow mb-2"><?= $e->html('Application documents') ?></p>
     <h1 class="h3 mb-4"><?= $e->html($application->applicationNumber) ?></h1>
+
+    <?php if ($correctionMode): ?>
+        <div class="alert alert-warning" role="status">
+            <?= $e->html('Correction mode — replace the documents flagged on the corrections page, then resubmit.') ?>
+            <a class="alert-link" href="/applications/<?= $e->attr($application->applicationId) ?>/corrections"><?= $e->html('View corrections') ?></a>
+        </div>
+    <?php endif; ?>
 
     <?php foreach ($view->requirements as $requirement): ?>
         <?php $current = $view->currentDocumentsByRequirementId[$requirement->requirementId] ?? null; ?>
