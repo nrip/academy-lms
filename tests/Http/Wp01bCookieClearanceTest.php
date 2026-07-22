@@ -142,6 +142,11 @@ final class Wp01bCookieClearanceTest extends TestCase
                 $this->inner->bindUser($sessionId, $userId, $authVersion, $payloadMerge);
             }
 
+            public function mergeAnonymousPayload(int $sessionId, array $payloadMerge): void
+            {
+                $this->inner->mergeAnonymousPayload($sessionId, $payloadMerge);
+            }
+
             public function revokeAllForUser(int $userId, \DateTimeImmutable $revokedAt): int
             {
                 return $this->inner->revokeAllForUser($userId, $revokedAt);

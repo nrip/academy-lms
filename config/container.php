@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 use Academy\Application\Audit\AuditRedactor;
 use Academy\Application\Audit\AuditService;
+use Academy\Application\Identity\CompositeTokenConsumedHandler;
+use Academy\Application\Identity\EmailVerificationResendService;
+use Academy\Application\Identity\EmailVerificationTokenConsumedHandler;
+use Academy\Application\Identity\InitialApplicantRoleBinder;
+use Academy\Application\Identity\MobileOtpResendService;
+use Academy\Application\Identity\MobileOtpVerificationService;
+use Academy\Application\Identity\PasswordHasher;
+use Academy\Application\Identity\RegistrationService;
 use Academy\Application\Identity\TokenConfirmationCleanupService;
 use Academy\Application\Identity\TokenConfirmationService;
 use Academy\Application\Identity\VerificationChallengeIssuer;
@@ -19,11 +27,14 @@ use Academy\Application\Security\RateLimiter;
 use Academy\Application\Security\RateLimitKeyFactory;
 use Academy\Application\Security\SessionService;
 use Academy\Domain\Audit\AuditWriter;
+use Academy\Domain\Identity\LearnerProfileRepository;
+use Academy\Domain\Identity\LegalAcceptancePolicy;
 use Academy\Domain\Identity\OtpHmac;
 use Academy\Domain\Identity\TokenConfirmationContextRepository;
 use Academy\Domain\Identity\TokenConsumedHandler;
 use Academy\Domain\Identity\TokenHmac;
 use Academy\Domain\Identity\UserSecuritySnapshotRepository;
+use Academy\Domain\Identity\UserWriteRepository;
 use Academy\Domain\Identity\VerificationChallengeRepository;
 use Academy\Domain\Identity\VerificationTokenRepository;
 use Academy\Domain\Notifications\EmailDeliveryPort;
@@ -35,7 +46,10 @@ use Academy\Domain\RBAC\PermissionRepository;
 use Academy\Domain\RBAC\RoleRepository;
 use Academy\Domain\Security\RateLimitStore;
 use Academy\Domain\Security\SessionRepository;
+use Academy\Http\Controllers\EmailVerificationController;
 use Academy\Http\Controllers\HealthController;
+use Academy\Http\Controllers\MobileVerificationController;
+use Academy\Http\Controllers\RegistrationController;
 use Academy\Http\Controllers\SmokeController;
 use Academy\Http\Controllers\Wp01aProbeController;
 use Academy\Http\Controllers\Wp01b2aTokenProbeController;
@@ -58,9 +72,10 @@ use Academy\Http\Security\TokenPageHeaderPolicy;
 use Academy\Infrastructure\Audit\PdoAuditWriter;
 use Academy\Infrastructure\Database\ConnectionFactory;
 use Academy\Infrastructure\Database\TransactionManager;
-use Academy\Infrastructure\Identity\NoOpTokenConsumedHandler;
+use Academy\Infrastructure\Identity\PdoLearnerProfileRepository;
 use Academy\Infrastructure\Identity\PdoTokenConfirmationContextRepository;
 use Academy\Infrastructure\Identity\PdoUserSecuritySnapshotRepository;
+use Academy\Infrastructure\Identity\PdoUserWriteRepository;
 use Academy\Infrastructure\Identity\PdoVerificationChallengeRepository;
 use Academy\Infrastructure\Identity\PdoVerificationTokenRepository;
 use Academy\Infrastructure\Identity\RecordingTokenConsumedHandler;
@@ -208,6 +223,62 @@ return static function (): ContainerInterface {
         UserSecuritySnapshotRepository::class => static fn (ContainerInterface $c): UserSecuritySnapshotRepository => new PdoUserSecuritySnapshotRepository(
             $c->get(ConnectionFactory::class),
         ),
+        UserWriteRepository::class => static fn (ContainerInterface $c): UserWriteRepository => new PdoUserWriteRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        LearnerProfileRepository::class => static fn (ContainerInterface $c): LearnerProfileRepository => new PdoLearnerProfileRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        PasswordHasher::class => static fn (): PasswordHasher => new PasswordHasher(),
+        LegalAcceptancePolicy::class => static function (ContainerInterface $c): LegalAcceptancePolicy {
+            /** @var array{legal: array{terms_version: string, privacy_version: string}} $security */
+            $security = $c->get('config.security');
+
+            return new LegalAcceptancePolicy(
+                $security['legal']['terms_version'],
+                $security['legal']['privacy_version'],
+            );
+        },
+        InitialApplicantRoleBinder::class => static fn (): InitialApplicantRoleBinder => new InitialApplicantRoleBinder(),
+        RegistrationService::class => static fn (ContainerInterface $c): RegistrationService => new RegistrationService(
+            $c->get(TransactionManager::class),
+            $c->get(UserWriteRepository::class),
+            $c->get(LearnerProfileRepository::class),
+            $c->get(InitialApplicantRoleBinder::class),
+            $c->get(VerificationTokenIssuer::class),
+            $c->get(VerificationChallengeIssuer::class),
+            $c->get(AuditService::class),
+            $c->get(NotificationCapability::class),
+            $c->get(RateLimiter::class),
+            $c->get(LegalAcceptancePolicy::class),
+            $c->get(PasswordHasher::class),
+        ),
+        EmailVerificationResendService::class => static fn (ContainerInterface $c): EmailVerificationResendService => new EmailVerificationResendService(
+            $c->get(TransactionManager::class),
+            $c->get(UserWriteRepository::class),
+            $c->get(VerificationTokenIssuer::class),
+            $c->get(AuditService::class),
+            $c->get(NotificationCapability::class),
+            $c->get(RateLimiter::class),
+        ),
+        MobileOtpVerificationService::class => static fn (ContainerInterface $c): MobileOtpVerificationService => new MobileOtpVerificationService(
+            $c->get(TransactionManager::class),
+            $c->get(UserWriteRepository::class),
+            $c->get(VerificationChallengeRepository::class),
+            $c->get(OtpHmac::class),
+            $c->get(AuditService::class),
+            $c->get(RateLimiter::class),
+            $c->get(RateLimitKeyFactory::class),
+        ),
+        MobileOtpResendService::class => static fn (ContainerInterface $c): MobileOtpResendService => new MobileOtpResendService(
+            $c->get(TransactionManager::class),
+            $c->get(UserWriteRepository::class),
+            $c->get(VerificationChallengeIssuer::class),
+            $c->get(AuditService::class),
+            $c->get(NotificationCapability::class),
+            $c->get(RateLimiter::class),
+            $c->get(RateLimitKeyFactory::class),
+        ),
         RoleRepository::class => static fn (ContainerInterface $c): RoleRepository => new PdoRoleRepository(
             $c->get(ConnectionFactory::class),
         ),
@@ -313,11 +384,19 @@ return static function (): ContainerInterface {
         TokenConsumedHandler::class => static function (ContainerInterface $c): TokenConsumedHandler {
             /** @var array{env: string} $app */
             $app = $c->get('config.app');
+
+            $handlers = [
+                new EmailVerificationTokenConsumedHandler(
+                    $c->get(UserWriteRepository::class),
+                    $c->get(AuditService::class),
+                ),
+            ];
+
             if ($app['env'] === 'testing') {
-                return $c->get(RecordingTokenConsumedHandler::class);
+                $handlers[] = $c->get(RecordingTokenConsumedHandler::class);
             }
 
-            return new NoOpTokenConsumedHandler();
+            return new CompositeTokenConsumedHandler($handlers);
         },
 
         RecordingEmailAdapter::class => static fn (): RecordingEmailAdapter => new RecordingEmailAdapter(),
@@ -446,6 +525,21 @@ return static function (): ContainerInterface {
             $router->get('/health', [HealthController::class, 'handle']);
             $router->get('/smoke', [SmokeController::class, 'handle']);
 
+            $router->get('/register', [RegistrationController::class, 'showForm']);
+            $router->post('/register', [RegistrationController::class, 'register']);
+            $router->get('/register/pending', [RegistrationController::class, 'pending']);
+
+            $router->get('/verify-email', [EmailVerificationController::class, 'verifyEmailGet']);
+            $router->get('/verify-email/confirm', [EmailVerificationController::class, 'verifyEmailConfirmGet']);
+            $router->post('/verify-email/confirm', [EmailVerificationController::class, 'verifyEmailConfirmPost']);
+            $router->get('/verify-email/result', [EmailVerificationController::class, 'verifyEmailResult']);
+            $router->get('/verify-email/resend', [EmailVerificationController::class, 'resendForm']);
+            $router->post('/verify-email/resend', [EmailVerificationController::class, 'resend']);
+
+            $router->get('/verify-mobile', [MobileVerificationController::class, 'showForm']);
+            $router->post('/verify-mobile', [MobileVerificationController::class, 'verify']);
+            $router->post('/verify-mobile/resend', [MobileVerificationController::class, 'resend']);
+
             /** @var array{env: string} $app */
             $app = $c->get('config.app');
             if ($app['env'] === 'testing') {
@@ -482,10 +576,6 @@ return static function (): ContainerInterface {
                     'does.not.exist.permission',
                 );
 
-                $router->get('/verify-email', [Wp01b2aTokenProbeController::class, 'verifyEmailGet']);
-                $router->get('/verify-email/confirm', [Wp01b2aTokenProbeController::class, 'verifyEmailConfirmGet']);
-                $router->post('/verify-email/confirm', [Wp01b2aTokenProbeController::class, 'verifyEmailConfirmPost']);
-                $router->get('/verify-email/result', [Wp01b2aTokenProbeController::class, 'verifyEmailResult']);
                 $router->get('/reset-password', [Wp01b2aTokenProbeController::class, 'resetPasswordGet']);
                 $router->get('/reset-password/confirm', [Wp01b2aTokenProbeController::class, 'resetPasswordConfirmGet']);
                 $router->post('/reset-password/confirm', [Wp01b2aTokenProbeController::class, 'resetPasswordConfirmPost']);
@@ -519,6 +609,29 @@ return static function (): ContainerInterface {
                 $security['identity_tokens']['confirmation_context_ttl_seconds'],
             );
         },
+        RegistrationController::class => static fn (ContainerInterface $c): RegistrationController => new RegistrationController(
+            $c->get(RegistrationService::class),
+            $c->get(SessionService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        EmailVerificationController::class => static function (ContainerInterface $c): EmailVerificationController {
+            /** @var array{identity_tokens: array{confirmation_context_ttl_seconds: int}} $security */
+            $security = $c->get('config.security');
+
+            return new EmailVerificationController(
+                $c->get(TokenConfirmationService::class),
+                $c->get(EmailVerificationResendService::class),
+                $c->get(ConfirmationCookieSettings::class),
+                $c->get(TokenPageHeaderPolicy::class),
+                $c->get(PhpRenderer::class),
+                $security['identity_tokens']['confirmation_context_ttl_seconds'],
+            );
+        },
+        MobileVerificationController::class => static fn (ContainerInterface $c): MobileVerificationController => new MobileVerificationController(
+            $c->get(MobileOtpVerificationService::class),
+            $c->get(MobileOtpResendService::class),
+            $c->get(PhpRenderer::class),
+        ),
 
         TrustedProxyMiddleware::class => static function (ContainerInterface $c): TrustedProxyMiddleware {
             /** @var array{trusted_proxies: list<string>, force_https: bool} $security */

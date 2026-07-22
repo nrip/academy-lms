@@ -62,6 +62,8 @@ return static function (string $env, callable $bool, callable $string, callable 
         'auth.password_reset.account' => ['limit' => 3, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
         'auth.password_reset.ip' => ['limit' => 10, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
         'auth.registration' => ['limit' => 10, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
+        'auth.email_verify.resend' => ['limit' => 5, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
+        'auth.otp_send.cooldown' => ['limit' => 1, 'window_seconds' => 60, 'failure' => 'fail_closed'],
         'auth.verify_link.ip' => ['limit' => 20, 'window_seconds' => 15 * 60, 'failure' => 'fail_closed'],
         'auth.verify_link.token' => ['limit' => 10, 'window_seconds' => 15 * 60, 'failure' => 'fail_closed'],
         'public.certificate_verify' => ['limit' => 60, 'window_seconds' => 60, 'failure' => 'fail_open'],
@@ -191,6 +193,10 @@ return static function (string $env, callable $bool, callable $string, callable 
             'email_adapter' => $emailAdapter,
             'sms_adapter' => $smsAdapter,
             'local_mail_path' => $string('NOTIFICATION_LOCAL_MAIL_PATH', 'storage/mail'),
+        ],
+        'legal' => [
+            'terms_version' => $string('TERMS_VERSION', '2026-07-22'),
+            'privacy_version' => $string('PRIVACY_VERSION', '2026-07-22'),
         ],
     ];
 };

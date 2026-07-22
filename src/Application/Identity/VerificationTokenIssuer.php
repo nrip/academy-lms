@@ -17,6 +17,8 @@ use PDO;
 /**
  * Issues email-verification / password-reset tokens with sealed delivery payload + outbox.
  * Returns raw_token to the caller only (tests / B-2b); never log it.
+ *
+ * Use issueInAmbientTx when already inside TransactionManager::run (no nested TX).
  */
 final class VerificationTokenIssuer
 {
@@ -38,68 +40,85 @@ final class VerificationTokenIssuer
         string $destinationEmail,
         \DateTimeImmutable $expiresAt,
     ): array {
+        return $this->transactions->run(
+            function (PDO $pdo) use ($userId, $purpose, $destinationEmail, $expiresAt): array {
+                unset($pdo);
+
+                return $this->issueInAmbientTx($userId, $purpose, $destinationEmail, $expiresAt);
+            },
+        );
+    }
+
+    /**
+     * Ambient-safe issue for callers that already own the domain transaction.
+     *
+     * @return array{verification_token_id: int, raw_token: string}
+     */
+    public function issueInAmbientTx(
+        int $userId,
+        string $purpose,
+        string $destinationEmail,
+        \DateTimeImmutable $expiresAt,
+        ?\DateTimeImmutable $now = null,
+    ): array {
         TokenPurpose::assertValid($purpose);
+        $now ??= new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $rawToken = bin2hex(random_bytes(32));
+        $tokenHash = $this->tokenHmac->hash($rawToken);
 
-        return $this->transactions->run(function (PDO $pdo) use ($userId, $purpose, $destinationEmail, $expiresAt): array {
-            unset($pdo);
-            $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
-            $rawToken = bin2hex(random_bytes(32));
-            $tokenHash = $this->tokenHmac->hash($rawToken);
+        $current = $this->tokens->findCurrentByUserPurposeForUpdate($userId, $purpose);
+        if ($current !== null) {
+            $this->tokens->clearCurrentMarker($current->verificationTokenId);
+        }
 
-            $current = $this->tokens->findCurrentByUserPurposeForUpdate($userId, $purpose);
-            if ($current !== null) {
-                $this->tokens->clearCurrentMarker($current->verificationTokenId);
-            }
+        $verificationTokenId = $this->tokens->insertPendingCurrent(
+            $userId,
+            $purpose,
+            $tokenHash,
+            $expiresAt,
+            $now,
+        );
 
-            $verificationTokenId = $this->tokens->insertPendingCurrent(
-                $userId,
-                $purpose,
-                $tokenHash,
-                $expiresAt,
-                $now,
-            );
+        $template = $purpose === TokenPurpose::PASSWORD_RESET
+            ? TokenPurpose::PASSWORD_RESET
+            : TokenPurpose::EMAIL_VERIFY;
 
-            $template = $purpose === TokenPurpose::PASSWORD_RESET
-                ? TokenPurpose::PASSWORD_RESET
-                : TokenPurpose::EMAIL_VERIFY;
+        $plaintext = json_encode(
+            [
+                'email' => $destinationEmail,
+                'template' => $template,
+                'link_token' => $rawToken,
+            ],
+            JSON_THROW_ON_ERROR,
+        );
 
-            $plaintext = json_encode(
-                [
-                    'email' => $destinationEmail,
-                    'template' => $template,
-                    'link_token' => $rawToken,
-                ],
-                JSON_THROW_ON_ERROR,
-            );
+        $sealed = $this->sealedBox->seal(
+            $plaintext,
+            SealedSecretBox::tokenAad($verificationTokenId, $purpose, $userId),
+        );
+        $this->tokens->updateSealedDelivery($verificationTokenId, $sealed, $now);
 
-            $sealed = $this->sealedBox->seal(
-                $plaintext,
-                SealedSecretBox::tokenAad($verificationTokenId, $purpose, $userId),
-            );
-            $this->tokens->updateSealedDelivery($verificationTokenId, $sealed, $now);
+        if ($purpose === TokenPurpose::PASSWORD_RESET) {
+            $eventType = IdentityNotificationEventTypes::PASSWORD_RESET_SEND;
+            $payload = NotificationOutboxPayload::forPasswordReset($verificationTokenId);
+            $idempotencyKey = IdentityNotificationEventTypes::PASSWORD_RESET_SEND . ':' . $verificationTokenId;
+        } else {
+            $eventType = IdentityNotificationEventTypes::EMAIL_VERIFICATION_SEND;
+            $payload = NotificationOutboxPayload::forEmailVerification($verificationTokenId);
+            $idempotencyKey = IdentityNotificationEventTypes::EMAIL_VERIFICATION_SEND . ':' . $verificationTokenId;
+        }
 
-            if ($purpose === TokenPurpose::PASSWORD_RESET) {
-                $eventType = IdentityNotificationEventTypes::PASSWORD_RESET_SEND;
-                $payload = NotificationOutboxPayload::forPasswordReset($verificationTokenId);
-                $idempotencyKey = IdentityNotificationEventTypes::PASSWORD_RESET_SEND . ':' . $verificationTokenId;
-            } else {
-                $eventType = IdentityNotificationEventTypes::EMAIL_VERIFICATION_SEND;
-                $payload = NotificationOutboxPayload::forEmailVerification($verificationTokenId);
-                $idempotencyKey = IdentityNotificationEventTypes::EMAIL_VERIFICATION_SEND . ':' . $verificationTokenId;
-            }
+        $this->outbox->enqueue(
+            $eventType,
+            'verification_token',
+            (string) $verificationTokenId,
+            $payload,
+            $idempotencyKey,
+        );
 
-            $this->outbox->enqueue(
-                $eventType,
-                'verification_token',
-                (string) $verificationTokenId,
-                $payload,
-                $idempotencyKey,
-            );
-
-            return [
-                'verification_token_id' => $verificationTokenId,
-                'raw_token' => $rawToken,
-            ];
-        });
+        return [
+            'verification_token_id' => $verificationTokenId,
+            'raw_token' => $rawToken,
+        ];
     }
 }

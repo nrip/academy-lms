@@ -66,6 +66,10 @@ final class CsrfAndRateLimitKeyTest extends TestCase
                 {
                 }
 
+                public function mergeAnonymousPayload(int $sessionId, array $payloadMerge): void
+                {
+                }
+
                 public function revokeAllForUser(int $userId, \DateTimeImmutable $revokedAt): int
                 {
                     return 0;

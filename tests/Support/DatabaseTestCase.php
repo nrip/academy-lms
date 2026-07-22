@@ -89,10 +89,13 @@ final class DatabaseTestCase
         $_ENV['APP_ENV'] = 'testing';
         $_SERVER['APP_ENV'] = 'testing';
         self::syncDbEnvForPhinx();
-        $root = dirname(__DIR__, 2);
-        $configArray = require $root . '/phinx.php';
-        $configArray['paths']['migrations'] = $root . '/database/migrations';
-        $configArray['paths']['seeds'] = $root . '/database/seeds';
+        // NB: use a variable name distinct from phinx.php's own internal `$root` — `require`
+        // shares the calling scope, so a same-named local here would silently get clobbered
+        // by phinx.php's `$root = dirname(__DIR__);` line, corrupting the migrations path below.
+        $repoRoot = dirname(__DIR__, 2);
+        $configArray = require $repoRoot . '/phinx.php';
+        $configArray['paths']['migrations'] = $repoRoot . '/database/migrations';
+        $configArray['paths']['seeds'] = $repoRoot . '/database/seeds';
         $config = new Config($configArray);
         $manager = new Manager($config, new StringInput(''), new NullOutput());
         $manager->migrate('testing');
@@ -116,6 +119,7 @@ final class DatabaseTestCase
             'outbox_messages',
             'scheduler_locks',
             'user_roles',
+            'learner_profiles',
             'users',
         ] as $table) {
             $pdo->exec('DELETE FROM `' . $table . '`');

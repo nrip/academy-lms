@@ -48,7 +48,7 @@ final class RateLimiter
     {
         $normalized = match ($dimensionType) {
             'email' => $this->keys->normalizeEmail($dimensionValue),
-            'mobile' => $this->keys->normalizeMobile($dimensionValue),
+            'mobile', 'mobile_e164' => $this->keys->normalizeMobile($dimensionValue),
             'ip' => $this->keys->normalizeIp($dimensionValue),
             default => trim($dimensionValue),
         };

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Academy\Application\Security;
 
+use Academy\Domain\Identity\MobileE164Normalizer;
+
 /**
  * Builds rate-limit bucket keys via server-keyed HMAC.
  * Never includes window_id (single-row reset design — Q4).
@@ -37,12 +39,23 @@ final class RateLimitKeyFactory
     }
 
     /**
-     * Best-effort E.164-ish normalization for mobile dimensions (digits with leading +).
+     * Canonical E.164 for mobile rate-limit dimensions (HMAC input only; never stored plaintext in bucket_key).
      */
     public function normalizeMobile(string $mobile): string
     {
-        $digits = preg_replace('/\D+/', '', $mobile) ?? '';
+        return MobileE164Normalizer::normalize($mobile);
+    }
 
-        return $digits;
+    /**
+     * Preferred mobile dimension: raw input → E.164 → RateLimiter HMAC bucket.
+     *
+     * @return array{type: string, value: string}
+     */
+    public function mobileE164Dimension(string $rawMobile): array
+    {
+        return [
+            'type' => 'mobile_e164',
+            'value' => MobileE164Normalizer::normalize($rawMobile),
+        ];
     }
 }
