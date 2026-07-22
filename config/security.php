@@ -55,12 +55,15 @@ return static function (string $env, callable $bool, callable $string, callable 
     }
 
     $policies = [
+        'auth.login' => ['limit' => 30, 'window_seconds' => 15 * 60, 'failure' => 'fail_closed'],
         'auth.login_failed' => ['limit' => 5, 'window_seconds' => 15 * 60, 'failure' => 'fail_closed'],
         'auth.otp_send.15m' => ['limit' => 3, 'window_seconds' => 15 * 60, 'failure' => 'fail_closed'],
         'auth.otp_send.24h' => ['limit' => 10, 'window_seconds' => 24 * 60 * 60, 'failure' => 'fail_closed'],
         'auth.otp_verify' => ['limit' => 10, 'window_seconds' => 15 * 60, 'failure' => 'fail_closed'],
+        'auth.forgot_password' => ['limit' => 5, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
         'auth.password_reset.account' => ['limit' => 3, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
         'auth.password_reset.ip' => ['limit' => 10, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
+        'auth.password_reset.submit' => ['limit' => 10, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
         'auth.registration' => ['limit' => 10, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
         'auth.email_verify.resend' => ['limit' => 5, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
         'auth.otp_send.cooldown' => ['limit' => 1, 'window_seconds' => 60, 'failure' => 'fail_closed'],
