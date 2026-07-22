@@ -11,8 +11,12 @@ declare(strict_types=1);
  *   php bin/jobs.php outbox:relay
  *   php bin/jobs.php notification:deliver
  *   php bin/jobs.php token-confirmation:cleanup
+ *   php bin/jobs.php document:scan
+ *   php bin/jobs.php document:stuck-scan
  */
 
+use Academy\Application\Credentials\DocumentScanWorker;
+use Academy\Application\Credentials\StuckScanWatchService;
 use Academy\Application\Identity\TokenConfirmationCleanupService;
 use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
 use Academy\Application\Outbox\OutboxRelayService;
@@ -99,9 +103,30 @@ $exit = match ($command) {
             $lock->release('token_confirmation_cleanup', $workerId);
         }
     })(),
+    'document:scan' => (static function () use ($container, $workerId): int {
+        $processed = $container->get(DocumentScanWorker::class)->run($workerId);
+        fwrite(STDOUT, "document:scan processed={$processed}\n");
+
+        return 0;
+    })(),
+    'document:stuck-scan' => (static function () use ($container, $lock, $workerId): int {
+        if (!$lock->acquire('document_stuck_scan', $workerId, 120)) {
+            fwrite(STDERR, "Could not acquire document_stuck_scan lock\n");
+
+            return 1;
+        }
+        try {
+            $handled = $container->get(StuckScanWatchService::class)->run();
+            fwrite(STDOUT, "document:stuck-scan handled={$handled}\n");
+
+            return 0;
+        } finally {
+            $lock->release('document_stuck_scan', $workerId);
+        }
+    })(),
     default => (static function () use ($command): int {
         fwrite(STDERR, "Unknown command: {$command}\n");
-        fwrite(STDERR, "Commands: session:cleanup | rate-limit:cleanup | outbox:relay | notification:deliver | token-confirmation:cleanup\n");
+        fwrite(STDERR, "Commands: session:cleanup | rate-limit:cleanup | outbox:relay | notification:deliver | token-confirmation:cleanup | document:scan | document:stuck-scan\n");
 
         return 1;
     })(),
