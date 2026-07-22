@@ -20,6 +20,9 @@ declare(strict_types=1);
 <div class="acad-shell">
     <header class="acad-shell__header">
         <a class="acad-shell__brand" href="/smoke">Academy LMS</a>
+        <nav class="acad-shell__nav">
+            <a href="/courses">Courses</a>
+        </nav>
     </header>
     <main class="acad-shell__main">
         <?= $content /* pre-rendered escaped fragments from child templates */ ?>
