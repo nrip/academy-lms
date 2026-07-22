@@ -66,9 +66,8 @@ final class DocumentUploadService
         if ($application === null || $application->userId !== $userId) {
             throw new NotFoundException('Application not found.');
         }
-        if (!$application->isEditableByLearner()) {
-            throw new DomainRuleException('Documents can only be uploaded while the application is a draft.');
-        }
+        $current = $this->submissions->findCurrentForRequirement($applicationId, $requirementId);
+        $this->assertLearnerMayManageDocument($application, $current);
 
         $requirement = $this->findRequirementForApplication($application->courseVersionId, $requirementId);
         $sanitized = $this->fileValidator->assertAllowed($requirement, $mimeType, $sizeBytes, $filename);
@@ -172,10 +171,6 @@ final class DocumentUploadService
             if ($application === null || $application->userId !== $userId) {
                 throw new NotFoundException('Application not found.');
             }
-            if (!$application->isEditableByLearner()) {
-                throw new DomainRuleException('Documents can only be uploaded while the application is a draft.');
-            }
-
             $authorization = $this->authorizations->findByObjectKeyForUpdate($objectKey);
             if ($authorization === null || $authorization->applicationId !== $applicationId
                 || $authorization->userId !== $userId
@@ -205,6 +200,9 @@ final class DocumentUploadService
                 ]);
             }
 
+            $current = $this->submissions->lockCurrentForUpdate($applicationId, $authorization->requirementId);
+            $this->assertLearnerMayManageDocument($application, $current);
+
             $requirement = $this->findRequirementForApplication(
                 $application->courseVersionId,
                 $authorization->requirementId,
@@ -216,7 +214,6 @@ final class DocumentUploadService
                 $authorization->displayFilename,
             );
 
-            $current = $this->submissions->lockCurrentForUpdate($applicationId, $authorization->requirementId);
             $oldId = null;
             if ($current !== null) {
                 $oldId = $current->documentSubmissionId;
@@ -327,10 +324,6 @@ final class DocumentUploadService
         if ($application === null || $application->userId !== $userId) {
             throw new NotFoundException('Application not found.');
         }
-        if (!$application->isEditableByLearner()) {
-            throw new DomainRuleException('Documents can only be replaced while the application is a draft.');
-        }
-
         $existing = $this->submissions->findById($currentSubmissionId);
         if ($existing === null || $existing->applicationId !== $applicationId || !$existing->isCurrent()) {
             throw new NotFoundException('Document submission not found.');
@@ -340,6 +333,8 @@ final class DocumentUploadService
                 'requirement_id' => ['Requirement does not match the current submission.'],
             ]);
         }
+
+        $this->assertLearnerMayManageDocument($application, $existing);
 
         return $this->authorizeUpload(
             $auth,
@@ -370,10 +365,6 @@ final class DocumentUploadService
             if ($application === null || $application->userId !== $userId) {
                 throw new NotFoundException('Application not found.');
             }
-            if (!$application->isEditableByLearner()) {
-                throw new DomainRuleException('Documents can only be uploaded while the application is a draft.');
-            }
-
             $authorization = $this->authorizations->findByIdForUpdate($authorizationId);
             if ($authorization === null || $authorization->applicationId !== $applicationId
                 || $authorization->userId !== $userId
@@ -388,6 +379,9 @@ final class DocumentUploadService
                     'authorization_id' => ['Upload authorization has expired.'],
                 ]);
             }
+
+            $current = $this->submissions->lockCurrentForUpdate($applicationId, $authorization->requirementId);
+            $this->assertLearnerMayManageDocument($application, $current);
 
             $sizeBytes = strlen($contents);
             if ($sizeBytes <= 0) {
@@ -415,6 +409,36 @@ final class DocumentUploadService
             'size_bytes' => $metadata->sizeBytes,
             'object_key' => $authorization->objectKey,
         ];
+    }
+
+    private function assertLearnerMayManageDocument(
+        \Academy\Domain\Admissions\Application $application,
+        ?DocumentSubmission $current,
+    ): void {
+        if ($application->isEditableByLearner()) {
+            return;
+        }
+
+        if ($application->allowsLearnerDocumentCorrection()) {
+            if ($current === null) {
+                return;
+            }
+
+            if (in_array($current->status, [
+                DocumentSubmissionStatus::REJECTED,
+                DocumentSubmissionStatus::RESUBMISSION_REQUESTED,
+            ], true)) {
+                return;
+            }
+
+            throw new DomainRuleException(
+                'Documents can only be replaced for requirements marked for correction.',
+            );
+        }
+
+        throw new DomainRuleException(
+            'Documents can only be uploaded while the application is a draft or when corrections are requested.',
+        );
     }
 
     private function findRequirementForApplication(int $courseVersionId, int $requirementId): \Academy\Domain\Courses\CourseDocumentRequirement
