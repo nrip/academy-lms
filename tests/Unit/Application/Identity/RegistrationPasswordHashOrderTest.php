@@ -154,6 +154,26 @@ final class RegistrationPasswordHashOrderTest extends TestCase
             {
                 throw new \LogicException('Must not be called: duplicate conflict short-circuits registration.');
             }
+
+            public function findByUserId(int $userId): ?\Academy\Domain\Identity\LearnerProfile
+            {
+                throw new \LogicException('Not used in this test.');
+            }
+
+            public function findById(int $profileId): ?\Academy\Domain\Identity\LearnerProfile
+            {
+                throw new \LogicException('Not used in this test.');
+            }
+
+            public function updatePersonal(int $profileId, int $expectedVersion, array $fields, \DateTimeImmutable $now): int
+            {
+                throw new \LogicException('Not used in this test.');
+            }
+
+            public function updateProfessional(int $profileId, int $expectedVersion, array $fields, \DateTimeImmutable $now): int
+            {
+                throw new \LogicException('Not used in this test.');
+            }
         };
 
         $noopAuditWriter = new class () implements AuditWriter {
