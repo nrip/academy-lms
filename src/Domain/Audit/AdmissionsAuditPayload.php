@@ -63,11 +63,14 @@ final class AdmissionsAuditPayload implements AuditPayload
             'course_id',
             'course_version_id',
             'batch_id',
+            'assignment_id',
+            'reviewer_user_id',
             'result',
             'status',
             'state_version',
             'application_number',
             'declaration_version',
+            'reason_code',
         ];
     }
 

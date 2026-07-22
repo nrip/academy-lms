@@ -123,6 +123,14 @@ final class ApplicationStateMachineTest extends TestCase
             ApplicationStatus::PAYMENT_PENDING . '>' . ApplicationStatus::ADMITTED,
         ];
 
+        $systemOrReviewerEdges = [
+            ApplicationStatus::RESUBMISSION_REQUESTED . '>' . ApplicationStatus::UNDER_REVIEW,
+        ];
+
+        if (in_array($edge, $systemOrReviewerEdges, true)) {
+            return ['system'];
+        }
+
         if (in_array($edge, $learnerEdges, true)) {
             return ['learner'];
         }
