@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use Academy\Application\Admissions\DraftApplicationService;
 use Academy\Application\Audit\AuditRedactor;
 use Academy\Application\Audit\AuditService;
+use Academy\Application\Courses\CatalogueService;
 use Academy\Application\Identity\CompositeTokenConsumedHandler;
 use Academy\Application\Identity\EmailVerificationResendService;
 use Academy\Application\Identity\EmailVerificationTokenConsumedHandler;
@@ -32,7 +34,17 @@ use Academy\Application\Security\CsrfTokenManager;
 use Academy\Application\Security\RateLimiter;
 use Academy\Application\Security\RateLimitKeyFactory;
 use Academy\Application\Security\SessionService;
+use Academy\Domain\Admissions\ApplicationDraftFactory;
+use Academy\Domain\Admissions\ApplicationRepository;
 use Academy\Domain\Audit\AuditWriter;
+use Academy\Domain\Courses\BatchAvailabilityEvaluator;
+use Academy\Domain\Courses\BatchDateValidator;
+use Academy\Domain\Courses\BatchRepository;
+use Academy\Domain\Courses\CourseDocumentRequirementRepository;
+use Academy\Domain\Courses\CourseRepository;
+use Academy\Domain\Courses\CourseVersionImmutabilityGuard;
+use Academy\Domain\Courses\CourseVersionRepository;
+use Academy\Domain\Courses\EligibilityRuleRepository;
 use Academy\Domain\Identity\LearnerProfileRepository;
 use Academy\Domain\Identity\LearnerQualificationRepository;
 use Academy\Domain\Identity\LegalAcceptancePolicy;
@@ -58,6 +70,9 @@ use Academy\Domain\RBAC\PermissionRepository;
 use Academy\Domain\RBAC\RoleRepository;
 use Academy\Domain\Security\RateLimitStore;
 use Academy\Domain\Security\SessionRepository;
+use Academy\Http\Controllers\ApplicationController;
+use Academy\Http\Controllers\BatchController;
+use Academy\Http\Controllers\CourseCatalogueController;
 use Academy\Http\Controllers\EmailVerificationController;
 use Academy\Http\Controllers\ForgotPasswordController;
 use Academy\Http\Controllers\HealthController;
@@ -86,7 +101,13 @@ use Academy\Http\Security\ConfirmationCookieSettings;
 use Academy\Http\Security\SecurityHeaderPolicy;
 use Academy\Http\Security\SessionCookieSettings;
 use Academy\Http\Security\TokenPageHeaderPolicy;
+use Academy\Infrastructure\Admissions\PdoApplicationRepository;
 use Academy\Infrastructure\Audit\PdoAuditWriter;
+use Academy\Infrastructure\Courses\PdoBatchRepository;
+use Academy\Infrastructure\Courses\PdoCourseDocumentRequirementRepository;
+use Academy\Infrastructure\Courses\PdoCourseRepository;
+use Academy\Infrastructure\Courses\PdoCourseVersionRepository;
+use Academy\Infrastructure\Courses\PdoEligibilityRuleRepository;
 use Academy\Infrastructure\Database\ConnectionFactory;
 use Academy\Infrastructure\Database\TransactionManager;
 use Academy\Infrastructure\Identity\PdoLearnerProfileRepository;
@@ -272,6 +293,46 @@ return static function (): ContainerInterface {
             $c->get(AuthorizationService::class),
             $c->get(AuditService::class),
             $c->get(QualificationValidator::class),
+        ),
+        CourseRepository::class => static fn (ContainerInterface $c): CourseRepository => new PdoCourseRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        CourseVersionRepository::class => static fn (ContainerInterface $c): CourseVersionRepository => new PdoCourseVersionRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        BatchRepository::class => static fn (ContainerInterface $c): BatchRepository => new PdoBatchRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        EligibilityRuleRepository::class => static fn (ContainerInterface $c): EligibilityRuleRepository => new PdoEligibilityRuleRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        CourseDocumentRequirementRepository::class => static fn (ContainerInterface $c): CourseDocumentRequirementRepository => new PdoCourseDocumentRequirementRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        ApplicationRepository::class => static fn (ContainerInterface $c): ApplicationRepository => new PdoApplicationRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        BatchAvailabilityEvaluator::class => static fn (): BatchAvailabilityEvaluator => new BatchAvailabilityEvaluator(),
+        BatchDateValidator::class => static fn (): BatchDateValidator => new BatchDateValidator(),
+        CourseVersionImmutabilityGuard::class => static fn (): CourseVersionImmutabilityGuard => new CourseVersionImmutabilityGuard(),
+        ApplicationDraftFactory::class => static fn (): ApplicationDraftFactory => new ApplicationDraftFactory(),
+        CatalogueService::class => static fn (ContainerInterface $c): CatalogueService => new CatalogueService(
+            $c->get(CourseRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(BatchRepository::class),
+            $c->get(EligibilityRuleRepository::class),
+            $c->get(CourseDocumentRequirementRepository::class),
+            $c->get(BatchAvailabilityEvaluator::class),
+        ),
+        DraftApplicationService::class => static fn (ContainerInterface $c): DraftApplicationService => new DraftApplicationService(
+            $c->get(TransactionManager::class),
+            $c->get(AuthorizationService::class),
+            $c->get(BatchRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(CourseRepository::class),
+            $c->get(ApplicationRepository::class),
+            $c->get(BatchAvailabilityEvaluator::class),
+            $c->get(AuditService::class),
         ),
         PasswordHasher::class => static fn (): PasswordHasher => new PasswordHasher(),
         LegalAcceptancePolicy::class => static function (ContainerInterface $c): LegalAcceptancePolicy {
@@ -685,6 +746,23 @@ return static function (): ContainerInterface {
                 'profile.professional.edit_own',
             );
 
+            // Public catalogue + course detail + batch list (WP-02) — no auth gate.
+            $router->get('/courses', [CourseCatalogueController::class, 'index']);
+            $router->get('/courses/{slug}', [CourseCatalogueController::class, 'show']);
+            $router->get('/courses/{slug}/batches', [CourseCatalogueController::class, 'batches']);
+            $router->get('/batches/{batchId}', [BatchController::class, 'show']);
+
+            /** @var RouteAccess $applicationAccess */
+            $applicationAccess = $c->get(RouteAccess::class);
+            $applicationAccess->requirePermission(
+                $router->post('/applications', [ApplicationController::class, 'create']),
+                'application.create',
+            );
+            $applicationAccess->requirePermission(
+                $router->get('/applications/{id}', [ApplicationController::class, 'show']),
+                'application.view_own',
+            );
+
             /** @var array{env: string} $app */
             $app = $c->get('config.app');
             if ($app['env'] === 'testing') {
@@ -761,6 +839,19 @@ return static function (): ContainerInterface {
         ),
         QualificationController::class => static fn (ContainerInterface $c): QualificationController => new QualificationController(
             $c->get(QualificationService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        CourseCatalogueController::class => static fn (ContainerInterface $c): CourseCatalogueController => new CourseCatalogueController(
+            $c->get(CatalogueService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        BatchController::class => static fn (ContainerInterface $c): BatchController => new BatchController(
+            $c->get(CatalogueService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        ApplicationController::class => static fn (ContainerInterface $c): ApplicationController => new ApplicationController(
+            $c->get(DraftApplicationService::class),
+            $c->get(ApplicationDraftFactory::class),
             $c->get(PhpRenderer::class),
         ),
         LoginController::class => static fn (ContainerInterface $c): LoginController => new LoginController(

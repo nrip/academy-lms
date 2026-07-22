@@ -78,7 +78,11 @@ return static function (string $env, callable $bool, callable $string, callable 
         'public.catalogue' => ['limit' => 300, 'window_seconds' => 60, 'failure' => 'fail_open'],
     ];
 
-    $pathPolicies = [];
+    // Exact-match only (no prefix/wildcard support in RateLimitMiddleware) — dynamic
+    // segments like /courses/{slug} and /batches/{batchId} cannot be bound here.
+    $pathPolicies = [
+        'GET /courses' => 'public.catalogue',
+    ];
     if ($env === 'testing') {
         $policies['test.tight'] = ['limit' => 3, 'window_seconds' => 60, 'failure' => 'fail_closed'];
         $pathPolicies['POST /__wp01a/limited'] = 'test.tight';
