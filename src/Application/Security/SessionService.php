@@ -136,6 +136,32 @@ final class SessionService
     }
 
     /**
+     * Store anonymous pending-verification UX continuity markers (own short session TX).
+     * Does not create authentication.
+     */
+    public function storePendingVerificationMarker(SessionRecord $session, int $userId): SessionRecord
+    {
+        try {
+            $now = $this->now()->format('Y-m-d H:i:s.u');
+            $this->sessions->mergeAnonymousPayload($session->sessionId, [
+                'pending_verification_user_id' => $userId,
+                'pending_verification_started_at' => $now,
+            ]);
+            $record = $this->sessions->findByTokenHash($session->tokenHash);
+            if ($record === null) {
+                throw new ServiceUnavailableException('Session store unavailable.');
+            }
+
+            return $record;
+        } catch (ServiceUnavailableException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->logger->critical('Pending verification marker store failed.', ['exception' => $exception::class]);
+            throw new ServiceUnavailableException('Session store unavailable.');
+        }
+    }
+
+    /**
      * Bind a user to the session outside any ambient domain transaction.
      *
      * @param array<string, mixed> $payloadMerge

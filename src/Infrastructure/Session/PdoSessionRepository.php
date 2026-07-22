@@ -204,6 +204,67 @@ final class PdoSessionRepository implements SessionRepository
         }
     }
 
+    public function mergeAnonymousPayload(int $sessionId, array $payloadMerge): void
+    {
+        $allowedKeys = ['pending_verification_user_id', 'pending_verification_started_at'];
+        foreach (array_keys($payloadMerge) as $key) {
+            if (!in_array($key, $allowedKeys, true)) {
+                throw new LogicException(sprintf('Anonymous session payload key "%s" is not allow-listed.', $key));
+            }
+        }
+
+        if (isset($payloadMerge['pending_verification_user_id']) && !is_int($payloadMerge['pending_verification_user_id'])) {
+            throw new LogicException('pending_verification_user_id must be an integer.');
+        }
+
+        if (isset($payloadMerge['pending_verification_started_at']) && !is_string($payloadMerge['pending_verification_started_at'])) {
+            throw new LogicException('pending_verification_started_at must be a string.');
+        }
+
+        $pdo = $this->connections->connection();
+        $this->assertNoAmbientTransaction($pdo);
+        $pdo->beginTransaction();
+        try {
+            $existing = $pdo->prepare(
+                'SELECT user_id, payload
+                 FROM sessions
+                 WHERE session_id = :id AND revoked_at IS NULL
+                 FOR UPDATE',
+            );
+            $existing->execute(['id' => $sessionId]);
+            $row = $existing->fetch(PDO::FETCH_ASSOC);
+            if ($row === false) {
+                throw new \RuntimeException('Session not found for anonymous payload merge.');
+            }
+
+            if ($row['user_id'] !== null) {
+                throw new LogicException('Anonymous payload merge refused: session is already authenticated.');
+            }
+
+            /** @var array<string, mixed> $payload */
+            $payload = json_decode((string) $row['payload'], true, 512, JSON_THROW_ON_ERROR);
+            foreach ($payloadMerge as $key => $value) {
+                $payload[$key] = $value;
+            }
+
+            $stmt = $pdo->prepare(
+                'UPDATE sessions SET payload = :payload, updated_at = :now
+                 WHERE session_id = :id AND revoked_at IS NULL',
+            );
+            $stmt->execute([
+                'payload' => json_encode($payload, JSON_THROW_ON_ERROR),
+                'now' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u'),
+                'id' => $sessionId,
+            ]);
+            $pdo->commit();
+        } catch (\Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
     public function bindUser(int $sessionId, int $userId, int $authVersion, array $payloadMerge = []): void
     {
         $pdo = $this->connections->connection();

@@ -49,6 +49,14 @@ interface SessionRepository
     public function bindUser(int $sessionId, int $userId, int $authVersion, array $payloadMerge = []): void;
 
     /**
+     * Merge allow-listed keys into an anonymous session payload (own short TX).
+     * Must refuse authenticated sessions. Does not create authentication.
+     *
+     * @param array{pending_verification_user_id?: int, pending_verification_started_at?: string} $payloadMerge
+     */
+    public function mergeAnonymousPayload(int $sessionId, array $payloadMerge): void;
+
+    /**
      * Physically revoke all non-revoked sessions for a user. Own short TX only.
      *
      * @return int Number of sessions revoked
