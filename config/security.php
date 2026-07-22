@@ -205,5 +205,24 @@ return static function (string $env, callable $bool, callable $string, callable 
             'terms_version' => $string('TERMS_VERSION', '2026-07-22'),
             'privacy_version' => $string('PRIVACY_VERSION', '2026-07-22'),
         ],
+        'documents' => [
+            'declaration_version' => $string('DOCUMENTS_DECLARATION_VERSION', '2026-07-22'),
+            'upload_ttl_seconds' => $int('DOCUMENTS_UPLOAD_TTL_SECONDS', 900),
+            'download_ttl_seconds' => $int('DOCUMENTS_DOWNLOAD_TTL_SECONDS', 900),
+            'stuck_scan_sla_seconds' => $int('DOCUMENTS_STUCK_SCAN_SLA_SECONDS', 900),
+            'stuck_scan_max_attempts' => $int('DOCUMENTS_STUCK_SCAN_MAX_ATTEMPTS', 5),
+            'scan_lease_seconds' => $int('DOCUMENTS_SCAN_LEASE_SECONDS', 60),
+            'storage_driver' => $string('DOCUMENTS_STORAGE_DRIVER', in_array($env, ['local', 'testing', 'ci'], true) ? 'local' : 'unconfigured'),
+            'local_base_path' => $string('DOCUMENTS_LOCAL_BASE_PATH', 'storage/documents'),
+            'local_signing_secret' => (static function () use ($string, $softSecretsAllowed): string {
+                $secret = $string('DOCUMENTS_LOCAL_SIGNING_SECRET', '');
+                if ($secret === '' && $softSecretsAllowed) {
+                    return 'local-ci-documents-signing-secret-not-for-production';
+                }
+
+                return $secret;
+            })(),
+            'fake_scanner_enabled' => $bool('DOCUMENTS_FAKE_SCANNER', in_array($env, ['testing', 'ci'], true)),
+        ],
     ];
 };

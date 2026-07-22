@@ -76,4 +76,15 @@ interface OutboxRepository
         \DateTimeImmutable $now,
         int $backoffSeconds,
     ): bool;
+
+    /**
+     * Marks any pending scan-request outbox row for an aggregate as published once
+     * the worker has handled the submission directly via claimPendingScan().
+     */
+    public function markPublishedForPendingAggregate(
+        string $eventType,
+        string $aggregateType,
+        string $aggregateId,
+        \DateTimeImmutable $now,
+    ): void;
 }

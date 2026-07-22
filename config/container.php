@@ -2,10 +2,17 @@
 
 declare(strict_types=1);
 
+use Academy\Application\Admissions\ApplicationDeclarationService;
+use Academy\Application\Admissions\ApplicationSubmitService;
+use Academy\Application\Admissions\ApplicationWorkspaceService;
 use Academy\Application\Admissions\DraftApplicationService;
 use Academy\Application\Audit\AuditRedactor;
 use Academy\Application\Audit\AuditService;
 use Academy\Application\Courses\CatalogueService;
+use Academy\Application\Credentials\DocumentDownloadService;
+use Academy\Application\Credentials\DocumentScanWorker;
+use Academy\Application\Credentials\DocumentUploadService;
+use Academy\Application\Credentials\StuckScanWatchService;
 use Academy\Application\Identity\CompositeTokenConsumedHandler;
 use Academy\Application\Identity\EmailVerificationResendService;
 use Academy\Application\Identity\EmailVerificationTokenConsumedHandler;
@@ -36,6 +43,8 @@ use Academy\Application\Security\RateLimitKeyFactory;
 use Academy\Application\Security\SessionService;
 use Academy\Domain\Admissions\ApplicationDraftFactory;
 use Academy\Domain\Admissions\ApplicationRepository;
+use Academy\Domain\Admissions\ApplicationStateMachine;
+use Academy\Domain\Admissions\ApplicationSubmissionPreconditions;
 use Academy\Domain\Audit\AuditWriter;
 use Academy\Domain\Courses\BatchAvailabilityEvaluator;
 use Academy\Domain\Courses\BatchDateValidator;
@@ -45,6 +54,13 @@ use Academy\Domain\Courses\CourseRepository;
 use Academy\Domain\Courses\CourseVersionImmutabilityGuard;
 use Academy\Domain\Courses\CourseVersionRepository;
 use Academy\Domain\Courses\EligibilityRuleRepository;
+use Academy\Domain\Credentials\DocumentFileValidator;
+use Academy\Domain\Credentials\DocumentObjectKeyGenerator;
+use Academy\Domain\Credentials\DocumentSubmissionRepository;
+use Academy\Domain\Credentials\DocumentSubmissionStateMachine;
+use Academy\Domain\Credentials\DocumentUploadAuthorizationRepository;
+use Academy\Domain\Credentials\MalwareScanner;
+use Academy\Domain\Credentials\StuckScanPolicy;
 use Academy\Domain\Identity\LearnerProfileRepository;
 use Academy\Domain\Identity\LearnerQualificationRepository;
 use Academy\Domain\Identity\LegalAcceptancePolicy;
@@ -70,12 +86,16 @@ use Academy\Domain\RBAC\PermissionRepository;
 use Academy\Domain\RBAC\RoleRepository;
 use Academy\Domain\Security\RateLimitStore;
 use Academy\Domain\Security\SessionRepository;
+use Academy\Domain\Storage\ObjectStorage;
 use Academy\Http\Controllers\ApplicationController;
 use Academy\Http\Controllers\BatchController;
 use Academy\Http\Controllers\CourseCatalogueController;
+use Academy\Http\Controllers\DocumentController;
 use Academy\Http\Controllers\EmailVerificationController;
 use Academy\Http\Controllers\ForgotPasswordController;
 use Academy\Http\Controllers\HealthController;
+use Academy\Http\Controllers\LocalStorageDownloadController;
+use Academy\Http\Controllers\LocalUploadController;
 use Academy\Http\Controllers\LoginController;
 use Academy\Http\Controllers\MobileVerificationController;
 use Academy\Http\Controllers\PasswordResetController;
@@ -108,6 +128,10 @@ use Academy\Infrastructure\Courses\PdoCourseDocumentRequirementRepository;
 use Academy\Infrastructure\Courses\PdoCourseRepository;
 use Academy\Infrastructure\Courses\PdoCourseVersionRepository;
 use Academy\Infrastructure\Courses\PdoEligibilityRuleRepository;
+use Academy\Infrastructure\Credentials\FakeMalwareScanner;
+use Academy\Infrastructure\Credentials\PdoDocumentSubmissionRepository;
+use Academy\Infrastructure\Credentials\PdoDocumentUploadAuthorizationRepository;
+use Academy\Infrastructure\Credentials\UnconfiguredMalwareScanner;
 use Academy\Infrastructure\Database\ConnectionFactory;
 use Academy\Infrastructure\Database\TransactionManager;
 use Academy\Infrastructure\Identity\PdoLearnerProfileRepository;
@@ -135,6 +159,8 @@ use Academy\Infrastructure\RBAC\PdoPermissionRepository;
 use Academy\Infrastructure\RBAC\PdoRoleRepository;
 use Academy\Infrastructure\Scheduler\PdoSchedulerLock;
 use Academy\Infrastructure\Session\PdoSessionRepository;
+use Academy\Infrastructure\Storage\LocalObjectStorage;
+use Academy\Infrastructure\Storage\UnconfiguredObjectStorage;
 use Academy\Infrastructure\View\Escaper;
 use Academy\Infrastructure\View\PhpRenderer;
 use DI\ContainerBuilder;
@@ -312,6 +338,179 @@ return static function (): ContainerInterface {
         ApplicationRepository::class => static fn (ContainerInterface $c): ApplicationRepository => new PdoApplicationRepository(
             $c->get(ConnectionFactory::class),
         ),
+        DocumentSubmissionRepository::class => static fn (ContainerInterface $c): DocumentSubmissionRepository => new PdoDocumentSubmissionRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        DocumentUploadAuthorizationRepository::class => static fn (ContainerInterface $c): DocumentUploadAuthorizationRepository => new PdoDocumentUploadAuthorizationRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        ApplicationStateMachine::class => static fn (): ApplicationStateMachine => new ApplicationStateMachine(),
+        DocumentSubmissionStateMachine::class => static fn (): DocumentSubmissionStateMachine => new DocumentSubmissionStateMachine(),
+        DocumentFileValidator::class => static fn (): DocumentFileValidator => new DocumentFileValidator(),
+        DocumentObjectKeyGenerator::class => static fn (): DocumentObjectKeyGenerator => new DocumentObjectKeyGenerator(),
+        StuckScanPolicy::class => static function (ContainerInterface $c): StuckScanPolicy {
+            /** @var array{documents: array{stuck_scan_sla_seconds: int, stuck_scan_max_attempts: int}} $security */
+            $security = $c->get('config.security');
+            $documents = $security['documents'];
+
+            return new StuckScanPolicy($documents['stuck_scan_sla_seconds'], $documents['stuck_scan_max_attempts']);
+        },
+        ApplicationSubmissionPreconditions::class => static function (ContainerInterface $c): ApplicationSubmissionPreconditions {
+            /** @var array{documents: array{declaration_version: string}} $security */
+            $security = $c->get('config.security');
+
+            return new ApplicationSubmissionPreconditions(
+                $c->get(ProfileCompletenessCalculator::class),
+                $security['documents']['declaration_version'],
+            );
+        },
+
+        LocalObjectStorage::class => static function (ContainerInterface $c): LocalObjectStorage {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{root: string} $paths */
+            $paths = $c->get('config.paths');
+            /** @var array{documents: array{local_base_path: string, local_signing_secret: string}} $security */
+            $security = $c->get('config.security');
+            $documents = $security['documents'];
+            $basePath = $documents['local_base_path'];
+            $absoluteBasePath = ($basePath !== '' && $basePath[0] === '/')
+                ? $basePath
+                : rtrim($paths['root'], '/') . '/' . ltrim($basePath, '/');
+
+            return new LocalObjectStorage($absoluteBasePath, $documents['local_signing_secret'], $app['env']);
+        },
+        ObjectStorage::class => static function (ContainerInterface $c): ObjectStorage {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{documents: array{storage_driver: string, local_base_path: string, local_signing_secret: string}} $security */
+            $security = $c->get('config.security');
+            $documents = $security['documents'];
+
+            if ($documents['storage_driver'] === 'local' && in_array($app['env'], ['local', 'testing', 'ci'], true)) {
+                return $c->get(LocalObjectStorage::class);
+            }
+
+            return new UnconfiguredObjectStorage();
+        },
+        MalwareScanner::class => static function (ContainerInterface $c): MalwareScanner {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{documents: array{fake_scanner_enabled: bool}} $security */
+            $security = $c->get('config.security');
+            $documents = $security['documents'];
+
+            if ($documents['fake_scanner_enabled'] && in_array($app['env'], ['local', 'testing', 'ci'], true)) {
+                return new FakeMalwareScanner($app['env'], $documents['fake_scanner_enabled']);
+            }
+
+            return new UnconfiguredMalwareScanner();
+        },
+
+        ApplicationWorkspaceService::class => static function (ContainerInterface $c): ApplicationWorkspaceService {
+            /** @var array{documents: array{declaration_version: string}} $security */
+            $security = $c->get('config.security');
+
+            return new ApplicationWorkspaceService(
+                $c->get(AuthorizationService::class),
+                $c->get(ApplicationRepository::class),
+                $c->get(CourseDocumentRequirementRepository::class),
+                $c->get(DocumentSubmissionRepository::class),
+                $c->get(LearnerProfileRepository::class),
+                $c->get(LearnerQualificationRepository::class),
+                $c->get(UserWriteRepository::class),
+                $c->get(ApplicationSubmissionPreconditions::class),
+                $c->get(ProfileCompletenessCalculator::class),
+                $security['documents']['declaration_version'],
+            );
+        },
+        ApplicationDeclarationService::class => static function (ContainerInterface $c): ApplicationDeclarationService {
+            /** @var array{documents: array{declaration_version: string}} $security */
+            $security = $c->get('config.security');
+
+            return new ApplicationDeclarationService(
+                $c->get(TransactionManager::class),
+                $c->get(AuthorizationService::class),
+                $c->get(ApplicationRepository::class),
+                $c->get(AuditService::class),
+                $security['documents']['declaration_version'],
+            );
+        },
+        ApplicationSubmitService::class => static fn (ContainerInterface $c): ApplicationSubmitService => new ApplicationSubmitService(
+            $c->get(TransactionManager::class),
+            $c->get(AuthorizationService::class),
+            $c->get(ApplicationRepository::class),
+            $c->get(CourseDocumentRequirementRepository::class),
+            $c->get(DocumentSubmissionRepository::class),
+            $c->get(LearnerProfileRepository::class),
+            $c->get(LearnerQualificationRepository::class),
+            $c->get(UserWriteRepository::class),
+            $c->get(ApplicationSubmissionPreconditions::class),
+            $c->get(ApplicationStateMachine::class),
+            $c->get(OutboxWriter::class),
+            $c->get(AuditService::class),
+        ),
+        DocumentUploadService::class => static function (ContainerInterface $c): DocumentUploadService {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{documents: array{upload_ttl_seconds: int, storage_driver: string}} $security */
+            $security = $c->get('config.security');
+            $documents = $security['documents'];
+            $localUploadUrlOverride = $documents['storage_driver'] === 'local' && in_array($app['env'], ['local', 'testing', 'ci'], true);
+
+            return new DocumentUploadService(
+                $c->get(TransactionManager::class),
+                $c->get(AuthorizationService::class),
+                $c->get(ApplicationRepository::class),
+                $c->get(CourseDocumentRequirementRepository::class),
+                $c->get(DocumentSubmissionRepository::class),
+                $c->get(DocumentUploadAuthorizationRepository::class),
+                $c->get(ObjectStorage::class),
+                $c->get(DocumentFileValidator::class),
+                $c->get(DocumentObjectKeyGenerator::class),
+                $c->get(OutboxWriter::class),
+                $c->get(AuditService::class),
+                $documents['upload_ttl_seconds'],
+                $localUploadUrlOverride,
+            );
+        },
+        DocumentDownloadService::class => static function (ContainerInterface $c): DocumentDownloadService {
+            /** @var array{documents: array{download_ttl_seconds: int}} $security */
+            $security = $c->get('config.security');
+
+            return new DocumentDownloadService(
+                $c->get(AuthorizationService::class),
+                $c->get(ApplicationRepository::class),
+                $c->get(DocumentSubmissionRepository::class),
+                $c->get(ObjectStorage::class),
+                $security['documents']['download_ttl_seconds'],
+            );
+        },
+        DocumentScanWorker::class => static function (ContainerInterface $c): DocumentScanWorker {
+            /** @var array{outbox: array{lease_seconds: int, max_attempts: int}, documents: array{scan_lease_seconds: int}} $security */
+            $security = $c->get('config.security');
+
+            return new DocumentScanWorker(
+                $c->get(TransactionManager::class),
+                $c->get(DocumentSubmissionRepository::class),
+                $c->get(OutboxRepository::class),
+                $c->get(MalwareScanner::class),
+                $c->get(DocumentSubmissionStateMachine::class),
+                $c->get(AuditService::class),
+                $c->get(LoggerInterface::class),
+                $security['outbox']['lease_seconds'],
+                $security['outbox']['max_attempts'],
+                $security['documents']['scan_lease_seconds'],
+            );
+        },
+        StuckScanWatchService::class => static fn (ContainerInterface $c): StuckScanWatchService => new StuckScanWatchService(
+            $c->get(DocumentSubmissionRepository::class),
+            $c->get(OutboxWriter::class),
+            $c->get(AuditService::class),
+            $c->get(StuckScanPolicy::class),
+            $c->get(LoggerInterface::class),
+        ),
+
         BatchAvailabilityEvaluator::class => static fn (): BatchAvailabilityEvaluator => new BatchAvailabilityEvaluator(),
         BatchDateValidator::class => static fn (): BatchDateValidator => new BatchDateValidator(),
         CourseVersionImmutabilityGuard::class => static fn (): CourseVersionImmutabilityGuard => new CourseVersionImmutabilityGuard(),
@@ -762,9 +961,60 @@ return static function (): ContainerInterface {
                 $router->get('/applications/{id}', [ApplicationController::class, 'show']),
                 'application.view_own',
             );
+            $applicationAccess->requirePermission(
+                $router->get('/applications/{id}/edit', [ApplicationController::class, 'edit']),
+                'application.edit_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->post('/applications/{id}', [ApplicationController::class, 'updateDeclaration']),
+                'application.edit_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->get('/applications/{id}/documents', [ApplicationController::class, 'documents']),
+                'document.view_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->post('/applications/{id}/submit', [ApplicationController::class, 'submit']),
+                'application.submit_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->get('/applications/{id}/submission-result', [ApplicationController::class, 'submissionResult']),
+                'application.view_own',
+            );
+
+            $applicationAccess->requirePermission(
+                $router->post('/applications/{id}/documents/upload-authorizations', [DocumentController::class, 'authorizeUpload']),
+                'document.upload_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->post('/applications/{id}/documents/confirm', [DocumentController::class, 'confirm']),
+                'document.upload_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->post('/applications/{id}/documents/{submissionId}/replace', [DocumentController::class, 'replace']),
+                'document.replace_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->get('/applications/{id}/documents/{submissionId}/download', [DocumentController::class, 'download']),
+                'document.view_own',
+            );
 
             /** @var array{env: string} $app */
             $app = $c->get('config.app');
+
+            /** @var array{documents: array{storage_driver: string}} $security */
+            $security = $c->get('config.security');
+            if ($security['documents']['storage_driver'] === 'local' && in_array($app['env'], ['local', 'testing', 'ci'], true)) {
+                // Emulates the client "upload to S3" / "signed GET" steps for local
+                // development only — never registered when a real object storage
+                // driver is configured (WP03_IMPLEMENTATION_NOTE.md "Storage / scanner").
+                $applicationAccess->requirePermission(
+                    $router->post('/applications/{id}/documents/local-upload/{authorizationId}', [LocalUploadController::class, 'upload']),
+                    'document.upload_own',
+                );
+                $router->get('/__local-storage/documents/download', [LocalStorageDownloadController::class, 'download']);
+            }
+
             if ($app['env'] === 'testing') {
                 $router->get('/__wp01a/probe', [Wp01aProbeController::class, 'probe']);
                 $router->post('/__wp01a/probe', [Wp01aProbeController::class, 'probe']);
@@ -852,7 +1102,20 @@ return static function (): ContainerInterface {
         ApplicationController::class => static fn (ContainerInterface $c): ApplicationController => new ApplicationController(
             $c->get(DraftApplicationService::class),
             $c->get(ApplicationDraftFactory::class),
+            $c->get(ApplicationWorkspaceService::class),
+            $c->get(ApplicationDeclarationService::class),
+            $c->get(ApplicationSubmitService::class),
             $c->get(PhpRenderer::class),
+        ),
+        DocumentController::class => static fn (ContainerInterface $c): DocumentController => new DocumentController(
+            $c->get(DocumentUploadService::class),
+            $c->get(DocumentDownloadService::class),
+        ),
+        LocalUploadController::class => static fn (ContainerInterface $c): LocalUploadController => new LocalUploadController(
+            $c->get(DocumentUploadService::class),
+        ),
+        LocalStorageDownloadController::class => static fn (ContainerInterface $c): LocalStorageDownloadController => new LocalStorageDownloadController(
+            $c->get(LocalObjectStorage::class),
         ),
         LoginController::class => static fn (ContainerInterface $c): LoginController => new LoginController(
             $c->get(LoginService::class),

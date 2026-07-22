@@ -372,6 +372,40 @@ final class PdoOutboxRepository implements OutboxRepository, OutboxWriter
         return $stmt->rowCount() === 1;
     }
 
+    public function markPublishedForPendingAggregate(
+        string $eventType,
+        string $aggregateType,
+        string $aggregateId,
+        \DateTimeImmutable $now,
+    ): void {
+        $pdo = $this->connections->connection();
+        $ts = $now->format('Y-m-d H:i:s.u');
+        $stmt = $pdo->prepare(
+            'UPDATE outbox_messages SET
+                status = :status,
+                published_at = :published_at,
+                locked_at = NULL,
+                locked_by = NULL,
+                claim_token = NULL,
+                lock_expires_at = NULL,
+                updated_at = :updated_at
+             WHERE event_type = :event_type
+               AND aggregate_type = :aggregate_type
+               AND aggregate_id = :aggregate_id
+               AND status IN (:pending, :processing)',
+        );
+        $stmt->execute([
+            'status' => 'published',
+            'published_at' => $ts,
+            'updated_at' => $ts,
+            'event_type' => $eventType,
+            'aggregate_type' => $aggregateType,
+            'aggregate_id' => $aggregateId,
+            'pending' => 'pending',
+            'processing' => 'processing',
+        ]);
+    }
+
     private function newClaimToken(): string
     {
         $bytes = random_bytes(16);

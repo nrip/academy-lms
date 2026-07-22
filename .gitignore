@@ -29,6 +29,8 @@ storage/cache/*
 !storage/cache/.gitkeep
 storage/uploads/*
 !storage/uploads/.gitkeep
+storage/documents/*
+!storage/documents/.gitkeep
 storage/sessions/*
 !storage/sessions/.gitkeep
 storage/tmp/*
