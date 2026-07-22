@@ -5,6 +5,7 @@
     "license": "proprietary",
     "require": {
         "php": "^8.4",
+        "ext-bcmath": "*",
         "ext-sodium": "*",
         "laminas/laminas-diactoros": "^3.5",
         "laminas/laminas-httphandlerrunner": "^2.11",
