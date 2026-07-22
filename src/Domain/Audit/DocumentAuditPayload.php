@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Academy\Domain\Audit;
 
-final class AdmissionsAuditPayload implements AuditPayload
+final class DocumentAuditPayload implements AuditPayload
 {
     /**
      * @param array<string, scalar|null> $previous
@@ -60,14 +60,19 @@ final class AdmissionsAuditPayload implements AuditPayload
         return [
             'user_id',
             'application_id',
-            'course_id',
-            'course_version_id',
-            'batch_id',
-            'result',
+            'requirement_id',
+            'document_submission_id',
+            'old_document_submission_id',
             'status',
+            'scan_status',
             'state_version',
-            'application_number',
+            'row_version',
+            'result',
+            'reason_code',
+            'authorization_id',
             'declaration_version',
+            'scan_attempt_count',
+            'object_key_suffix',
         ];
     }
 
