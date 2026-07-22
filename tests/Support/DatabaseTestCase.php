@@ -128,6 +128,8 @@ final class DatabaseTestCase
         $pdo = self::pdo();
         $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
         foreach ([
+            'document_upload_authorizations',
+            'document_submissions',
             'applications',
             'batches',
         ] as $table) {
@@ -536,6 +538,90 @@ SQL);
             'course_id' => $course['course_id'],
             'version_id' => $course['version_id'],
             'batch_id' => $batchId,
+        ];
+    }
+
+    /**
+     * Inserts a CourseDocumentRequirement row. Must be called while the
+     * owning CourseVersion is still unlocked — the WP-02 immutability
+     * trigger rejects INSERTs against a locked version. Callers that need a
+     * published+locked catalogue with requirements should seed with
+     * `locked => false`, add requirements, then call lockCourseVersion().
+     *
+     * @param array<string, mixed> $overrides
+     */
+    public static function seedDocumentRequirement(int $versionId, array $overrides = []): int
+    {
+        $pdo = self::pdo();
+        $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+
+        $stmt = $pdo->prepare(
+            'INSERT INTO course_document_requirements (
+                course_version_id, document_name, description, mandatory_flag, accepted_file_types,
+                max_size_bytes, single_or_multiple, reuse_allowed, reviewer_instructions, sort_order,
+                created_at, updated_at
+            ) VALUES (
+                :course_version_id, :document_name, :description, :mandatory_flag, :accepted_file_types,
+                :max_size_bytes, :single_or_multiple, :reuse_allowed, :reviewer_instructions, :sort_order,
+                :created_at, :updated_at
+            )',
+        );
+        $stmt->execute([
+            'course_version_id' => $versionId,
+            'document_name' => $overrides['document_name'] ?? 'Medical council registration certificate',
+            'description' => $overrides['description'] ?? 'Upload a clear scan of your registration certificate.',
+            'mandatory_flag' => ($overrides['mandatory'] ?? true) ? 1 : 0,
+            'accepted_file_types' => $overrides['accepted_file_types'] ?? 'pdf,jpg,jpeg,png',
+            'max_size_bytes' => $overrides['max_size_bytes'] ?? 5242880,
+            'single_or_multiple' => $overrides['single_or_multiple'] ?? 'single',
+            'reuse_allowed' => ($overrides['reuse_allowed'] ?? false) ? 1 : 0,
+            'reviewer_instructions' => $overrides['reviewer_instructions'] ?? null,
+            'sort_order' => $overrides['sort_order'] ?? 0,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return (int) $pdo->lastInsertId();
+    }
+
+    public static function lockCourseVersion(int $versionId, string $reason = 'published'): void
+    {
+        $pdo = self::pdo();
+        $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $pdo->prepare('UPDATE course_versions SET locked_at = :locked_at, locked_reason = :reason, updated_at = :updated_at WHERE version_id = :id')
+            ->execute(['locked_at' => $now, 'reason' => $reason, 'updated_at' => $now, 'id' => $versionId]);
+    }
+
+    /**
+     * Published catalogue (course + version + batch) with document
+     * requirements attached before the version is locked.
+     *
+     * @param array<string, mixed> $courseOverrides
+     * @param array<string, mixed> $batchOverrides
+     * @param list<array<string, mixed>> $requirementOverridesList
+     * @return array{course_id: int, version_id: int, batch_id: int, requirement_ids: list<int>}
+     */
+    public static function seedPublishedCatalogueWithRequirements(
+        array $courseOverrides = [],
+        array $batchOverrides = [],
+        array $requirementOverridesList = [[]],
+    ): array {
+        $course = self::seedPublishedCourse($courseOverrides + ['locked' => false]);
+
+        $requirementIds = [];
+        foreach ($requirementOverridesList as $requirementOverrides) {
+            $requirementIds[] = self::seedDocumentRequirement($course['version_id'], $requirementOverrides);
+        }
+
+        self::lockCourseVersion($course['version_id']);
+
+        $batchId = self::seedBatch($course['version_id'], $batchOverrides);
+
+        return [
+            'course_id' => $course['course_id'],
+            'version_id' => $course['version_id'],
+            'batch_id' => $batchId,
+            'requirement_ids' => $requirementIds,
         ];
     }
 
