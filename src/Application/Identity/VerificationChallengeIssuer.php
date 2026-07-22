@@ -16,6 +16,8 @@ use PDO;
 /**
  * Issues SMS OTP challenges with sealed delivery payload + outbox.
  * Returns otp to the caller only for tests; never log it.
+ *
+ * Use issueInAmbientTx when already inside TransactionManager::run (no nested TX).
  */
 final class VerificationChallengeIssuer
 {
@@ -39,57 +41,75 @@ final class VerificationChallengeIssuer
         \DateTimeImmutable $expiresAt,
         int $maxAttempts = 10,
     ): array {
-        return $this->transactions->run(function (PDO $pdo) use ($userId, $destinationE164, $expiresAt, $maxAttempts): array {
-            unset($pdo);
-            $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
-            $otp = sprintf('%06d', random_int(0, 999999));
-            $nonce = random_bytes(16);
-            $destinationHmac = $this->otpHmac->hashDestination($destinationE164);
-            $otpHmac = $this->otpHmac->hashOtp($nonce, $otp);
+        return $this->transactions->run(
+            function (PDO $pdo) use ($userId, $destinationE164, $expiresAt, $maxAttempts): array {
+                unset($pdo);
 
-            $current = $this->challenges->findCurrentByUserChannelForUpdate($userId, self::CHANNEL_SMS);
-            if ($current !== null) {
-                $this->challenges->clearCurrentMarker($current->verificationChallengeId);
-            }
+                return $this->issueInAmbientTx($userId, $destinationE164, $expiresAt, $maxAttempts);
+            },
+        );
+    }
 
-            $verificationChallengeId = $this->challenges->insertPendingCurrent(
-                $userId,
-                self::CHANNEL_SMS,
-                $destinationHmac,
-                $nonce,
-                $otpHmac,
-                $expiresAt,
-                $maxAttempts,
-                $now,
-            );
+    /**
+     * Ambient-safe issue for callers that already own the domain transaction.
+     *
+     * @return array{verification_challenge_id: int, otp: string}
+     */
+    public function issueInAmbientTx(
+        int $userId,
+        string $destinationE164,
+        \DateTimeImmutable $expiresAt,
+        int $maxAttempts = 10,
+        ?\DateTimeImmutable $now = null,
+    ): array {
+        $now ??= new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $otp = sprintf('%06d', random_int(0, 999999));
+        $nonce = random_bytes(16);
+        $destinationHmac = $this->otpHmac->hashDestination($destinationE164);
+        $otpHmac = $this->otpHmac->hashOtp($nonce, $otp);
 
-            $plaintext = json_encode(
-                [
-                    'otp' => $otp,
-                    'e164' => $destinationE164,
-                ],
-                JSON_THROW_ON_ERROR,
-            );
+        $current = $this->challenges->findCurrentByUserChannelForUpdate($userId, self::CHANNEL_SMS);
+        if ($current !== null) {
+            $this->challenges->clearCurrentMarker($current->verificationChallengeId);
+        }
 
-            $sealed = $this->sealedBox->seal(
-                $plaintext,
-                SealedSecretBox::challengeAad($verificationChallengeId, self::CHANNEL_SMS, $userId),
-            );
-            $this->challenges->updateSealedDelivery($verificationChallengeId, $sealed, $now);
+        $verificationChallengeId = $this->challenges->insertPendingCurrent(
+            $userId,
+            self::CHANNEL_SMS,
+            $destinationHmac,
+            $nonce,
+            $otpHmac,
+            $expiresAt,
+            $maxAttempts,
+            $now,
+        );
 
-            $payload = NotificationOutboxPayload::forMobileOtp($verificationChallengeId, self::CHANNEL_SMS);
-            $this->outbox->enqueue(
-                IdentityNotificationEventTypes::MOBILE_OTP_SEND,
-                'verification_challenge',
-                (string) $verificationChallengeId,
-                $payload,
-                IdentityNotificationEventTypes::MOBILE_OTP_SEND . ':' . $verificationChallengeId,
-            );
-
-            return [
-                'verification_challenge_id' => $verificationChallengeId,
+        $plaintext = json_encode(
+            [
                 'otp' => $otp,
-            ];
-        });
+                'e164' => $destinationE164,
+            ],
+            JSON_THROW_ON_ERROR,
+        );
+
+        $sealed = $this->sealedBox->seal(
+            $plaintext,
+            SealedSecretBox::challengeAad($verificationChallengeId, self::CHANNEL_SMS, $userId),
+        );
+        $this->challenges->updateSealedDelivery($verificationChallengeId, $sealed, $now);
+
+        $payload = NotificationOutboxPayload::forMobileOtp($verificationChallengeId, self::CHANNEL_SMS);
+        $this->outbox->enqueue(
+            IdentityNotificationEventTypes::MOBILE_OTP_SEND,
+            'verification_challenge',
+            (string) $verificationChallengeId,
+            $payload,
+            IdentityNotificationEventTypes::MOBILE_OTP_SEND . ':' . $verificationChallengeId,
+        );
+
+        return [
+            'verification_challenge_id' => $verificationChallengeId,
+            'otp' => $otp,
+        ];
     }
 }
