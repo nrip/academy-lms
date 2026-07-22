@@ -55,6 +55,52 @@ interface UserWriteRepository
     public function findByMobileE164(string $normalizedMobileE164): ?array;
 
     /**
+     * Lock user row for login evaluation.
+     *
+     * @return array{
+     *   user_id: int,
+     *   email: string,
+     *   password_hash: string,
+     *   account_status: string,
+     *   email_verified_at: ?string,
+     *   failed_login_count: int,
+     *   failed_login_window_started_at: ?string,
+     *   locked_until: ?string,
+     *   auth_version: int|string
+     * }|null
+     */
+    public function findCredentialsByEmailForUpdate(string $normalizedEmail): ?array;
+
+    /**
+     * @param array{
+     *   failed_login_count: int,
+     *   failed_login_window_started_at: ?\DateTimeImmutable,
+     *   locked_until: ?\DateTimeImmutable,
+     *   last_failed_login_at: \DateTimeImmutable
+     * } $state
+     */
+    public function applyFailedLogin(int $userId, array $state): void;
+
+    /**
+     * @param array{
+     *   failed_login_count: int,
+     *   failed_login_window_started_at: null,
+     *   locked_until: null,
+     *   last_failed_login_at: null,
+     *   last_login_at: \DateTimeImmutable
+     * } $state
+     */
+    public function applySuccessfulLogin(int $userId, array $state, ?string $rehashedPassword): void;
+
+    /**
+     * Updates password hash, stamps password_changed_at, clears lockout counters,
+     * and increments auth_version (guarded by application ceiling).
+     *
+     * @return array{auth_version_before: int, auth_version_after: int}
+     */
+    public function applyPasswordReset(int $userId, string $passwordHash, \DateTimeImmutable $now): array;
+
+    /**
      * Conditionally stamps email_verified_at and may activate pending_verification → active.
      * Never activates suspended. Idempotent when email already verified.
      *

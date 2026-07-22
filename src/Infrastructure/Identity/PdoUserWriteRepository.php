@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Academy\Infrastructure\Identity;
 
+use Academy\Domain\Exception\AuthVersionCeilingException;
 use Academy\Domain\Exception\NotFoundException;
 use Academy\Domain\Identity\AccountActivationPolicy;
 use Academy\Domain\Identity\AccountStatus;
+use Academy\Domain\Identity\AuthVersion;
 use Academy\Domain\Identity\UserWriteRepository;
 use Academy\Infrastructure\Database\ConnectionFactory;
 use DateTimeImmutable;
@@ -135,6 +137,156 @@ final class PdoUserWriteRepository implements UserWriteRepository
         return [
             'user_id' => (int) $row['user_id'],
             'account_status' => (string) $row['account_status'],
+        ];
+    }
+
+    public function findCredentialsByEmailForUpdate(string $normalizedEmail): ?array
+    {
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'SELECT user_id, email, password_hash, account_status, email_verified_at,
+                    failed_login_count, failed_login_window_started_at, locked_until, auth_version
+             FROM users
+             WHERE email = :email
+             LIMIT 1
+             FOR UPDATE',
+        );
+        $stmt->execute(['email' => $normalizedEmail]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return null;
+        }
+
+        return [
+            'user_id' => (int) $row['user_id'],
+            'email' => (string) $row['email'],
+            'password_hash' => (string) $row['password_hash'],
+            'account_status' => (string) $row['account_status'],
+            'email_verified_at' => $row['email_verified_at'] !== null ? (string) $row['email_verified_at'] : null,
+            'failed_login_count' => (int) $row['failed_login_count'],
+            'failed_login_window_started_at' => $row['failed_login_window_started_at'] !== null
+                ? (string) $row['failed_login_window_started_at']
+                : null,
+            'locked_until' => $row['locked_until'] !== null ? (string) $row['locked_until'] : null,
+            'auth_version' => $row['auth_version'],
+        ];
+    }
+
+    public function applyFailedLogin(int $userId, array $state): void
+    {
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'UPDATE users
+             SET failed_login_count = :failed_login_count,
+                 failed_login_window_started_at = :failed_login_window_started_at,
+                 locked_until = :locked_until,
+                 last_failed_login_at = :last_failed_login_at,
+                 updated_at = :updated_at
+             WHERE user_id = :user_id',
+        );
+        $stmt->execute([
+            'failed_login_count' => $state['failed_login_count'],
+            'failed_login_window_started_at' => $state['failed_login_window_started_at'] !== null
+                ? $this->formatUtc($state['failed_login_window_started_at'])
+                : null,
+            'locked_until' => $state['locked_until'] !== null
+                ? $this->formatUtc($state['locked_until'])
+                : null,
+            'last_failed_login_at' => $this->formatUtc($state['last_failed_login_at']),
+            'updated_at' => $this->formatUtc($state['last_failed_login_at']),
+            'user_id' => $userId,
+        ]);
+    }
+
+    public function applySuccessfulLogin(int $userId, array $state, ?string $rehashedPassword): void
+    {
+        $pdo = $this->connections->connection();
+        $nowStr = $this->formatUtc($state['last_login_at']);
+
+        if ($rehashedPassword !== null) {
+            $stmt = $pdo->prepare(
+                'UPDATE users
+                 SET failed_login_count = 0,
+                     failed_login_window_started_at = NULL,
+                     locked_until = NULL,
+                     last_failed_login_at = NULL,
+                     last_login_at = :last_login_at,
+                     password_hash = :password_hash,
+                     updated_at = :updated_at
+                 WHERE user_id = :user_id',
+            );
+            $stmt->execute([
+                'last_login_at' => $nowStr,
+                'password_hash' => $rehashedPassword,
+                'updated_at' => $nowStr,
+                'user_id' => $userId,
+            ]);
+
+            return;
+        }
+
+        $stmt = $pdo->prepare(
+            'UPDATE users
+             SET failed_login_count = 0,
+                 failed_login_window_started_at = NULL,
+                 locked_until = NULL,
+                 last_failed_login_at = NULL,
+                 last_login_at = :last_login_at,
+                 updated_at = :updated_at
+             WHERE user_id = :user_id',
+        );
+        $stmt->execute([
+            'last_login_at' => $nowStr,
+            'updated_at' => $nowStr,
+            'user_id' => $userId,
+        ]);
+    }
+
+    public function applyPasswordReset(int $userId, string $passwordHash, DateTimeImmutable $now): array
+    {
+        $row = $this->findByIdForUpdate($userId);
+        if ($row === null) {
+            throw new NotFoundException('User not found.');
+        }
+
+        $before = AuthVersion::fromDatabase($row['auth_version']);
+        $nowStr = $this->formatUtc($now);
+
+        $pdo = $this->connections->connection();
+        $update = $pdo->prepare(
+            'UPDATE users
+             SET password_hash = :password_hash,
+                 password_changed_at = :password_changed_at,
+                 failed_login_count = 0,
+                 failed_login_window_started_at = NULL,
+                 locked_until = NULL,
+                 last_failed_login_at = NULL,
+                 auth_version = auth_version + 1,
+                 updated_at = :updated_at
+             WHERE user_id = :user_id
+               AND auth_version < :ceiling',
+        );
+        $update->execute([
+            'password_hash' => $passwordHash,
+            'password_changed_at' => $nowStr,
+            'updated_at' => $nowStr,
+            'user_id' => $userId,
+            'ceiling' => AuthVersion::CEILING,
+        ]);
+        if ($update->rowCount() !== 1) {
+            throw new AuthVersionCeilingException();
+        }
+
+        $afterStmt = $pdo->prepare('SELECT auth_version FROM users WHERE user_id = :user_id');
+        $afterStmt->execute(['user_id' => $userId]);
+        $afterRow = $afterStmt->fetch(PDO::FETCH_ASSOC);
+        if ($afterRow === false) {
+            throw new NotFoundException('User not found.');
+        }
+
+        return [
+            'auth_version_before' => $before,
+            'auth_version_after' => AuthVersion::fromDatabase($afterRow['auth_version']),
         ];
     }
 

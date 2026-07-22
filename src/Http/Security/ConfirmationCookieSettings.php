@@ -8,18 +8,21 @@ use InvalidArgumentException;
 
 /**
  * Purpose-specific confirmation cookies for scanner-safe verify/reset flows.
- * Separate cookies: email confirm vs password-reset confirm — never shared.
+ * Separate cookies: email confirm vs password-reset confirm vs reset auth — never shared.
  */
 final class ConfirmationCookieSettings
 {
     public const EMAIL_CONFIRM_HOST = '__Host-acad_email_confirm';
     public const RESET_CONFIRM_HOST = '__Host-acad_reset_confirm';
+    public const RESET_AUTH_HOST = '__Host-acad_reset_auth';
     public const EMAIL_CONFIRM_PLAIN = 'acad_email_confirm';
     public const RESET_CONFIRM_PLAIN = 'acad_reset_confirm';
+    public const RESET_AUTH_PLAIN = 'acad_reset_auth';
 
     public function __construct(
         public readonly string $emailConfirmCookieName,
         public readonly string $resetConfirmCookieName,
+        public readonly string $resetAuthCookieName,
         public readonly bool $secure,
         public readonly string $sameSite = 'Lax',
         public readonly string $path = '/',
@@ -33,6 +36,7 @@ final class ConfirmationCookieSettings
         return new self(
             $useHostPrefix ? self::EMAIL_CONFIRM_HOST : self::EMAIL_CONFIRM_PLAIN,
             $useHostPrefix ? self::RESET_CONFIRM_HOST : self::RESET_CONFIRM_PLAIN,
+            $useHostPrefix ? self::RESET_AUTH_HOST : self::RESET_AUTH_PLAIN,
             $secure,
         );
     }
@@ -60,6 +64,16 @@ final class ConfirmationCookieSettings
         return $this->buildCookieHeader($name, '', true);
     }
 
+    public function buildResetAuthSetCookie(string $rawAuthorizationSecret): string
+    {
+        return $this->buildCookieHeader($this->resetAuthCookieName, $rawAuthorizationSecret, false);
+    }
+
+    public function buildResetAuthClearCookie(): string
+    {
+        return $this->buildCookieHeader($this->resetAuthCookieName, '', true);
+    }
+
     private function buildCookieHeader(string $name, string $value, bool $clear): string
     {
         $parts = [
@@ -83,8 +97,12 @@ final class ConfirmationCookieSettings
     {
         $this->validateCookieName($this->emailConfirmCookieName);
         $this->validateCookieName($this->resetConfirmCookieName);
-        if ($this->emailConfirmCookieName === $this->resetConfirmCookieName) {
-            throw new InvalidArgumentException('Email and reset confirmation cookies must be distinct.');
+        $this->validateCookieName($this->resetAuthCookieName);
+        if ($this->emailConfirmCookieName === $this->resetConfirmCookieName
+            || $this->emailConfirmCookieName === $this->resetAuthCookieName
+            || $this->resetConfirmCookieName === $this->resetAuthCookieName
+        ) {
+            throw new InvalidArgumentException('Email, reset confirmation, and reset auth cookies must be distinct.');
         }
         if ($this->path !== '/') {
             throw new InvalidArgumentException('Confirmation cookies require Path=/');

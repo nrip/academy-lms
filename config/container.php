@@ -7,10 +7,14 @@ use Academy\Application\Audit\AuditService;
 use Academy\Application\Identity\CompositeTokenConsumedHandler;
 use Academy\Application\Identity\EmailVerificationResendService;
 use Academy\Application\Identity\EmailVerificationTokenConsumedHandler;
+use Academy\Application\Identity\ForgotPasswordService;
 use Academy\Application\Identity\InitialApplicantRoleBinder;
+use Academy\Application\Identity\LoginService;
+use Academy\Application\Identity\LogoutService;
 use Academy\Application\Identity\MobileOtpResendService;
 use Academy\Application\Identity\MobileOtpVerificationService;
 use Academy\Application\Identity\PasswordHasher;
+use Academy\Application\Identity\PasswordResetService;
 use Academy\Application\Identity\RegistrationService;
 use Academy\Application\Identity\TokenConfirmationCleanupService;
 use Academy\Application\Identity\TokenConfirmationService;
@@ -30,6 +34,7 @@ use Academy\Domain\Audit\AuditWriter;
 use Academy\Domain\Identity\LearnerProfileRepository;
 use Academy\Domain\Identity\LegalAcceptancePolicy;
 use Academy\Domain\Identity\OtpHmac;
+use Academy\Domain\Identity\PasswordResetAuthorizationRepository;
 use Academy\Domain\Identity\TokenConfirmationContextRepository;
 use Academy\Domain\Identity\TokenConsumedHandler;
 use Academy\Domain\Identity\TokenHmac;
@@ -47,8 +52,11 @@ use Academy\Domain\RBAC\RoleRepository;
 use Academy\Domain\Security\RateLimitStore;
 use Academy\Domain\Security\SessionRepository;
 use Academy\Http\Controllers\EmailVerificationController;
+use Academy\Http\Controllers\ForgotPasswordController;
 use Academy\Http\Controllers\HealthController;
+use Academy\Http\Controllers\LoginController;
 use Academy\Http\Controllers\MobileVerificationController;
+use Academy\Http\Controllers\PasswordResetController;
 use Academy\Http\Controllers\RegistrationController;
 use Academy\Http\Controllers\SmokeController;
 use Academy\Http\Controllers\Wp01aProbeController;
@@ -73,6 +81,7 @@ use Academy\Infrastructure\Audit\PdoAuditWriter;
 use Academy\Infrastructure\Database\ConnectionFactory;
 use Academy\Infrastructure\Database\TransactionManager;
 use Academy\Infrastructure\Identity\PdoLearnerProfileRepository;
+use Academy\Infrastructure\Identity\PdoPasswordResetAuthorizationRepository;
 use Academy\Infrastructure\Identity\PdoTokenConfirmationContextRepository;
 use Academy\Infrastructure\Identity\PdoUserSecuritySnapshotRepository;
 use Academy\Infrastructure\Identity\PdoUserWriteRepository;
@@ -279,6 +288,46 @@ return static function (): ContainerInterface {
             $c->get(RateLimiter::class),
             $c->get(RateLimitKeyFactory::class),
         ),
+        LoginService::class => static fn (ContainerInterface $c): LoginService => new LoginService(
+            $c->get(TransactionManager::class),
+            $c->get(UserWriteRepository::class),
+            $c->get(PasswordHasher::class),
+            $c->get(AuditService::class),
+            $c->get(RateLimiter::class),
+        ),
+        LogoutService::class => static fn (ContainerInterface $c): LogoutService => new LogoutService(
+            $c->get(SessionService::class),
+            $c->get(AuditService::class),
+        ),
+        ForgotPasswordService::class => static fn (ContainerInterface $c): ForgotPasswordService => new ForgotPasswordService(
+            $c->get(TransactionManager::class),
+            $c->get(UserWriteRepository::class),
+            $c->get(VerificationTokenIssuer::class),
+            $c->get(AuditService::class),
+            $c->get(NotificationCapability::class),
+            $c->get(RateLimiter::class),
+        ),
+        PasswordResetAuthorizationRepository::class => static fn (ContainerInterface $c): PasswordResetAuthorizationRepository => new PdoPasswordResetAuthorizationRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        PasswordResetService::class => static function (ContainerInterface $c): PasswordResetService {
+            /** @var array{identity_tokens: array{confirmation_context_ttl_seconds: int}} $security */
+            $security = $c->get('config.security');
+
+            return new PasswordResetService(
+                $c->get(TransactionManager::class),
+                $c->get(VerificationTokenRepository::class),
+                $c->get(TokenConfirmationContextRepository::class),
+                $c->get(PasswordResetAuthorizationRepository::class),
+                $c->get(UserWriteRepository::class),
+                $c->get(TokenHmac::class),
+                $c->get(PasswordHasher::class),
+                $c->get(AuditService::class),
+                $c->get(RateLimiter::class),
+                $c->get(SessionService::class),
+                $security['identity_tokens']['confirmation_context_ttl_seconds'],
+            );
+        },
         RoleRepository::class => static fn (ContainerInterface $c): RoleRepository => new PdoRoleRepository(
             $c->get(ConnectionFactory::class),
         ),
@@ -513,6 +562,12 @@ return static function (): ContainerInterface {
                 $security['identity_tokens']['cookie_secure'],
             );
         },
+        SessionCookieSettings::class => static function (ContainerInterface $c): SessionCookieSettings {
+            /** @var array{session: array{cookie_secure: bool, cookies: array{session_name: string, csrf_name: string}}} $security */
+            $security = $c->get('config.security');
+
+            return SessionCookieSettings::fromSessionConfig($security['session']);
+        },
         TokenPageHeaderPolicy::class => static fn (): TokenPageHeaderPolicy => new TokenPageHeaderPolicy(),
 
         Router::class => static function (ContainerInterface $c): Router {
@@ -528,6 +583,21 @@ return static function (): ContainerInterface {
             $router->get('/register', [RegistrationController::class, 'showForm']);
             $router->post('/register', [RegistrationController::class, 'register']);
             $router->get('/register/pending', [RegistrationController::class, 'pending']);
+
+            $router->get('/login', [LoginController::class, 'showForm']);
+            $router->post('/login', [LoginController::class, 'login']);
+            $router->post('/logout', [LoginController::class, 'logout']);
+
+            $router->get('/forgot-password', [ForgotPasswordController::class, 'showForm']);
+            $router->post('/forgot-password', [ForgotPasswordController::class, 'request']);
+            $router->get('/forgot-password/sent', [ForgotPasswordController::class, 'sent']);
+
+            $router->get('/reset-password', [PasswordResetController::class, 'resetPasswordGet']);
+            $router->get('/reset-password/confirm', [PasswordResetController::class, 'confirmGet']);
+            $router->post('/reset-password/confirm', [PasswordResetController::class, 'confirmPost']);
+            $router->get('/reset-password/form', [PasswordResetController::class, 'formGet']);
+            $router->post('/reset-password', [PasswordResetController::class, 'complete']);
+            $router->get('/reset-password/result', [PasswordResetController::class, 'result']);
 
             $router->get('/verify-email', [EmailVerificationController::class, 'verifyEmailGet']);
             $router->get('/verify-email/confirm', [EmailVerificationController::class, 'verifyEmailConfirmGet']);
@@ -576,10 +646,6 @@ return static function (): ContainerInterface {
                     'does.not.exist.permission',
                 );
 
-                $router->get('/reset-password', [Wp01b2aTokenProbeController::class, 'resetPasswordGet']);
-                $router->get('/reset-password/confirm', [Wp01b2aTokenProbeController::class, 'resetPasswordConfirmGet']);
-                $router->post('/reset-password/confirm', [Wp01b2aTokenProbeController::class, 'resetPasswordConfirmPost']);
-                $router->get('/reset-password/result', [Wp01b2aTokenProbeController::class, 'resetPasswordResult']);
                 $router->post('/__wp01b2a/issue-token', [Wp01b2aTokenProbeController::class, 'issueProbe']);
             }
 
@@ -614,6 +680,30 @@ return static function (): ContainerInterface {
             $c->get(SessionService::class),
             $c->get(PhpRenderer::class),
         ),
+        LoginController::class => static fn (ContainerInterface $c): LoginController => new LoginController(
+            $c->get(LoginService::class),
+            $c->get(LogoutService::class),
+            $c->get(SessionService::class),
+            $c->get(SessionCookieSettings::class),
+            $c->get(PhpRenderer::class),
+        ),
+        ForgotPasswordController::class => static fn (ContainerInterface $c): ForgotPasswordController => new ForgotPasswordController(
+            $c->get(ForgotPasswordService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        PasswordResetController::class => static function (ContainerInterface $c): PasswordResetController {
+            /** @var array{identity_tokens: array{confirmation_context_ttl_seconds: int}} $security */
+            $security = $c->get('config.security');
+
+            return new PasswordResetController(
+                $c->get(TokenConfirmationService::class),
+                $c->get(PasswordResetService::class),
+                $c->get(ConfirmationCookieSettings::class),
+                $c->get(TokenPageHeaderPolicy::class),
+                $c->get(PhpRenderer::class),
+                $security['identity_tokens']['confirmation_context_ttl_seconds'],
+            );
+        },
         EmailVerificationController::class => static function (ContainerInterface $c): EmailVerificationController {
             /** @var array{identity_tokens: array{confirmation_context_ttl_seconds: int}} $security */
             $security = $c->get('config.security');
