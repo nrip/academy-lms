@@ -279,6 +279,8 @@ final class PdoSessionRepository implements SessionRepository
             }
             /** @var array<string, mixed> $payload */
             $payload = json_decode((string) $row['payload'], true, 512, JSON_THROW_ON_ERROR);
+            // Authenticated bind clears anonymous pending-verification markers.
+            unset($payload['pending_verification_user_id'], $payload['pending_verification_started_at']);
             foreach ($payloadMerge as $key => $value) {
                 $payload[$key] = $value;
             }
