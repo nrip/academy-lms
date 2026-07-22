@@ -9,12 +9,14 @@ use Academy\Application\Identity\EmailVerificationResendService;
 use Academy\Application\Identity\EmailVerificationTokenConsumedHandler;
 use Academy\Application\Identity\ForgotPasswordService;
 use Academy\Application\Identity\InitialApplicantRoleBinder;
+use Academy\Application\Identity\LearnerProfileService;
 use Academy\Application\Identity\LoginService;
 use Academy\Application\Identity\LogoutService;
 use Academy\Application\Identity\MobileOtpResendService;
 use Academy\Application\Identity\MobileOtpVerificationService;
 use Academy\Application\Identity\PasswordHasher;
 use Academy\Application\Identity\PasswordResetService;
+use Academy\Application\Identity\QualificationService;
 use Academy\Application\Identity\RegistrationService;
 use Academy\Application\Identity\TokenConfirmationCleanupService;
 use Academy\Application\Identity\TokenConfirmationService;
@@ -32,9 +34,14 @@ use Academy\Application\Security\RateLimitKeyFactory;
 use Academy\Application\Security\SessionService;
 use Academy\Domain\Audit\AuditWriter;
 use Academy\Domain\Identity\LearnerProfileRepository;
+use Academy\Domain\Identity\LearnerQualificationRepository;
 use Academy\Domain\Identity\LegalAcceptancePolicy;
 use Academy\Domain\Identity\OtpHmac;
 use Academy\Domain\Identity\PasswordResetAuthorizationRepository;
+use Academy\Domain\Identity\PersonalProfileValidator;
+use Academy\Domain\Identity\ProfessionalProfileValidator;
+use Academy\Domain\Identity\ProfileCompletenessCalculator;
+use Academy\Domain\Identity\QualificationValidator;
 use Academy\Domain\Identity\TokenConfirmationContextRepository;
 use Academy\Domain\Identity\TokenConsumedHandler;
 use Academy\Domain\Identity\TokenHmac;
@@ -57,6 +64,8 @@ use Academy\Http\Controllers\HealthController;
 use Academy\Http\Controllers\LoginController;
 use Academy\Http\Controllers\MobileVerificationController;
 use Academy\Http\Controllers\PasswordResetController;
+use Academy\Http\Controllers\ProfileController;
+use Academy\Http\Controllers\QualificationController;
 use Academy\Http\Controllers\RegistrationController;
 use Academy\Http\Controllers\SmokeController;
 use Academy\Http\Controllers\Wp01aProbeController;
@@ -81,6 +90,7 @@ use Academy\Infrastructure\Audit\PdoAuditWriter;
 use Academy\Infrastructure\Database\ConnectionFactory;
 use Academy\Infrastructure\Database\TransactionManager;
 use Academy\Infrastructure\Identity\PdoLearnerProfileRepository;
+use Academy\Infrastructure\Identity\PdoLearnerQualificationRepository;
 use Academy\Infrastructure\Identity\PdoPasswordResetAuthorizationRepository;
 use Academy\Infrastructure\Identity\PdoTokenConfirmationContextRepository;
 use Academy\Infrastructure\Identity\PdoUserSecuritySnapshotRepository;
@@ -237,6 +247,31 @@ return static function (): ContainerInterface {
         ),
         LearnerProfileRepository::class => static fn (ContainerInterface $c): LearnerProfileRepository => new PdoLearnerProfileRepository(
             $c->get(ConnectionFactory::class),
+        ),
+        LearnerQualificationRepository::class => static fn (ContainerInterface $c): LearnerQualificationRepository => new PdoLearnerQualificationRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        PersonalProfileValidator::class => static fn (): PersonalProfileValidator => new PersonalProfileValidator(),
+        ProfessionalProfileValidator::class => static fn (): ProfessionalProfileValidator => new ProfessionalProfileValidator(),
+        QualificationValidator::class => static fn (): QualificationValidator => new QualificationValidator(),
+        ProfileCompletenessCalculator::class => static fn (): ProfileCompletenessCalculator => new ProfileCompletenessCalculator(),
+        LearnerProfileService::class => static fn (ContainerInterface $c): LearnerProfileService => new LearnerProfileService(
+            $c->get(TransactionManager::class),
+            $c->get(LearnerProfileRepository::class),
+            $c->get(LearnerQualificationRepository::class),
+            $c->get(AuthorizationService::class),
+            $c->get(AuditService::class),
+            $c->get(PersonalProfileValidator::class),
+            $c->get(ProfessionalProfileValidator::class),
+            $c->get(ProfileCompletenessCalculator::class),
+        ),
+        QualificationService::class => static fn (ContainerInterface $c): QualificationService => new QualificationService(
+            $c->get(TransactionManager::class),
+            $c->get(LearnerProfileRepository::class),
+            $c->get(LearnerQualificationRepository::class),
+            $c->get(AuthorizationService::class),
+            $c->get(AuditService::class),
+            $c->get(QualificationValidator::class),
         ),
         PasswordHasher::class => static fn (): PasswordHasher => new PasswordHasher(),
         LegalAcceptancePolicy::class => static function (ContainerInterface $c): LegalAcceptancePolicy {
@@ -610,6 +645,46 @@ return static function (): ContainerInterface {
             $router->post('/verify-mobile', [MobileVerificationController::class, 'verify']);
             $router->post('/verify-mobile/resend', [MobileVerificationController::class, 'resend']);
 
+            /** @var RouteAccess $profileAccess */
+            $profileAccess = $c->get(RouteAccess::class);
+
+            $profileAccess->requirePermission(
+                $router->get('/profile', [ProfileController::class, 'overview']),
+                'profile.personal.view_own',
+            );
+            $profileAccess->requirePermission(
+                $router->get('/profile/personal', [ProfileController::class, 'showPersonal']),
+                'profile.personal.view_own',
+            );
+            $profileAccess->requirePermission(
+                $router->post('/profile/personal', [ProfileController::class, 'updatePersonal']),
+                'profile.personal.edit_own',
+            );
+            $profileAccess->requirePermission(
+                $router->get('/profile/professional', [ProfileController::class, 'showProfessional']),
+                'profile.professional.view_own',
+            );
+            $profileAccess->requirePermission(
+                $router->post('/profile/professional', [ProfileController::class, 'updateProfessional']),
+                'profile.professional.edit_own',
+            );
+            $profileAccess->requirePermission(
+                $router->get('/profile/qualifications', [QualificationController::class, 'index']),
+                'profile.professional.view_own',
+            );
+            $profileAccess->requirePermission(
+                $router->post('/profile/qualifications', [QualificationController::class, 'add']),
+                'profile.professional.edit_own',
+            );
+            $profileAccess->requirePermission(
+                $router->post('/profile/qualifications/{id}/update', [QualificationController::class, 'update']),
+                'profile.professional.edit_own',
+            );
+            $profileAccess->requirePermission(
+                $router->post('/profile/qualifications/{id}/delete', [QualificationController::class, 'delete']),
+                'profile.professional.edit_own',
+            );
+
             /** @var array{env: string} $app */
             $app = $c->get('config.app');
             if ($app['env'] === 'testing') {
@@ -678,6 +753,14 @@ return static function (): ContainerInterface {
         RegistrationController::class => static fn (ContainerInterface $c): RegistrationController => new RegistrationController(
             $c->get(RegistrationService::class),
             $c->get(SessionService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        ProfileController::class => static fn (ContainerInterface $c): ProfileController => new ProfileController(
+            $c->get(LearnerProfileService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        QualificationController::class => static fn (ContainerInterface $c): QualificationController => new QualificationController(
+            $c->get(QualificationService::class),
             $c->get(PhpRenderer::class),
         ),
         LoginController::class => static fn (ContainerInterface $c): LoginController => new LoginController(
