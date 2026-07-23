@@ -106,6 +106,10 @@
       return;
     }
 
+    if (root.data('correction-mode') === 1 || root.data('correction-mode') === '1') {
+      root.addClass('acad-application-documents--correction-mode');
+    }
+
     root.on('click', '.acad-document-upload-btn', function () {
       const requirementId = $(this).closest('.acad-document-requirement').data('requirement-id');
       uploadAndConfirm(root, requirementId, null);

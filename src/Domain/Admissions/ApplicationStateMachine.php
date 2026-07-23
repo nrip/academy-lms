@@ -184,9 +184,12 @@ final class ApplicationStateMachine
             ApplicationStatus::UNDER_REVIEW . '>' . ApplicationStatus::RESUBMISSION_REQUESTED,
             ApplicationStatus::UNDER_REVIEW . '>' . ApplicationStatus::PAYMENT_PENDING,
             ApplicationStatus::UNDER_REVIEW . '>' . ApplicationStatus::REJECTED,
-            ApplicationStatus::RESUBMISSION_REQUESTED . '>' . ApplicationStatus::UNDER_REVIEW,
             ApplicationStatus::AWAITING_VERIFICATION . '>' . ApplicationStatus::ADMITTED,
             ApplicationStatus::AWAITING_VERIFICATION . '>' . ApplicationStatus::REJECTED,
+        ];
+
+        $systemOrReviewerEdges = [
+            ApplicationStatus::RESUBMISSION_REQUESTED . '>' . ApplicationStatus::UNDER_REVIEW,
         ];
 
         $edge = $from . '>' . $to;
@@ -210,6 +213,17 @@ final class ApplicationStateMachine
         if (in_array($edge, $reviewerEdges, true)) {
             if (!in_array('reviewer', $roles, true) && !in_array('admin', $roles, true)) {
                 throw new DomainRuleException('Reviewer actor required for this transition.');
+            }
+
+            return;
+        }
+
+        if (in_array($edge, $systemOrReviewerEdges, true)) {
+            $allowed = in_array('system', $roles, true)
+                || in_array('reviewer', $roles, true)
+                || in_array('admin', $roles, true);
+            if (!$allowed) {
+                throw new DomainRuleException('System or reviewer actor required for this transition.');
             }
 
             return;

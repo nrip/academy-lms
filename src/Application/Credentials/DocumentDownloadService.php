@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Academy\Application\Credentials;
 
 use Academy\Application\RBAC\AuthorizationService;
+use Academy\Application\Review\ReviewerAccessGuard;
 use Academy\Domain\Admissions\ApplicationRepository;
 use Academy\Domain\Credentials\DocumentScanStatus;
 use Academy\Domain\Credentials\DocumentSubmissionRepository;
@@ -22,6 +23,7 @@ final class DocumentDownloadService
 {
     public function __construct(
         private readonly AuthorizationService $authorization,
+        private readonly ReviewerAccessGuard $reviewerAccess,
         private readonly ApplicationRepository $applications,
         private readonly DocumentSubmissionRepository $submissions,
         private readonly ObjectStorage $storage,
@@ -66,6 +68,46 @@ final class DocumentDownloadService
 
         $expiresAt = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
             ->modify('+' . $this->downloadTtlSeconds . ' seconds');
+        $issued = $this->storage->issueDownloadUrl($submission->objectKey, $expiresAt);
+
+        return [
+            'url' => $issued['download_url'],
+        ];
+    }
+
+    /**
+     * @return array{url: string}
+     */
+    public function getReviewerSignedDownloadUrl(
+        AuthContext $auth,
+        int $applicationId,
+        int $submissionId,
+    ): array {
+        $this->reviewerAccess->assertFinanceDocumentSoD($auth);
+        $this->reviewerAccess->requirePermission($auth, 'reviewer.application.view');
+        $this->reviewerAccess->requirePermission($auth, 'document.metadata.view');
+        $this->reviewerAccess->requirePermission($auth, 'document.signed_url.generate');
+
+        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        $application = $this->reviewerAccess->loadApplication($applicationId);
+        $this->reviewerAccess->assertApplicationInScope($auth, $application, $now);
+
+        $submission = $this->submissions->findById($submissionId);
+        if ($submission === null || $submission->applicationId !== $applicationId) {
+            throw new NotFoundException('Document not found.');
+        }
+
+        if ($submission->status === DocumentSubmissionStatus::FAILED_SECURITY_SCAN
+            || $submission->scanStatus === DocumentScanStatus::FAILED
+        ) {
+            throw new DomainRuleException('This document is quarantined and cannot be downloaded.');
+        }
+
+        if ($submission->scanStatus !== DocumentScanStatus::CLEAN) {
+            throw new DomainRuleException('Document is not available until the security scan completes.');
+        }
+
+        $expiresAt = $now->modify('+' . $this->downloadTtlSeconds . ' seconds');
         $issued = $this->storage->issueDownloadUrl($submission->objectKey, $expiresAt);
 
         return [

@@ -15,7 +15,8 @@ use PDO;
 final class PdoDocumentSubmissionRepository implements DocumentSubmissionRepository
 {
     private const COLUMNS = 'document_submission_id, application_id, requirement_id, object_key, display_filename,
-        mime_type, size_bytes, checksum_sha256, status, scan_status, rejection_reason_code, uploaded_by_user_id,
+        mime_type, size_bytes, checksum_sha256, status, scan_status, rejection_reason_code, learner_visible_message,
+        reviewed_by_user_id, reviewed_at, uploaded_by_user_id,
         submitted_at, superseded_at, current_marker, row_version, scan_attempt_count, scan_queued_at,
         scan_completed_at, scan_lease_owner, scan_lease_token, scan_lease_expires_at, created_at, updated_at';
 
@@ -359,6 +360,46 @@ final class PdoDocumentSubmissionRepository implements DocumentSubmissionReposit
         return $stmt->rowCount() === 1;
     }
 
+    public function applyReviewDecision(
+        int $id,
+        int $expectedRowVersion,
+        string $toStatus,
+        ?string $reasonCode,
+        ?string $learnerVisibleMessage,
+        int $reviewerUserId,
+        DateTimeImmutable $now,
+    ): bool {
+        $pdo = $this->connections->connection();
+        $nowStr = $now->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u');
+        $stmt = $pdo->prepare(
+            'UPDATE document_submissions
+             SET status = :status,
+                 rejection_reason_code = :reason_code,
+                 learner_visible_message = :learner_visible_message,
+                 reviewed_by_user_id = :reviewed_by_user_id,
+                 reviewed_at = :reviewed_at,
+                 row_version = row_version + 1,
+                 updated_at = :updated_at
+             WHERE document_submission_id = :id
+               AND current_marker = 1
+               AND status = \'under_review\'
+               AND scan_status = \'clean\'
+               AND row_version = :row_version',
+        );
+        $stmt->execute([
+            'status' => $toStatus,
+            'reason_code' => $reasonCode,
+            'learner_visible_message' => $learnerVisibleMessage,
+            'reviewed_by_user_id' => $reviewerUserId,
+            'reviewed_at' => $nowStr,
+            'updated_at' => $nowStr,
+            'id' => $id,
+            'row_version' => $expectedRowVersion,
+        ]);
+
+        return $stmt->rowCount() === 1;
+    }
+
     /**
      * @param array<string, mixed> $row
      */
@@ -378,6 +419,9 @@ final class PdoDocumentSubmissionRepository implements DocumentSubmissionReposit
             status: (string) $row['status'],
             scanStatus: (string) $row['scan_status'],
             rejectionReasonCode: $row['rejection_reason_code'] === null ? null : (string) $row['rejection_reason_code'],
+            learnerVisibleMessage: $row['learner_visible_message'] === null ? null : (string) $row['learner_visible_message'],
+            reviewedByUserId: $row['reviewed_by_user_id'] === null ? null : (int) $row['reviewed_by_user_id'],
+            reviewedAt: $row['reviewed_at'] === null ? null : new DateTimeImmutable((string) $row['reviewed_at'], $utc),
             uploadedByUserId: (int) $row['uploaded_by_user_id'],
             submittedAt: new DateTimeImmutable((string) $row['submitted_at'], $utc),
             supersededAt: $row['superseded_at'] === null ? null : new DateTimeImmutable((string) $row['superseded_at'], $utc),

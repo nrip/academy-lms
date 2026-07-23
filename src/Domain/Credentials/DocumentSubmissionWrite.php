@@ -22,6 +22,9 @@ final class DocumentSubmissionWrite
         public readonly DateTimeImmutable $submittedAt,
         public readonly DateTimeImmutable $createdAt,
         public readonly ?DateTimeImmutable $scanQueuedAt = null,
+        public readonly ?string $learnerVisibleMessage = null,
+        public readonly ?int $reviewedByUserId = null,
+        public readonly ?DateTimeImmutable $reviewedAt = null,
     ) {
     }
 }

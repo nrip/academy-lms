@@ -63,6 +63,8 @@ final class DocumentAuditPayload implements AuditPayload
             'requirement_id',
             'document_submission_id',
             'old_document_submission_id',
+            'assignment_id',
+            'reviewer_user_id',
             'status',
             'scan_status',
             'state_version',

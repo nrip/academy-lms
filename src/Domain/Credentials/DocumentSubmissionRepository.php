@@ -77,4 +77,14 @@ interface DocumentSubmissionRepository
         int $expectedRowVersion,
         DateTimeImmutable $now,
     ): bool;
+
+    public function applyReviewDecision(
+        int $id,
+        int $expectedRowVersion,
+        string $toStatus,
+        ?string $reasonCode,
+        ?string $learnerVisibleMessage,
+        int $reviewerUserId,
+        DateTimeImmutable $now,
+    ): bool;
 }

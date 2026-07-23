@@ -37,6 +37,13 @@ use Academy\Application\Notifications\NotificationCapability;
 use Academy\Application\Outbox\OutboxRelayService;
 use Academy\Application\RBAC\AuthorizationService;
 use Academy\Application\RBAC\RoleAssignmentService;
+use Academy\Application\Review\ApplicationCorrectionRequestService;
+use Academy\Application\Review\ApplicationDecisionService;
+use Academy\Application\Review\DocumentReviewService;
+use Academy\Application\Review\LearnerCorrectionResubmitService;
+use Academy\Application\Review\ReviewerAccessGuard;
+use Academy\Application\Review\ReviewerApplicationQueryService;
+use Academy\Application\Review\ReviewerClaimService;
 use Academy\Application\Security\CsrfTokenManager;
 use Academy\Application\Security\RateLimiter;
 use Academy\Application\Security\RateLimitKeyFactory;
@@ -84,6 +91,13 @@ use Academy\Domain\Outbox\OutboxTransport;
 use Academy\Domain\Outbox\OutboxWriter;
 use Academy\Domain\RBAC\PermissionRepository;
 use Academy\Domain\RBAC\RoleRepository;
+use Academy\Domain\Review\ApplicationDecisionPreconditions;
+use Academy\Domain\Review\ApplicationReviewAssignmentRepository;
+use Academy\Domain\Review\DocumentReviewPolicy;
+use Academy\Domain\Review\ReviewerQueueQuery;
+use Academy\Domain\Review\ReviewerScopeAssignmentRepository;
+use Academy\Domain\Review\ReviewerScopePolicy;
+use Academy\Domain\Review\VerificationAuditLogRepository;
 use Academy\Domain\Security\RateLimitStore;
 use Academy\Domain\Security\SessionRepository;
 use Academy\Domain\Storage\ObjectStorage;
@@ -102,6 +116,7 @@ use Academy\Http\Controllers\PasswordResetController;
 use Academy\Http\Controllers\ProfileController;
 use Academy\Http\Controllers\QualificationController;
 use Academy\Http\Controllers\RegistrationController;
+use Academy\Http\Controllers\ReviewerApplicationController;
 use Academy\Http\Controllers\SmokeController;
 use Academy\Http\Controllers\Wp01aProbeController;
 use Academy\Http\Controllers\Wp01b2aTokenProbeController;
@@ -157,6 +172,10 @@ use Academy\Infrastructure\Outbox\UnconfiguredOutboxTransport;
 use Academy\Infrastructure\RateLimit\PdoRateLimitStore;
 use Academy\Infrastructure\RBAC\PdoPermissionRepository;
 use Academy\Infrastructure\RBAC\PdoRoleRepository;
+use Academy\Infrastructure\Review\PdoApplicationReviewAssignmentRepository;
+use Academy\Infrastructure\Review\PdoReviewerQueueQuery;
+use Academy\Infrastructure\Review\PdoReviewerScopeAssignmentRepository;
+use Academy\Infrastructure\Review\PdoVerificationAuditLogRepository;
 use Academy\Infrastructure\Scheduler\PdoSchedulerLock;
 use Academy\Infrastructure\Session\PdoSessionRepository;
 use Academy\Infrastructure\Storage\LocalObjectStorage;
@@ -344,6 +363,31 @@ return static function (): ContainerInterface {
         DocumentUploadAuthorizationRepository::class => static fn (ContainerInterface $c): DocumentUploadAuthorizationRepository => new PdoDocumentUploadAuthorizationRepository(
             $c->get(ConnectionFactory::class),
         ),
+        ApplicationReviewAssignmentRepository::class => static fn (ContainerInterface $c): ApplicationReviewAssignmentRepository => new PdoApplicationReviewAssignmentRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        ReviewerScopeAssignmentRepository::class => static fn (ContainerInterface $c): ReviewerScopeAssignmentRepository => new PdoReviewerScopeAssignmentRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        VerificationAuditLogRepository::class => static fn (ContainerInterface $c): VerificationAuditLogRepository => new PdoVerificationAuditLogRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        ReviewerQueueQuery::class => static fn (ContainerInterface $c): ReviewerQueueQuery => new PdoReviewerQueueQuery(
+            $c->get(ConnectionFactory::class),
+        ),
+        ReviewerScopePolicy::class => static fn (ContainerInterface $c): ReviewerScopePolicy => new ReviewerScopePolicy(
+            $c->get(ReviewerScopeAssignmentRepository::class),
+            $c->get(CourseVersionRepository::class),
+        ),
+        DocumentReviewPolicy::class => static fn (): DocumentReviewPolicy => new DocumentReviewPolicy(),
+        ApplicationDecisionPreconditions::class => static fn (): ApplicationDecisionPreconditions => new ApplicationDecisionPreconditions(),
+        ReviewerAccessGuard::class => static fn (ContainerInterface $c): ReviewerAccessGuard => new ReviewerAccessGuard(
+            $c->get(AuthorizationService::class),
+            $c->get(ApplicationRepository::class),
+            $c->get(ApplicationReviewAssignmentRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(ReviewerScopePolicy::class),
+        ),
         ApplicationStateMachine::class => static fn (): ApplicationStateMachine => new ApplicationStateMachine(),
         DocumentSubmissionStateMachine::class => static fn (): DocumentSubmissionStateMachine => new DocumentSubmissionStateMachine(),
         DocumentFileValidator::class => static fn (): DocumentFileValidator => new DocumentFileValidator(),
@@ -480,12 +524,75 @@ return static function (): ContainerInterface {
 
             return new DocumentDownloadService(
                 $c->get(AuthorizationService::class),
+                $c->get(ReviewerAccessGuard::class),
                 $c->get(ApplicationRepository::class),
                 $c->get(DocumentSubmissionRepository::class),
                 $c->get(ObjectStorage::class),
                 $security['documents']['download_ttl_seconds'],
             );
         },
+        ReviewerClaimService::class => static fn (ContainerInterface $c): ReviewerClaimService => new ReviewerClaimService(
+            $c->get(TransactionManager::class),
+            $c->get(ReviewerAccessGuard::class),
+            $c->get(ApplicationReviewAssignmentRepository::class),
+            $c->get(VerificationAuditLogRepository::class),
+            $c->get(AuditService::class),
+        ),
+        DocumentReviewService::class => static fn (ContainerInterface $c): DocumentReviewService => new DocumentReviewService(
+            $c->get(TransactionManager::class),
+            $c->get(ReviewerAccessGuard::class),
+            $c->get(DocumentSubmissionRepository::class),
+            $c->get(DocumentReviewPolicy::class),
+            $c->get(DocumentSubmissionStateMachine::class),
+            $c->get(VerificationAuditLogRepository::class),
+            $c->get(AuditService::class),
+        ),
+        ApplicationCorrectionRequestService::class => static fn (ContainerInterface $c): ApplicationCorrectionRequestService => new ApplicationCorrectionRequestService(
+            $c->get(TransactionManager::class),
+            $c->get(ReviewerAccessGuard::class),
+            $c->get(ApplicationRepository::class),
+            $c->get(DocumentSubmissionRepository::class),
+            $c->get(DocumentReviewPolicy::class),
+            $c->get(DocumentSubmissionStateMachine::class),
+            $c->get(ApplicationStateMachine::class),
+            $c->get(VerificationAuditLogRepository::class),
+            $c->get(OutboxWriter::class),
+            $c->get(AuditService::class),
+        ),
+        ApplicationDecisionService::class => static fn (ContainerInterface $c): ApplicationDecisionService => new ApplicationDecisionService(
+            $c->get(TransactionManager::class),
+            $c->get(ReviewerAccessGuard::class),
+            $c->get(ApplicationRepository::class),
+            $c->get(ApplicationReviewAssignmentRepository::class),
+            $c->get(CourseDocumentRequirementRepository::class),
+            $c->get(DocumentSubmissionRepository::class),
+            $c->get(ApplicationDecisionPreconditions::class),
+            $c->get(ApplicationStateMachine::class),
+            $c->get(VerificationAuditLogRepository::class),
+            $c->get(OutboxWriter::class),
+            $c->get(AuditService::class),
+        ),
+        LearnerCorrectionResubmitService::class => static fn (ContainerInterface $c): LearnerCorrectionResubmitService => new LearnerCorrectionResubmitService(
+            $c->get(TransactionManager::class),
+            $c->get(AuthorizationService::class),
+            $c->get(ApplicationRepository::class),
+            $c->get(DocumentSubmissionRepository::class),
+            $c->get(ApplicationStateMachine::class),
+            $c->get(OutboxWriter::class),
+            $c->get(AuditService::class),
+        ),
+        ReviewerApplicationQueryService::class => static fn (ContainerInterface $c): ReviewerApplicationQueryService => new ReviewerApplicationQueryService(
+            $c->get(ReviewerAccessGuard::class),
+            $c->get(ReviewerQueueQuery::class),
+            $c->get(ApplicationReviewAssignmentRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(BatchRepository::class),
+            $c->get(CourseDocumentRequirementRepository::class),
+            $c->get(DocumentSubmissionRepository::class),
+            $c->get(LearnerProfileRepository::class),
+            $c->get(LearnerQualificationRepository::class),
+            $c->get(VerificationAuditLogRepository::class),
+        ),
         DocumentScanWorker::class => static function (ContainerInterface $c): DocumentScanWorker {
             /** @var array{outbox: array{lease_seconds: int, max_attempts: int}, documents: array{scan_lease_seconds: int}} $security */
             $security = $c->get('config.security');
@@ -981,6 +1088,61 @@ return static function (): ContainerInterface {
                 $router->get('/applications/{id}/submission-result', [ApplicationController::class, 'submissionResult']),
                 'application.view_own',
             );
+            $applicationAccess->requirePermission(
+                $router->get('/applications/{id}/corrections', [ApplicationController::class, 'corrections']),
+                'application.view_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->post('/applications/{id}/resubmit-corrections', [ApplicationController::class, 'resubmitCorrections']),
+                'application.resubmit_corrections_own',
+            );
+
+            /** @var RouteAccess $reviewerAccess */
+            $reviewerAccess = $c->get(RouteAccess::class);
+            $reviewerAccess->requirePermission(
+                $router->get('/reviewer/applications', [ReviewerApplicationController::class, 'queue']),
+                'reviewer.queue.view',
+            );
+            $reviewerAccess->requirePermission(
+                $router->get('/reviewer/applications/{id}', [ReviewerApplicationController::class, 'show']),
+                'reviewer.application.view',
+            );
+            $reviewerAccess->requirePermission(
+                $router->post('/reviewer/applications/{id}/claim', [ReviewerApplicationController::class, 'claim']),
+                'reviewer.application.claim',
+            );
+            $reviewerAccess->requirePermission(
+                $router->post('/reviewer/applications/{id}/release', [ReviewerApplicationController::class, 'release']),
+                'reviewer.application.claim',
+            );
+            $reviewerAccess->requirePermission(
+                $router->post('/reviewer/applications/{id}/documents/{submissionId}/verify', [ReviewerApplicationController::class, 'verifyDocument']),
+                'reviewer.document.review',
+            );
+            $reviewerAccess->requirePermission(
+                $router->post('/reviewer/applications/{id}/documents/{submissionId}/reject', [ReviewerApplicationController::class, 'rejectDocument']),
+                'reviewer.document.review',
+            );
+            $reviewerAccess->requirePermission(
+                $router->post('/reviewer/applications/{id}/documents/{submissionId}/request-resubmission', [ReviewerApplicationController::class, 'requestDocumentResubmission']),
+                'reviewer.document.review',
+            );
+            $reviewerAccess->requirePermission(
+                $router->post('/reviewer/applications/{id}/request-correction', [ReviewerApplicationController::class, 'requestCorrection']),
+                'reviewer.document.review',
+            );
+            $reviewerAccess->requirePermission(
+                $router->post('/reviewer/applications/{id}/approve', [ReviewerApplicationController::class, 'approve']),
+                'reviewer.application.approve',
+            );
+            $reviewerAccess->requirePermission(
+                $router->post('/reviewer/applications/{id}/reject', [ReviewerApplicationController::class, 'reject']),
+                'reviewer.application.reject',
+            );
+            $reviewerAccess->requirePermission(
+                $router->get('/reviewer/applications/{id}/documents/{submissionId}/download', [ReviewerApplicationController::class, 'downloadDocument']),
+                'reviewer.application.view',
+            );
 
             $applicationAccess->requirePermission(
                 $router->post('/applications/{id}/documents/upload-authorizations', [DocumentController::class, 'authorizeUpload']),
@@ -1105,6 +1267,16 @@ return static function (): ContainerInterface {
             $c->get(ApplicationWorkspaceService::class),
             $c->get(ApplicationDeclarationService::class),
             $c->get(ApplicationSubmitService::class),
+            $c->get(LearnerCorrectionResubmitService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        ReviewerApplicationController::class => static fn (ContainerInterface $c): ReviewerApplicationController => new ReviewerApplicationController(
+            $c->get(ReviewerApplicationQueryService::class),
+            $c->get(ReviewerClaimService::class),
+            $c->get(DocumentReviewService::class),
+            $c->get(ApplicationCorrectionRequestService::class),
+            $c->get(ApplicationDecisionService::class),
+            $c->get(DocumentDownloadService::class),
             $c->get(PhpRenderer::class),
         ),
         DocumentController::class => static fn (ContainerInterface $c): DocumentController => new DocumentController(

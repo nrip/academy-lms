@@ -33,4 +33,9 @@ final class Application
     {
         return $this->isDraft();
     }
+
+    public function allowsLearnerDocumentCorrection(): bool
+    {
+        return $this->status === ApplicationStatus::RESUBMISSION_REQUESTED;
+    }
 }
