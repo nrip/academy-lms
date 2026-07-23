@@ -13,6 +13,8 @@ use Academy\Application\Credentials\DocumentDownloadService;
 use Academy\Application\Credentials\DocumentScanWorker;
 use Academy\Application\Credentials\DocumentUploadService;
 use Academy\Application\Credentials\StuckScanWatchService;
+use Academy\Application\Dashboard\LearnerDashboardQueryService;
+use Academy\Application\Dashboard\LearnerStatusPresenter;
 use Academy\Application\Identity\CompositeTokenConsumedHandler;
 use Academy\Application\Identity\EmailVerificationResendService;
 use Academy\Application\Identity\EmailVerificationTokenConsumedHandler;
@@ -25,15 +27,23 @@ use Academy\Application\Identity\MobileOtpResendService;
 use Academy\Application\Identity\MobileOtpVerificationService;
 use Academy\Application\Identity\PasswordHasher;
 use Academy\Application\Identity\PasswordResetService;
+use Academy\Application\Identity\PostLoginDestinationResolver;
 use Academy\Application\Identity\QualificationService;
 use Academy\Application\Identity\RegistrationService;
 use Academy\Application\Identity\TokenConfirmationCleanupService;
 use Academy\Application\Identity\TokenConfirmationService;
 use Academy\Application\Identity\VerificationChallengeIssuer;
 use Academy\Application\Identity\VerificationTokenIssuer;
+use Academy\Application\Notifications\AdminNotificationQueryService;
+use Academy\Application\Notifications\AdminNotificationRetryService;
 use Academy\Application\Notifications\DeliveryFinaliser;
 use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
 use Academy\Application\Notifications\NotificationCapability;
+use Academy\Application\Notifications\NotificationContextResolver;
+use Academy\Application\Notifications\NotificationRecipientResolver;
+use Academy\Application\Notifications\NotificationTemplateRenderer;
+use Academy\Application\Notifications\TransactionalNotificationDeliveryWorker;
+use Academy\Application\Notifications\TransactionalNotificationTemplateRegistry;
 use Academy\Application\Outbox\OutboxRelayService;
 use Academy\Application\Payments\FinancePaymentQueryService;
 use Academy\Application\Payments\FinanceReconciliationQueryService;
@@ -98,6 +108,8 @@ use Academy\Domain\Learning\EnrolmentRepository;
 use Academy\Domain\Learning\EnrolmentStateMachine;
 use Academy\Domain\Learning\EnrolmentStatusHistoryRepository;
 use Academy\Domain\Notifications\EmailDeliveryPort;
+use Academy\Domain\Notifications\NotificationDeliveryRepository;
+use Academy\Domain\Notifications\NotificationRetryPolicy;
 use Academy\Domain\Notifications\SmsOtpDeliveryPort;
 use Academy\Domain\Outbox\OutboxRepository;
 use Academy\Domain\Outbox\OutboxTransport;
@@ -124,9 +136,11 @@ use Academy\Domain\Review\VerificationAuditLogRepository;
 use Academy\Domain\Security\RateLimitStore;
 use Academy\Domain\Security\SessionRepository;
 use Academy\Domain\Storage\ObjectStorage;
+use Academy\Http\Controllers\AdminNotificationController;
 use Academy\Http\Controllers\ApplicationController;
 use Academy\Http\Controllers\BatchController;
 use Academy\Http\Controllers\CourseCatalogueController;
+use Academy\Http\Controllers\DashboardController;
 use Academy\Http\Controllers\DocumentController;
 use Academy\Http\Controllers\EmailVerificationController;
 use Academy\Http\Controllers\FinancePaymentController;
@@ -189,6 +203,7 @@ use Academy\Infrastructure\Learning\PdoEnrolmentStatusHistoryRepository;
 use Academy\Infrastructure\Logging\LoggerFactory;
 use Academy\Infrastructure\Notifications\LocalFileEmailAdapter;
 use Academy\Infrastructure\Notifications\NotificationKeyMaterial;
+use Academy\Infrastructure\Notifications\PdoNotificationDeliveryRepository;
 use Academy\Infrastructure\Notifications\RecordingEmailAdapter;
 use Academy\Infrastructure\Notifications\RecordingSmsAdapter;
 use Academy\Infrastructure\Notifications\SealedSecretBox;
@@ -453,6 +468,8 @@ return static function (): ContainerInterface {
             $c->get(OutboxWriter::class),
             $c->get(AuditService::class),
             $c->get(RateLimiter::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(LearnerStatusPresenter::class),
         ),
         FinancePaymentQueryService::class => static fn (ContainerInterface $c): FinancePaymentQueryService => new FinancePaymentQueryService(
             $c->get(AuthorizationService::class),
@@ -888,6 +905,9 @@ return static function (): ContainerInterface {
             $c->get(AuditService::class),
             $c->get(RateLimiter::class),
         ),
+        PostLoginDestinationResolver::class => static fn (ContainerInterface $c): PostLoginDestinationResolver => new PostLoginDestinationResolver(
+            $c->get(AuthorizationService::class),
+        ),
         LogoutService::class => static fn (ContainerInterface $c): LogoutService => new LogoutService(
             $c->get(SessionService::class),
             $c->get(AuditService::class),
@@ -1123,6 +1143,78 @@ return static function (): ContainerInterface {
                 $security['outbox']['max_attempts'],
             );
         },
+        NotificationDeliveryRepository::class => static fn (ContainerInterface $c): NotificationDeliveryRepository => new PdoNotificationDeliveryRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        NotificationRetryPolicy::class => static function (ContainerInterface $c): NotificationRetryPolicy {
+            /** @var array{outbox: array{max_attempts: int, backoff_base_seconds: int, backoff_cap_seconds: int}} $security */
+            $security = $c->get('config.security');
+
+            return new NotificationRetryPolicy(
+                maxAttempts: min(5, $security['outbox']['max_attempts']),
+                backoffBaseSeconds: max(30, $security['outbox']['backoff_base_seconds']),
+                backoffCapSeconds: $security['outbox']['backoff_cap_seconds'],
+            );
+        },
+        LearnerStatusPresenter::class => static fn (): LearnerStatusPresenter => new LearnerStatusPresenter(),
+        TransactionalNotificationTemplateRegistry::class => static fn (): TransactionalNotificationTemplateRegistry => new TransactionalNotificationTemplateRegistry(),
+        NotificationTemplateRenderer::class => static fn (): NotificationTemplateRenderer => new NotificationTemplateRenderer(),
+        NotificationRecipientResolver::class => static function (ContainerInterface $c): NotificationRecipientResolver {
+            /** @var array{notifications: array{delivery_key: string}} $security */
+            $security = $c->get('config.security');
+
+            return new NotificationRecipientResolver(
+                $c->get(UserWriteRepository::class),
+                hash('sha256', $security['notifications']['delivery_key'] . '|recipient'),
+            );
+        },
+        NotificationContextResolver::class => static function (ContainerInterface $c): NotificationContextResolver {
+            /** @var array{url: string} $app */
+            $app = $c->get('config.app');
+
+            return new NotificationContextResolver(
+                $c->get(ConnectionFactory::class),
+                $c->get(ApplicationRepository::class),
+                $c->get(PaymentRepository::class),
+                $c->get(EnrolmentRepository::class),
+                $c->get(NotificationRecipientResolver::class),
+                $app['url'],
+                $c->get(LearnerStatusPresenter::class),
+            );
+        },
+        LearnerDashboardQueryService::class => static fn (ContainerInterface $c): LearnerDashboardQueryService => new LearnerDashboardQueryService(
+            $c->get(AuthorizationService::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(LearnerStatusPresenter::class),
+        ),
+        AdminNotificationQueryService::class => static fn (ContainerInterface $c): AdminNotificationQueryService => new AdminNotificationQueryService(
+            $c->get(AuthorizationService::class),
+            $c->get(NotificationDeliveryRepository::class),
+        ),
+        AdminNotificationRetryService::class => static fn (ContainerInterface $c): AdminNotificationRetryService => new AdminNotificationRetryService(
+            $c->get(AuthorizationService::class),
+            $c->get(NotificationDeliveryRepository::class),
+            $c->get(TransactionManager::class),
+            $c->get(AuditService::class),
+        ),
+        TransactionalNotificationDeliveryWorker::class => static function (ContainerInterface $c): TransactionalNotificationDeliveryWorker {
+            /** @var array{outbox: array{lease_seconds: int}} $security */
+            $security = $c->get('config.security');
+
+            return new TransactionalNotificationDeliveryWorker(
+                $c->get(OutboxRepository::class),
+                $c->get(NotificationDeliveryRepository::class),
+                $c->get(NotificationContextResolver::class),
+                $c->get(TransactionalNotificationTemplateRegistry::class),
+                $c->get(NotificationTemplateRenderer::class),
+                $c->get(EmailDeliveryPort::class),
+                $c->get(NotificationRetryPolicy::class),
+                $c->get(TransactionManager::class),
+                $c->get(AuditService::class),
+                $c->get(LoggerInterface::class),
+                $security['outbox']['lease_seconds'],
+            );
+        },
         IdentityNotificationDeliveryWorker::class => static function (ContainerInterface $c): IdentityNotificationDeliveryWorker {
             /** @var array{outbox: array{lease_seconds: int, max_attempts: int, backoff_base_seconds: int, backoff_cap_seconds: int}} $security */
             $security = $c->get('config.security');
@@ -1248,6 +1340,28 @@ return static function (): ContainerInterface {
             $router->get('/courses/{slug}', [CourseCatalogueController::class, 'show']);
             $router->get('/courses/{slug}/batches', [CourseCatalogueController::class, 'batches']);
             $router->get('/batches/{batchId}', [BatchController::class, 'show']);
+
+            /** @var RouteAccess $dashboardAccess */
+            $dashboardAccess = $c->get(RouteAccess::class);
+            $dashboardAccess->requirePermission(
+                $router->get('/dashboard', [DashboardController::class, 'index']),
+                'dashboard.view_own',
+            );
+
+            /** @var RouteAccess $notificationAccess */
+            $notificationAccess = $c->get(RouteAccess::class);
+            $notificationAccess->requirePermission(
+                $router->get('/admin/notifications', [AdminNotificationController::class, 'index']),
+                'notification.view',
+            );
+            $notificationAccess->requirePermission(
+                $router->get('/admin/notifications/{id}', [AdminNotificationController::class, 'show']),
+                'notification.view',
+            );
+            $notificationAccess->requirePermission(
+                $router->post('/admin/notifications/{id}/retry', [AdminNotificationController::class, 'retry']),
+                'notification.retry',
+            );
 
             /** @var RouteAccess $applicationAccess */
             $applicationAccess = $c->get(RouteAccess::class);
@@ -1536,12 +1650,23 @@ return static function (): ContainerInterface {
         LocalStorageDownloadController::class => static fn (ContainerInterface $c): LocalStorageDownloadController => new LocalStorageDownloadController(
             $c->get(LocalObjectStorage::class),
         ),
+        DashboardController::class => static fn (ContainerInterface $c): DashboardController => new DashboardController(
+            $c->get(LearnerDashboardQueryService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        AdminNotificationController::class => static fn (ContainerInterface $c): AdminNotificationController => new AdminNotificationController(
+            $c->get(AdminNotificationQueryService::class),
+            $c->get(AdminNotificationRetryService::class),
+            $c->get(PhpRenderer::class),
+        ),
         LoginController::class => static fn (ContainerInterface $c): LoginController => new LoginController(
             $c->get(LoginService::class),
             $c->get(LogoutService::class),
             $c->get(SessionService::class),
             $c->get(SessionCookieSettings::class),
             $c->get(PhpRenderer::class),
+            $c->get(PostLoginDestinationResolver::class),
+            $c->get(UserSecuritySnapshotRepository::class),
         ),
         ForgotPasswordController::class => static fn (ContainerInterface $c): ForgotPasswordController => new ForgotPasswordController(
             $c->get(ForgotPasswordService::class),

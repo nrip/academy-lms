@@ -21,6 +21,7 @@ use Academy\Application\Credentials\DocumentScanWorker;
 use Academy\Application\Credentials\StuckScanWatchService;
 use Academy\Application\Identity\TokenConfirmationCleanupService;
 use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
+use Academy\Application\Notifications\TransactionalNotificationDeliveryWorker;
 use Academy\Application\Outbox\OutboxRelayService;
 use Academy\Application\Payments\PaymentReconciliationService;
 use Academy\Application\Payments\PaymentWebhookProcessor;
@@ -87,8 +88,9 @@ $exit = match ($command) {
         return 0;
     })(),
     'notification:deliver' => (static function () use ($container, $workerId): int {
-        $processed = $container->get(IdentityNotificationDeliveryWorker::class)->run($workerId);
-        fwrite(STDOUT, "notification:deliver processed={$processed}\n");
+        $identity = $container->get(IdentityNotificationDeliveryWorker::class)->run($workerId);
+        $transactional = $container->get(TransactionalNotificationDeliveryWorker::class)->run($workerId);
+        fwrite(STDOUT, "notification:deliver identity={$identity} transactional={$transactional}\n");
 
         return 0;
     })(),

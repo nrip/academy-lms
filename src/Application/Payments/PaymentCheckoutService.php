@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Academy\Application\Payments;
 
 use Academy\Application\Audit\AuditService;
+use Academy\Application\Dashboard\LearnerStatusPresenter;
 use Academy\Application\RBAC\AuthorizationService;
 use Academy\Application\Security\RateLimiter;
 use Academy\Domain\Admissions\Application;
 use Academy\Domain\Admissions\ApplicationRepository;
+use Academy\Domain\Admissions\ApplicationStatus;
 use Academy\Domain\Audit\PaymentAuditPayload;
 use Academy\Domain\Courses\BatchRepository;
 use Academy\Domain\Courses\CourseVersionRepository;
@@ -17,6 +19,7 @@ use Academy\Domain\Exception\ConflictException;
 use Academy\Domain\Exception\DomainRuleException;
 use Academy\Domain\Exception\ExternalServiceException;
 use Academy\Domain\Exception\NotFoundException;
+use Academy\Domain\Learning\EnrolmentRepository;
 use Academy\Domain\Outbox\OutboxWriter;
 use Academy\Domain\Payments\Payment;
 use Academy\Domain\Payments\PaymentAmountSnapshot;
@@ -51,6 +54,8 @@ final class PaymentCheckoutService
         private readonly OutboxWriter $outbox,
         private readonly AuditService $audit,
         private readonly RateLimiter $rateLimiter,
+        private readonly EnrolmentRepository $enrolments,
+        private readonly LearnerStatusPresenter $statusPresenter,
     ) {
     }
 
@@ -502,16 +507,25 @@ final class PaymentCheckoutService
         $primary = $attempts === [] ? null : $attempts[array_key_last($attempts)];
         $isConfirming = $primary !== null && PaymentStatus::isInFlight($primary->status);
 
+        $enrolment = $this->enrolments->findByApplicationId($applicationId);
+        $enrolmentLabel = null;
+        if ($enrolment !== null) {
+            $enrolmentLabel = $this->statusPresenter->enrolmentPresentation($enrolment->lifecycleStatus)->label;
+        }
+
         $headline = match (true) {
             $primary === null => 'No payment attempt yet',
             $isConfirming => 'Confirming payment…',
-            $primary->status === PaymentStatus::FAILED => 'Payment failed',
+            $primary->status === PaymentStatus::FAILED => 'Payment unsuccessful',
             $primary->status === PaymentStatus::CANCELLED => 'Payment cancelled',
             $primary->status === PaymentStatus::EXPIRED => 'Payment expired',
-            $primary->status === PaymentStatus::SUCCESSFUL => $application->status === \Academy\Domain\Admissions\ApplicationStatus::ADMITTED
-                ? 'Payment successful — admitted'
-                : 'Payment successful',
-            $primary->status === PaymentStatus::RECONCILIATION_PENDING => 'Payment reconciliation pending',
+            $primary->status === PaymentStatus::SUCCESSFUL => $application->status === ApplicationStatus::ADMITTED
+                && $enrolment !== null
+                ? 'Payment successful — enrolled'
+                : ($application->status === ApplicationStatus::ADMITTED
+                    ? 'Payment successful — admitted'
+                    : 'Payment successful'),
+            $primary->status === PaymentStatus::RECONCILIATION_PENDING => 'Payment under verification',
             default => 'Payment status: ' . $primary->status,
         };
 
@@ -521,6 +535,7 @@ final class PaymentCheckoutService
             attempts: $attempts,
             isConfirming: $isConfirming,
             statusHeadline: $headline,
+            enrolmentLifecycleLabel: $enrolmentLabel,
         );
     }
 

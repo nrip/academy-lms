@@ -80,7 +80,7 @@ final class LoginHttpTest extends TestCase
         );
 
         self::assertSame(302, $response->getStatusCode());
-        self::assertSame('/smoke', $response->getHeaderLine('Location'));
+        self::assertSame('/dashboard', $response->getHeaderLine('Location'));
         $newSession = $this->cookieValue($response->getHeader('Set-Cookie'), $this->sessionCookieName);
         self::assertNotNull($newSession);
         self::assertNotSame($oldSession, $newSession);
@@ -205,8 +205,15 @@ final class LoginHttpTest extends TestCase
             strtolower($email), $now, $mobile, $now, $hash, AccountStatus::ACTIVE,
             $now, $now, 'terms.v1', $now, 'privacy.v1', 'Asia/Kolkata', $now, $now,
         ]);
+        $userId = (int) $pdo->lastInsertId();
+        $pdo->prepare(
+            'INSERT INTO user_roles (
+                user_id, role_id, assigned_by, assigned_at, current_marker, created_at, updated_at
+             )
+             SELECT ?, role_id, NULL, ?, 1, ?, ? FROM roles WHERE role_key = ?',
+        )->execute([$userId, $now, $now, $now, \Academy\Domain\RBAC\RoleKeys::APPLICANT]);
 
-        return ['user_id' => (int) $pdo->lastInsertId(), 'auth_version' => 1];
+        return ['user_id' => $userId, 'auth_version' => 1];
     }
 
     /**

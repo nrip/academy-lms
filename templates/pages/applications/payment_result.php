@@ -29,11 +29,14 @@ ob_start();
             <?= $e->html('Payment recorded as successful.') ?>
             <?php if ($application->status === \Academy\Domain\Admissions\ApplicationStatus::ADMITTED): ?>
                 <?= $e->html(' Your application is admitted.') ?>
+                <?php if (isset($enrolmentLifecycleLabel) && is_string($enrolmentLifecycleLabel)): ?>
+                    <?= $e->html(' Enrolment status: ' . $enrolmentLifecycleLabel . '.') ?>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     <?php elseif ($primary !== null && $primary->status === PaymentStatus::RECONCILIATION_PENDING): ?>
         <div class="alert alert-warning" role="status">
-            <?= $e->html('Payment is pending finance reconciliation. Enrolment is not confirmed yet.') ?>
+            <?= $e->html('Payment is under verification. Enrolment is not confirmed yet.') ?>
         </div>
     <?php elseif ($primary !== null && PaymentStatus::isRetryEligible($primary->status)): ?>
         <div class="alert alert-warning" role="status">
@@ -66,6 +69,8 @@ ob_start();
     <?php endif; ?>
 
     <p class="mt-4 mb-0">
+        <a href="/dashboard"><?= $e->html('Go to dashboard') ?></a>
+        ·
         <a href="/applications/<?= $e->attr($application->applicationId) ?>"><?= $e->html('Back to application') ?></a>
     </p>
 </div>

@@ -63,6 +63,13 @@ final class NotificationAuditPayload implements AuditPayload
             'outbox_message_id',
             'provider_message_id',
             'attempt_count',
+            'delivery_id',
+            'user_id',
+            'channel',
+            'template_key',
+            'template_version',
+            'status',
+            'failure_category',
         ];
     }
 

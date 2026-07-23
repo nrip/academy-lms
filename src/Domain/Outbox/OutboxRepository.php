@@ -78,6 +78,11 @@ interface OutboxRepository
     ): bool;
 
     /**
+     * Read-only load for notification retry (published messages included).
+     */
+    public function findMessageById(int $outboxMessageId): ?OutboxMessage;
+
+    /**
      * Marks any pending scan-request outbox row for an aggregate as published once
      * the worker has handled the submission directly via claimPendingScan().
      */

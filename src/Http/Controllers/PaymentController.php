@@ -147,6 +147,7 @@ final class PaymentController
             'title' => 'Payment status',
             'csrf' => $this->csrf($request),
             'view' => $view,
+            'enrolmentLifecycleLabel' => $view->enrolmentLifecycleLabel,
         ]);
 
         return new HtmlResponse($html);

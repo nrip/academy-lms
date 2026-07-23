@@ -256,6 +256,36 @@ final class PdoOutboxRepository implements OutboxRepository, OutboxWriter
         }
     }
 
+    public function findMessageById(int $outboxMessageId): ?OutboxMessage
+    {
+        $pdo = $this->connections->connection();
+        $fetch = $pdo->prepare(
+            'SELECT outbox_message_id, event_type, aggregate_type, aggregate_id, payload,
+                    idempotency_key, status, attempt_count, locked_by, claim_token
+             FROM outbox_messages WHERE outbox_message_id = :id',
+        );
+        $fetch->execute(['id' => $outboxMessageId]);
+        $row = $fetch->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return null;
+        }
+        /** @var array<string, mixed> $payload */
+        $payload = json_decode((string) $row['payload'], true, 512, JSON_THROW_ON_ERROR);
+
+        return new OutboxMessage(
+            (int) $row['outbox_message_id'],
+            (string) $row['event_type'],
+            (string) $row['aggregate_type'],
+            (string) $row['aggregate_id'],
+            $payload,
+            (string) $row['idempotency_key'],
+            (string) $row['status'],
+            (int) $row['attempt_count'],
+            (string) ($row['locked_by'] ?? ''),
+            (string) ($row['claim_token'] ?? ''),
+        );
+    }
+
     public function markPublished(
         int $id,
         string $lockedBy,

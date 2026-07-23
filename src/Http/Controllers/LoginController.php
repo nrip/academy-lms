@@ -6,8 +6,11 @@ namespace Academy\Http\Controllers;
 
 use Academy\Application\Identity\LoginService;
 use Academy\Application\Identity\LogoutService;
+use Academy\Application\Identity\PostLoginDestinationResolver;
 use Academy\Application\Security\SessionService;
 use Academy\Domain\Exception\AuthenticationException;
+use Academy\Domain\Identity\AuthStage;
+use Academy\Domain\Identity\UserSecuritySnapshotRepository;
 use Academy\Domain\Security\AuthContext;
 use Academy\Domain\Security\SessionRecord;
 use Academy\Http\Middleware\AuthenticationMiddleware;
@@ -28,6 +31,8 @@ final class LoginController
         private readonly SessionService $sessions,
         private readonly SessionCookieSettings $sessionCookies,
         private readonly PhpRenderer $renderer,
+        private readonly PostLoginDestinationResolver $destinations,
+        private readonly UserSecuritySnapshotRepository $securitySnapshots,
     ) {
     }
 
@@ -36,16 +41,21 @@ final class LoginController
         /** @var AuthContext|null $auth */
         $auth = $request->getAttribute(AuthenticationMiddleware::ATTR_AUTH);
         if ($auth instanceof AuthContext && $auth->authenticated) {
-            return new RedirectResponse('/smoke', 302);
+            return new RedirectResponse(
+                $this->destinations->resolve($auth, $this->extractReturnTo($request)),
+                302,
+            );
         }
 
         /** @var string $csrf */
         $csrf = (string) $request->getAttribute(SessionMiddleware::ATTR_RAW_CSRF, '');
+        $returnTo = $this->extractReturnTo($request);
 
         $html = $this->renderer->render('pages/auth/login', [
             'title' => 'Sign in',
             'csrf' => $csrf,
             'error' => null,
+            'return_to' => $returnTo,
         ]);
 
         return new HtmlResponse($html);
@@ -56,6 +66,7 @@ final class LoginController
         $body = (array) $request->getParsedBody();
         $email = isset($body['email']) && is_string($body['email']) ? $body['email'] : '';
         $password = isset($body['password']) && is_string($body['password']) ? $body['password'] : '';
+        $returnTo = $this->extractReturnTo($request);
 
         /** @var string $csrf */
         $csrf = (string) $request->getAttribute(SessionMiddleware::ATTR_RAW_CSRF, '');
@@ -67,6 +78,7 @@ final class LoginController
                 'title' => 'Sign in',
                 'csrf' => $csrf,
                 'error' => LoginService::GENERIC_FAILURE,
+                'return_to' => $returnTo,
             ]);
 
             return new HtmlResponse($html, 401);
@@ -79,14 +91,16 @@ final class LoginController
                 'title' => 'Sign in',
                 'csrf' => $csrf,
                 'error' => LoginService::GENERIC_FAILURE,
+                'return_to' => $returnTo,
             ]);
 
             return new HtmlResponse($html, 401);
         }
 
         $established = $this->login->establishSession($this->sessions, $session, $success);
+        $destination = $this->resolveAfterLogin($success->userId, $established['record'], $returnTo);
 
-        $response = new RedirectResponse('/smoke', 302);
+        $response = new RedirectResponse($destination, 302);
         $response = $response->withAddedHeader(
             'Set-Cookie',
             $this->sessionCookies->buildSessionSetCookie($established['raw_token']),
@@ -121,6 +135,46 @@ final class LoginController
         }
 
         return $response;
+    }
+
+    private function resolveAfterLogin(int $userId, SessionRecord $session, ?string $returnTo): string
+    {
+        $snapshot = $this->securitySnapshots->findById($userId);
+        if ($snapshot === null) {
+            return PostLoginDestinationResolver::COURSES;
+        }
+
+        $rawStage = null;
+        if (isset($session->payload['auth_stage']) && is_string($session->payload['auth_stage'])) {
+            $rawStage = $session->payload['auth_stage'];
+        }
+        $authStage = AuthStage::resolveEffective($rawStage, $snapshot->hasPrivilegedRole);
+
+        $auth = AuthContext::authenticated(
+            userId: $snapshot->userId,
+            sessionId: $session->sessionId,
+            authStage: $authStage,
+            authVersion: $snapshot->authVersion,
+            hasPrivilegedRole: $snapshot->hasPrivilegedRole,
+            accountStatus: $snapshot->accountStatus,
+        );
+
+        return $this->destinations->resolve($auth, $returnTo);
+    }
+
+    private function extractReturnTo(ServerRequestInterface $request): ?string
+    {
+        $body = $request->getParsedBody();
+        if (is_array($body) && isset($body['return_to']) && is_string($body['return_to'])) {
+            return $body['return_to'];
+        }
+
+        $query = $request->getQueryParams();
+        if (isset($query['return_to']) && is_string($query['return_to'])) {
+            return $query['return_to'];
+        }
+
+        return null;
     }
 
     private function clientIp(ServerRequestInterface $request): string
