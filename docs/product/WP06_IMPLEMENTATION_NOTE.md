@@ -1,6 +1,8 @@
 # WP-06 — Webhook, Admission and Enrolment
 
 **Branch:** `slice/wp06-webhook-admission-enrolment`  
+**HEAD:** `c425a2d9d06633a12fa5a4efbc0d746d7752a9d2`  
+**Diff vs main:** 74 files, +6554 / −10  
 **Roadmap ID:** WP-06 Webhook, Admission and Enrolment  
 **Authority:** SRS v6.1 REQ-PAY-3/4/5/11, REQ-ENR-1, REQ-BATCH-5, PAY-ATTEMPT-1, VERTICAL_SLICE_ROADMAP WP-06.
 
