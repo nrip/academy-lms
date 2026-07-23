@@ -27,6 +27,7 @@ use Academy\Application\Identity\MobileOtpResendService;
 use Academy\Application\Identity\MobileOtpVerificationService;
 use Academy\Application\Identity\PasswordHasher;
 use Academy\Application\Identity\PasswordResetService;
+use Academy\Application\Identity\PostLoginDestinationResolver;
 use Academy\Application\Identity\QualificationService;
 use Academy\Application\Identity\RegistrationService;
 use Academy\Application\Identity\TokenConfirmationCleanupService;
@@ -904,6 +905,9 @@ return static function (): ContainerInterface {
             $c->get(AuditService::class),
             $c->get(RateLimiter::class),
         ),
+        PostLoginDestinationResolver::class => static fn (ContainerInterface $c): PostLoginDestinationResolver => new PostLoginDestinationResolver(
+            $c->get(AuthorizationService::class),
+        ),
         LogoutService::class => static fn (ContainerInterface $c): LogoutService => new LogoutService(
             $c->get(SessionService::class),
             $c->get(AuditService::class),
@@ -1661,6 +1665,8 @@ return static function (): ContainerInterface {
             $c->get(SessionService::class),
             $c->get(SessionCookieSettings::class),
             $c->get(PhpRenderer::class),
+            $c->get(PostLoginDestinationResolver::class),
+            $c->get(UserSecuritySnapshotRepository::class),
         ),
         ForgotPasswordController::class => static fn (ContainerInterface $c): ForgotPasswordController => new ForgotPasswordController(
             $c->get(ForgotPasswordService::class),

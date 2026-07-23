@@ -6,6 +6,7 @@ declare(strict_types=1);
 /** @var string $title */
 /** @var string $csrf */
 /** @var string|null $error */
+/** @var string|null $return_to */
 
 ?><!DOCTYPE html>
 <html lang="en">
@@ -22,6 +23,9 @@ declare(strict_types=1);
     <?php endif; ?>
     <form method="post" action="/login">
         <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+        <?php if (isset($return_to) && is_string($return_to) && $return_to !== ''): ?>
+            <input type="hidden" name="return_to" value="<?= $e->attr($return_to) ?>">
+        <?php endif; ?>
         <p>
             <label for="email">Email</label><br>
             <input type="email" id="email" name="email" required autocomplete="username">

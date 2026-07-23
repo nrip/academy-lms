@@ -15,6 +15,7 @@
 | Ops list/detail/retry for deliveries | Marketing preferences / campaigns |
 | Payment-result → dashboard handoff; Enrolment as admit SoT | ContentProgress / player access |
 | Mode A E2E + focused regressions | Unrelated admissions/payment redesign |
+| Permission-based post-login destination resolver | Role-name branching; restore `/smoke` as production landing |
 
 ## Decisions (no blockers)
 
@@ -25,7 +26,7 @@
 5. **Dashboard:** Read-only query model scoped by `auth.user_id`. Latest payment = highest `payment_id` per application. Enrolment row is authoritative for admission completion. No document/webhook/reviewer internals.
 6. **Permissions:** `dashboard.view_own` (applicant); `enrolment.view_own` (existing); `notification.view` / `notification.retry` (super_admin, sensitive). No Finance document access. No role-name checks.
 7. **Preferences:** Transactional Mode A emails are mandatory when email is configured; no marketing opt-out surface.
-8. **Post-login:** Authenticated learners land on `/dashboard` (replaces `/smoke`).
+8. **Post-login:** `PostLoginDestinationResolver` (permission-based). Precedence: reviewer queue → finance reconcile/payments → notification ops → learner dashboard → profile → courses. Applied to already-authenticated `GET /login` and fresh `POST /login`. Allow-listed `return_to` only (no open redirect). Non-active accounts never receive privileged landings. Route middleware remains authoritative; `/smoke` is not restored as production landing.
 
 ## Contradictions / gaps recorded (not blockers)
 
@@ -41,10 +42,14 @@
 - `GET /admin/notifications`, `GET /admin/notifications/{id}`, `POST /admin/notifications/{id}/retry`
 - Existing application/payment routes linked from dashboard next actions
 
+## Worker
+
+`php bin/jobs.php notification:deliver` — identity OTP worker, then transactional delivery worker.
+
 ### Suite totals
 | Gate | Result |
 |---|---|
-| Full PHPUnit | **1082 tests / 2909 assertions** |
+| Full PHPUnit | **1103 tests / 2972 assertions** |
 | Migration `20260724000001` rollback → reapply | Pass |
 | PHPStan | Pass (0 errors) |
 | php-cs-fixer dry-run | Pass (0 files) |
