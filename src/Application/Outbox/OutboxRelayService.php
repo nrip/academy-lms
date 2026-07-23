@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Academy\Application\Outbox;
 
 use Academy\Domain\Notifications\IdentityNotificationEventTypes;
+use Academy\Domain\Notifications\TransactionalNotificationEventTypes;
 use Academy\Domain\Outbox\OutboxRepository;
 use Academy\Domain\Outbox\OutboxTransport;
 use Psr\Log\LoggerInterface;
@@ -39,12 +40,16 @@ final class OutboxRelayService
         }
 
         $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
-        // Identity notification events are owned by IdentityNotificationDeliveryWorker.
+        // Identity OTP + transactional notification events are owned by dedicated delivery workers.
+        $excluded = array_values(array_unique(array_merge(
+            IdentityNotificationEventTypes::all(),
+            TransactionalNotificationEventTypes::all(),
+        )));
         $claimed = $this->repository->claimExcludingEventTypes(
             $workerId,
             $now,
             $this->leaseSeconds,
-            IdentityNotificationEventTypes::all(),
+            $excluded,
             $limit,
         );
         $processed = 0;
