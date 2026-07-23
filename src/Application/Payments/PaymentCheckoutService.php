@@ -508,7 +508,10 @@ final class PaymentCheckoutService
             $primary->status === PaymentStatus::FAILED => 'Payment failed',
             $primary->status === PaymentStatus::CANCELLED => 'Payment cancelled',
             $primary->status === PaymentStatus::EXPIRED => 'Payment expired',
-            $primary->status === PaymentStatus::SUCCESSFUL => 'Payment successful',
+            $primary->status === PaymentStatus::SUCCESSFUL => $application->status === \Academy\Domain\Admissions\ApplicationStatus::ADMITTED
+                ? 'Payment successful — admitted'
+                : 'Payment successful',
+            $primary->status === PaymentStatus::RECONCILIATION_PENDING => 'Payment reconciliation pending',
             default => 'Payment status: ' . $primary->status,
         };
 

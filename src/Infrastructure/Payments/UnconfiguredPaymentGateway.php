@@ -6,6 +6,7 @@ namespace Academy\Infrastructure\Payments;
 
 use Academy\Domain\Exception\ExternalServiceException;
 use Academy\Domain\Payments\GatewayOrderResult;
+use Academy\Domain\Payments\GatewayPaymentResult;
 use Academy\Domain\Payments\PaymentGateway;
 use Academy\Domain\Payments\PaymentProvider;
 
@@ -27,6 +28,16 @@ final class UnconfiguredPaymentGateway implements PaymentGateway
     }
 
     public function fetchOrder(string $providerOrderId): GatewayOrderResult
+    {
+        throw new ExternalServiceException('Payment gateway is not configured.');
+    }
+
+    public function fetchPayment(string $providerPaymentId): GatewayPaymentResult
+    {
+        throw new ExternalServiceException('Payment gateway is not configured.');
+    }
+
+    public function fetchPaymentsForOrder(string $providerOrderId): array
     {
         throw new ExternalServiceException('Payment gateway is not configured.');
     }

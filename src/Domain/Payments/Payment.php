@@ -12,6 +12,7 @@ final class Payment
         public readonly int $paymentId,
         public readonly string $publicReference,
         public readonly int $applicationId,
+        public readonly ?int $enrolmentId,
         public readonly int $userId,
         public readonly string $provider,
         public readonly ?string $providerOrderId,
@@ -38,6 +39,9 @@ final class Payment
         public readonly ?DateTimeImmutable $failedAt,
         public readonly ?DateTimeImmutable $expiredAt,
         public readonly ?DateTimeImmutable $reconciledAt,
+        public readonly ?string $reconcileLeaseOwner,
+        public readonly ?string $reconcileLeaseToken,
+        public readonly ?DateTimeImmutable $reconcileLeaseExpiresAt,
         public readonly DateTimeImmutable $createdAt,
         public readonly DateTimeImmutable $updatedAt,
     ) {

@@ -65,6 +65,8 @@ final class AdmissionsAuditPayload implements AuditPayload
             'batch_id',
             'assignment_id',
             'reviewer_user_id',
+            'payment_id',
+            'enrolment_id',
             'result',
             'status',
             'state_version',

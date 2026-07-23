@@ -6,7 +6,7 @@ namespace Academy\Domain\Payments;
 
 /**
  * Provider-neutral gateway contract. Mode A activates Razorpay only.
- * WP-05 uses createOrder (+ fetch for Fake testing). Webhook verify is WP-06.
+ * Webhook signature verification is a separate WebhookSignatureVerifier.
  */
 interface PaymentGateway
 {
@@ -24,6 +24,13 @@ interface PaymentGateway
     ): GatewayOrderResult;
 
     public function fetchOrder(string $providerOrderId): GatewayOrderResult;
+
+    public function fetchPayment(string $providerPaymentId): GatewayPaymentResult;
+
+    /**
+     * @return list<GatewayPaymentResult>
+     */
+    public function fetchPaymentsForOrder(string $providerOrderId): array;
 
     public function publicKeyId(): string;
 }

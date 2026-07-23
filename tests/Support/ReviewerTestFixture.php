@@ -47,7 +47,9 @@ final class ReviewerTestFixture
         array $requirementOverridesList = [['document_name' => 'Registration certificate', 'mandatory' => true]],
         array $options = [],
     ): array {
-        $seeded = DatabaseTestCase::seedPublishedCatalogueWithRequirements(
+        /** @var array{course_id: int, version_id: int, batch_id: int, requirement_ids: list<int>}|null $catalogue */
+        $catalogue = $options['catalogue'] ?? null;
+        $seeded = $catalogue ?? DatabaseTestCase::seedPublishedCatalogueWithRequirements(
             courseOverrides: $options['course_overrides'] ?? [],
             batchOverrides: $options['batch_overrides'] ?? [],
             requirementOverridesList: $requirementOverridesList,

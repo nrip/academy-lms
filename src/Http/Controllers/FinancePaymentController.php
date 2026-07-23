@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace Academy\Http\Controllers;
 
 use Academy\Application\Payments\FinancePaymentQueryService;
+use Academy\Application\Payments\FinanceReconciliationQueryService;
+use Academy\Application\Payments\PaymentReconciliationService;
 use Academy\Domain\Exception\AuthenticationException;
+use Academy\Domain\Exception\ValidationException;
 use Academy\Domain\Payments\PaymentAmountSnapshot;
 use Academy\Domain\Security\AuthContext;
 use Academy\Http\Middleware\AuthenticationMiddleware;
 use Academy\Http\Middleware\SessionMiddleware;
 use Academy\Infrastructure\View\PhpRenderer;
 use Laminas\Diactoros\Response\HtmlResponse;
+use Laminas\Diactoros\Response\RedirectResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -19,6 +23,8 @@ final class FinancePaymentController
 {
     public function __construct(
         private readonly FinancePaymentQueryService $financePayments,
+        private readonly FinanceReconciliationQueryService $reconciliationQuery,
+        private readonly PaymentReconciliationService $reconciliation,
         private readonly PhpRenderer $renderer,
     ) {
     }
@@ -80,6 +86,38 @@ final class FinancePaymentController
         ]);
 
         return new HtmlResponse($html);
+    }
+
+    public function reconciliation(ServerRequestInterface $request): ResponseInterface
+    {
+        $overview = $this->reconciliationQuery->overview($this->auth($request));
+        $html = $this->renderer->render('pages/finance/reconciliation', [
+            'title' => 'Payment reconciliation',
+            'csrf' => $this->csrf($request),
+            'overview' => $overview,
+        ]);
+
+        return new HtmlResponse($html);
+    }
+
+    /**
+     * @param array<string, string> $args
+     */
+    public function reconcile(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        $paymentId = (int) ($args['paymentId'] ?? 0);
+        $body = $request->getParsedBody();
+        $reason = is_array($body) && isset($body['reason']) && is_string($body['reason'])
+            ? trim($body['reason'])
+            : '';
+
+        try {
+            $this->reconciliation->retryByFinance($this->auth($request), $paymentId, $reason);
+        } catch (ValidationException) {
+            return new RedirectResponse('/finance/payments/' . $paymentId . '?error=reason', 303);
+        }
+
+        return new RedirectResponse('/finance/payments/' . $paymentId . '?reconciled=1', 303);
     }
 
     private function auth(ServerRequestInterface $request): AuthContext

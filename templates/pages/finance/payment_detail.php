@@ -51,8 +51,22 @@ ob_start();
         <?php endif; ?>
     </ul>
 
+    <?php if ($payment->status === \Academy\Domain\Payments\PaymentStatus::RECONCILIATION_PENDING
+        || $payment->status === \Academy\Domain\Payments\PaymentStatus::PENDING): ?>
+        <h2 class="h5 mt-4"><?= $e->html('Retry reconciliation') ?></h2>
+        <form method="post" action="/finance/payments/<?= $e->attr($payment->paymentId) ?>/reconcile">
+            <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+            <div class="mb-3">
+                <label class="form-label" for="reason"><?= $e->html('Reason') ?></label>
+                <input class="form-control" type="text" id="reason" name="reason" required maxlength="255">
+            </div>
+            <button type="submit" class="btn btn-primary"><?= $e->html('Retry reconciliation') ?></button>
+        </form>
+    <?php endif; ?>
+
     <p class="mt-4 mb-0">
         <a href="/finance/payments"><?= $e->html('Back to payments') ?></a>
+        · <a href="/finance/reconciliation"><?= $e->html('Reconciliation queue') ?></a>
     </p>
 </div>
 <?php

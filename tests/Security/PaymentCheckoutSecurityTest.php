@@ -190,6 +190,18 @@ final class PaymentCheckoutSecurityTest extends TestCase
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('PAYMENTS_FAKE_GATEWAY is forbidden');
-        $builder('staging', $bool, $string, $int);
+        try {
+            $builder('staging', $bool, $string, $int);
+        } finally {
+            unset(
+                $_ENV['PAYMENTS_FAKE_GATEWAY'],
+                $_ENV['RAZORPAY_KEY_ID'],
+                $_ENV['RAZORPAY_KEY_SECRET'],
+                $_ENV['TOKEN_PEPPER'],
+                $_ENV['OTP_PEPPER'],
+                $_ENV['NOTIFICATION_DELIVERY_KEY'],
+                $_ENV['RATE_LIMIT_PEPPER'],
+            );
+        }
     }
 }

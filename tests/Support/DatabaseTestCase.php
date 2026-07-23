@@ -129,12 +129,21 @@ final class DatabaseTestCase
         $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
         $pdo->exec('DROP TRIGGER IF EXISTS trg_verification_audit_log_forbid_delete');
         $pdo->exec('DROP TRIGGER IF EXISTS trg_verification_audit_log_forbid_update');
+        $pdo->exec('DROP TRIGGER IF EXISTS trg_payment_status_history_forbid_delete');
+        $pdo->exec('DROP TRIGGER IF EXISTS trg_payment_status_history_forbid_update');
+        $pdo->exec('DROP TRIGGER IF EXISTS trg_enrolment_status_history_forbid_delete');
+        $pdo->exec('DROP TRIGGER IF EXISTS trg_enrolment_status_history_forbid_update');
         foreach ([
             'verification_audit_log',
             'application_review_assignments',
             'reviewer_scope_assignments',
             'document_upload_authorizations',
             'document_submissions',
+            'enrolment_status_history',
+            'enrolments',
+            'payment_status_history',
+            'payment_webhook_events',
+            'payments',
             'applications',
             'batches',
         ] as $table) {
@@ -191,6 +200,30 @@ CREATE TRIGGER trg_verification_audit_log_forbid_delete
 BEFORE DELETE ON verification_audit_log
 FOR EACH ROW
 SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'verification_audit_log is append-only'
+SQL);
+        $pdo->exec(<<<'SQL'
+CREATE TRIGGER trg_payment_status_history_forbid_update
+BEFORE UPDATE ON payment_status_history
+FOR EACH ROW
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'payment_status_history is append-only'
+SQL);
+        $pdo->exec(<<<'SQL'
+CREATE TRIGGER trg_payment_status_history_forbid_delete
+BEFORE DELETE ON payment_status_history
+FOR EACH ROW
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'payment_status_history is append-only'
+SQL);
+        $pdo->exec(<<<'SQL'
+CREATE TRIGGER trg_enrolment_status_history_forbid_update
+BEFORE UPDATE ON enrolment_status_history
+FOR EACH ROW
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'enrolment_status_history is append-only'
+SQL);
+        $pdo->exec(<<<'SQL'
+CREATE TRIGGER trg_enrolment_status_history_forbid_delete
+BEFORE DELETE ON enrolment_status_history
+FOR EACH ROW
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'enrolment_status_history is append-only'
 SQL);
         $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
     }
