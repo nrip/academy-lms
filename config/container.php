@@ -35,6 +35,8 @@ use Academy\Application\Notifications\DeliveryFinaliser;
 use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
 use Academy\Application\Notifications\NotificationCapability;
 use Academy\Application\Outbox\OutboxRelayService;
+use Academy\Application\Payments\FinancePaymentQueryService;
+use Academy\Application\Payments\PaymentCheckoutService;
 use Academy\Application\RBAC\AuthorizationService;
 use Academy\Application\RBAC\RoleAssignmentService;
 use Academy\Application\Review\ApplicationCorrectionRequestService;
@@ -89,6 +91,12 @@ use Academy\Domain\Notifications\SmsOtpDeliveryPort;
 use Academy\Domain\Outbox\OutboxRepository;
 use Academy\Domain\Outbox\OutboxTransport;
 use Academy\Domain\Outbox\OutboxWriter;
+use Academy\Domain\Payments\PaymentGateway;
+use Academy\Domain\Payments\PaymentInitiationPolicy;
+use Academy\Domain\Payments\PaymentPublicReferenceGenerator;
+use Academy\Domain\Payments\PaymentRepository;
+use Academy\Domain\Payments\PaymentStateMachine;
+use Academy\Domain\Payments\PaymentStatusHistoryRepository;
 use Academy\Domain\RBAC\PermissionRepository;
 use Academy\Domain\RBAC\RoleRepository;
 use Academy\Domain\Review\ApplicationDecisionPreconditions;
@@ -106,6 +114,7 @@ use Academy\Http\Controllers\BatchController;
 use Academy\Http\Controllers\CourseCatalogueController;
 use Academy\Http\Controllers\DocumentController;
 use Academy\Http\Controllers\EmailVerificationController;
+use Academy\Http\Controllers\FinancePaymentController;
 use Academy\Http\Controllers\ForgotPasswordController;
 use Academy\Http\Controllers\HealthController;
 use Academy\Http\Controllers\LocalStorageDownloadController;
@@ -113,6 +122,7 @@ use Academy\Http\Controllers\LocalUploadController;
 use Academy\Http\Controllers\LoginController;
 use Academy\Http\Controllers\MobileVerificationController;
 use Academy\Http\Controllers\PasswordResetController;
+use Academy\Http\Controllers\PaymentController;
 use Academy\Http\Controllers\ProfileController;
 use Academy\Http\Controllers\QualificationController;
 use Academy\Http\Controllers\RegistrationController;
@@ -169,6 +179,11 @@ use Academy\Infrastructure\Notifications\UnavailableSmsAdapter;
 use Academy\Infrastructure\Outbox\InMemoryOutboxTransport;
 use Academy\Infrastructure\Outbox\PdoOutboxRepository;
 use Academy\Infrastructure\Outbox\UnconfiguredOutboxTransport;
+use Academy\Infrastructure\Payments\FakePaymentGateway;
+use Academy\Infrastructure\Payments\PdoPaymentRepository;
+use Academy\Infrastructure\Payments\PdoPaymentStatusHistoryRepository;
+use Academy\Infrastructure\Payments\RazorpayPaymentGateway;
+use Academy\Infrastructure\Payments\UnconfiguredPaymentGateway;
 use Academy\Infrastructure\RateLimit\PdoRateLimitStore;
 use Academy\Infrastructure\RBAC\PdoPermissionRepository;
 use Academy\Infrastructure\RBAC\PdoRoleRepository;
@@ -371,6 +386,56 @@ return static function (): ContainerInterface {
         ),
         VerificationAuditLogRepository::class => static fn (ContainerInterface $c): VerificationAuditLogRepository => new PdoVerificationAuditLogRepository(
             $c->get(ConnectionFactory::class),
+        ),
+        PaymentRepository::class => static fn (ContainerInterface $c): PaymentRepository => new PdoPaymentRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        PaymentStatusHistoryRepository::class => static fn (ContainerInterface $c): PaymentStatusHistoryRepository => new PdoPaymentStatusHistoryRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        PaymentStateMachine::class => static fn (): PaymentStateMachine => new PaymentStateMachine(),
+        PaymentInitiationPolicy::class => static fn (): PaymentInitiationPolicy => new PaymentInitiationPolicy(),
+        PaymentPublicReferenceGenerator::class => static fn (): PaymentPublicReferenceGenerator => new PaymentPublicReferenceGenerator(),
+        PaymentGateway::class => static function (ContainerInterface $c): PaymentGateway {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{payments: array{fake_gateway_enabled: bool, razorpay_key_id: string, razorpay_key_secret: string}} $security */
+            $security = $c->get('config.security');
+            $payments = $security['payments'];
+            $env = $app['env'];
+
+            if ($payments['fake_gateway_enabled'] && in_array($env, ['local', 'testing', 'ci'], true)) {
+                return new FakePaymentGateway($env, true);
+            }
+
+            $keyId = trim($payments['razorpay_key_id']);
+            $keySecret = trim($payments['razorpay_key_secret']);
+            if ($keyId !== '' && $keySecret !== '') {
+                return new RazorpayPaymentGateway($keyId, $keySecret);
+            }
+
+            return new UnconfiguredPaymentGateway();
+        },
+        PaymentCheckoutService::class => static fn (ContainerInterface $c): PaymentCheckoutService => new PaymentCheckoutService(
+            $c->get(TransactionManager::class),
+            $c->get(AuthorizationService::class),
+            $c->get(ApplicationRepository::class),
+            $c->get(BatchRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(PaymentRepository::class),
+            $c->get(PaymentStatusHistoryRepository::class),
+            $c->get(PaymentInitiationPolicy::class),
+            $c->get(PaymentStateMachine::class),
+            $c->get(PaymentPublicReferenceGenerator::class),
+            $c->get(PaymentGateway::class),
+            $c->get(OutboxWriter::class),
+            $c->get(AuditService::class),
+            $c->get(RateLimiter::class),
+        ),
+        FinancePaymentQueryService::class => static fn (ContainerInterface $c): FinancePaymentQueryService => new FinancePaymentQueryService(
+            $c->get(AuthorizationService::class),
+            $c->get(PaymentRepository::class),
+            $c->get(PaymentStatusHistoryRepository::class),
         ),
         ReviewerQueueQuery::class => static fn (ContainerInterface $c): ReviewerQueueQuery => new PdoReviewerQueueQuery(
             $c->get(ConnectionFactory::class),
@@ -1097,6 +1162,38 @@ return static function (): ContainerInterface {
                 'application.resubmit_corrections_own',
             );
 
+            $applicationAccess->requirePermission(
+                $router->get('/applications/{id}/payment', [PaymentController::class, 'show']),
+                'payment.view_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->post('/applications/{id}/payments', [PaymentController::class, 'initiate']),
+                'payment.initiate_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->get('/applications/{id}/payments/{paymentId}', [PaymentController::class, 'showAttempt']),
+                'payment.view_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->post('/applications/{id}/payments/{paymentId}/checkout-return', [PaymentController::class, 'checkoutReturn']),
+                'payment.view_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->get('/applications/{id}/payment-result', [PaymentController::class, 'result']),
+                'payment.view_own',
+            );
+
+            /** @var RouteAccess $financeAccess */
+            $financeAccess = $c->get(RouteAccess::class);
+            $financeAccess->requirePermission(
+                $router->get('/finance/payments', [FinancePaymentController::class, 'index']),
+                'finance.payment.view',
+            );
+            $financeAccess->requirePermission(
+                $router->get('/finance/payments/{paymentId}', [FinancePaymentController::class, 'show']),
+                'finance.payment.view',
+            );
+
             /** @var RouteAccess $reviewerAccess */
             $reviewerAccess = $c->get(RouteAccess::class);
             $reviewerAccess->requirePermission(
@@ -1268,6 +1365,14 @@ return static function (): ContainerInterface {
             $c->get(ApplicationDeclarationService::class),
             $c->get(ApplicationSubmitService::class),
             $c->get(LearnerCorrectionResubmitService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        PaymentController::class => static fn (ContainerInterface $c): PaymentController => new PaymentController(
+            $c->get(PaymentCheckoutService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        FinancePaymentController::class => static fn (ContainerInterface $c): FinancePaymentController => new FinancePaymentController(
+            $c->get(FinancePaymentQueryService::class),
             $c->get(PhpRenderer::class),
         ),
         ReviewerApplicationController::class => static fn (ContainerInterface $c): ReviewerApplicationController => new ReviewerApplicationController(
