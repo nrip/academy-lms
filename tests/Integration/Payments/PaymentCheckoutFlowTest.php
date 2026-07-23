@@ -58,7 +58,10 @@ final class PaymentCheckoutFlowTest extends TestCase
         $stmt->execute([$fixture['application_id']]);
         self::assertSame(ApplicationStatus::PAYMENT_PENDING, $stmt->fetchColumn());
 
-        self::assertFalse($this->tableExists($pdo, 'enrolments'));
+        self::assertTrue($this->tableExists($pdo, 'enrolments'));
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM enrolments WHERE application_id = ?');
+        $stmt->execute([$fixture['application_id']]);
+        self::assertSame(0, (int) $stmt->fetchColumn(), 'WP-05 checkout must not create Enrolment.');
     }
 
     public function testSecondInitiateWhilePendingConflicts(): void

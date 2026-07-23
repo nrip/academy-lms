@@ -150,6 +150,7 @@ final class PaymentInitiationPolicyTest extends TestCase
             paymentId: $attemptNumber,
             publicReference: 'PAY-7-0' . $attemptNumber . '-TEST',
             applicationId: 7,
+            enrolmentId: null,
             userId: 10,
             provider: 'razorpay',
             providerOrderId: null,
@@ -176,6 +177,9 @@ final class PaymentInitiationPolicyTest extends TestCase
             failedAt: null,
             expiredAt: null,
             reconciledAt: null,
+            reconcileLeaseOwner: null,
+            reconcileLeaseToken: null,
+            reconcileLeaseExpiresAt: null,
             createdAt: $now,
             updatedAt: $now,
         );
