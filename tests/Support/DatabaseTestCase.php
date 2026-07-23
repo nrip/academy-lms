@@ -141,6 +141,7 @@ final class DatabaseTestCase
             'document_submissions',
             'enrolment_status_history',
             'enrolments',
+            'notification_deliveries',
             'payment_status_history',
             'payment_webhook_events',
             'payments',
