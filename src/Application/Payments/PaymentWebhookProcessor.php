@@ -128,7 +128,7 @@ final class PaymentWebhookProcessor
 
         if (RazorpayWebhookEventTypes::isCaptureSuccess($event->eventType)) {
             $provider = $this->resolveProviderResult($event, $payment->amountMinor, $payment->currency);
-            $this->transactions->run(function () use ($event, $workerId, $payment, $provider, $now): void {
+            $this->transactions->runWithDeadlockRetry(function () use ($event, $workerId, $payment, $provider, $now): void {
                 $fresh = $this->requireLease($event, $workerId);
                 if ($event->amountMinor !== null && $event->amountMinor !== $payment->amountMinor) {
                     $current = $this->payments->findByIdForUpdate($payment->paymentId);

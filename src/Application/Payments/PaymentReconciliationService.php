@@ -168,7 +168,7 @@ final class PaymentReconciliationService
             }
         }
 
-        return $this->transactions->run(function () use ($payment, $workerId, $source, $captured, $failed): bool {
+        return $this->transactions->runWithDeadlockRetry(function () use ($payment, $workerId, $source, $captured, $failed): bool {
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
             if (!$this->payments->hasActiveReconcileLease(
                 $payment->paymentId,

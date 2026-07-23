@@ -32,6 +32,13 @@ final class WebhookAdmissionEnrolmentFlowTest extends TestCase
         DatabaseTestCase::truncateAllTestTables();
     }
 
+    protected function tearDown(): void
+    {
+        putenv('PAYMENTS_FAKE_GATEWAY');
+        unset($_ENV['PAYMENTS_FAKE_GATEWAY'], $_SERVER['PAYMENTS_FAKE_GATEWAY']);
+        parent::tearDown();
+    }
+
     public function testCapturedWebhookAdmitsAndCreatesEnrolment(): void
     {
         $fixture = PaymentTestFixture::seedPaymentPendingApplication();

@@ -72,17 +72,31 @@ final class SuccessfulPaymentAcceptanceService
     ): SuccessfulPaymentAcceptanceResult {
         $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
-        $candidate = $this->payments->findByIdForUpdate($paymentId);
-        if ($candidate === null) {
+        // Lock order: Application → all Payments → Batch → Enrolment.
+        // Resolving the Application without holding a candidate Payment row lock
+        // prevents deadlocks when two Payments race on the same Application.
+        $unlocked = $this->payments->findById($paymentId);
+        if ($unlocked === null) {
             throw new NotFoundException('Payment not found.');
         }
 
-        $application = $this->applications->findByIdForUpdate($candidate->applicationId);
+        $application = $this->applications->findByIdForUpdate($unlocked->applicationId);
         if ($application === null) {
             throw new NotFoundException('Application not found.');
         }
 
         $allPayments = $this->payments->lockAllForApplication($application->applicationId);
+        $candidate = null;
+        foreach ($allPayments as $payment) {
+            if ($payment->paymentId === $paymentId) {
+                $candidate = $payment;
+                break;
+            }
+        }
+        if ($candidate === null) {
+            throw new NotFoundException('Payment not found.');
+        }
+
         $existingEnrolment = $this->enrolments->findByApplicationIdForUpdate($application->applicationId);
 
         if ($existingEnrolment !== null && $existingEnrolment->paymentId === $candidate->paymentId) {
