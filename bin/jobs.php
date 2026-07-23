@@ -13,6 +13,8 @@ declare(strict_types=1);
  *   php bin/jobs.php token-confirmation:cleanup
  *   php bin/jobs.php document:scan
  *   php bin/jobs.php document:stuck-scan
+ *   php bin/jobs.php payment:webhook-process
+ *   php bin/jobs.php payment:reconcile
  */
 
 use Academy\Application\Credentials\DocumentScanWorker;
@@ -20,6 +22,8 @@ use Academy\Application\Credentials\StuckScanWatchService;
 use Academy\Application\Identity\TokenConfirmationCleanupService;
 use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
 use Academy\Application\Outbox\OutboxRelayService;
+use Academy\Application\Payments\PaymentReconciliationService;
+use Academy\Application\Payments\PaymentWebhookProcessor;
 use Academy\Domain\Security\RateLimitStore;
 use Academy\Domain\Security\SessionRepository;
 use Academy\Infrastructure\Scheduler\PdoSchedulerLock;
@@ -124,9 +128,21 @@ $exit = match ($command) {
             $lock->release('document_stuck_scan', $workerId);
         }
     })(),
+    'payment:webhook-process' => (static function () use ($container, $workerId): int {
+        $processed = $container->get(PaymentWebhookProcessor::class)->run($workerId);
+        fwrite(STDOUT, "payment:webhook-process processed={$processed}\n");
+
+        return 0;
+    })(),
+    'payment:reconcile' => (static function () use ($container, $workerId): int {
+        $processed = $container->get(PaymentReconciliationService::class)->run($workerId);
+        fwrite(STDOUT, "payment:reconcile processed={$processed}\n");
+
+        return 0;
+    })(),
     default => (static function () use ($command): int {
         fwrite(STDERR, "Unknown command: {$command}\n");
-        fwrite(STDERR, "Commands: session:cleanup | rate-limit:cleanup | outbox:relay | notification:deliver | token-confirmation:cleanup | document:scan | document:stuck-scan\n");
+        fwrite(STDERR, "Commands: session:cleanup | rate-limit:cleanup | outbox:relay | notification:deliver | token-confirmation:cleanup | document:scan | document:stuck-scan | payment:webhook-process | payment:reconcile\n");
 
         return 1;
     })(),

@@ -36,7 +36,12 @@ use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
 use Academy\Application\Notifications\NotificationCapability;
 use Academy\Application\Outbox\OutboxRelayService;
 use Academy\Application\Payments\FinancePaymentQueryService;
+use Academy\Application\Payments\FinanceReconciliationQueryService;
 use Academy\Application\Payments\PaymentCheckoutService;
+use Academy\Application\Payments\PaymentReconciliationService;
+use Academy\Application\Payments\PaymentWebhookProcessor;
+use Academy\Application\Payments\RazorpayWebhookIngressService;
+use Academy\Application\Payments\SuccessfulPaymentAcceptanceService;
 use Academy\Application\RBAC\AuthorizationService;
 use Academy\Application\RBAC\RoleAssignmentService;
 use Academy\Application\Review\ApplicationCorrectionRequestService;
@@ -86,6 +91,12 @@ use Academy\Domain\Identity\UserSecuritySnapshotRepository;
 use Academy\Domain\Identity\UserWriteRepository;
 use Academy\Domain\Identity\VerificationChallengeRepository;
 use Academy\Domain\Identity\VerificationTokenRepository;
+use Academy\Domain\Learning\BatchCapacityPolicy;
+use Academy\Domain\Learning\EnrolmentFactory;
+use Academy\Domain\Learning\EnrolmentPublicReferenceGenerator;
+use Academy\Domain\Learning\EnrolmentRepository;
+use Academy\Domain\Learning\EnrolmentStateMachine;
+use Academy\Domain\Learning\EnrolmentStatusHistoryRepository;
 use Academy\Domain\Notifications\EmailDeliveryPort;
 use Academy\Domain\Notifications\SmsOtpDeliveryPort;
 use Academy\Domain\Outbox\OutboxRepository;
@@ -97,6 +108,10 @@ use Academy\Domain\Payments\PaymentPublicReferenceGenerator;
 use Academy\Domain\Payments\PaymentRepository;
 use Academy\Domain\Payments\PaymentStateMachine;
 use Academy\Domain\Payments\PaymentStatusHistoryRepository;
+use Academy\Domain\Payments\SuccessfulPaymentAcceptancePolicy;
+use Academy\Domain\Payments\Webhook\PaymentWebhookEventRepository;
+use Academy\Domain\Payments\Webhook\WebhookEventNormalizer;
+use Academy\Domain\Payments\Webhook\WebhookSignatureVerifier;
 use Academy\Domain\RBAC\PermissionRepository;
 use Academy\Domain\RBAC\RoleRepository;
 use Academy\Domain\Review\ApplicationDecisionPreconditions;
@@ -125,6 +140,7 @@ use Academy\Http\Controllers\PasswordResetController;
 use Academy\Http\Controllers\PaymentController;
 use Academy\Http\Controllers\ProfileController;
 use Academy\Http\Controllers\QualificationController;
+use Academy\Http\Controllers\RazorpayWebhookController;
 use Academy\Http\Controllers\RegistrationController;
 use Academy\Http\Controllers\ReviewerApplicationController;
 use Academy\Http\Controllers\SmokeController;
@@ -168,6 +184,8 @@ use Academy\Infrastructure\Identity\PdoUserWriteRepository;
 use Academy\Infrastructure\Identity\PdoVerificationChallengeRepository;
 use Academy\Infrastructure\Identity\PdoVerificationTokenRepository;
 use Academy\Infrastructure\Identity\RecordingTokenConsumedHandler;
+use Academy\Infrastructure\Learning\PdoEnrolmentRepository;
+use Academy\Infrastructure\Learning\PdoEnrolmentStatusHistoryRepository;
 use Academy\Infrastructure\Logging\LoggerFactory;
 use Academy\Infrastructure\Notifications\LocalFileEmailAdapter;
 use Academy\Infrastructure\Notifications\NotificationKeyMaterial;
@@ -180,9 +198,13 @@ use Academy\Infrastructure\Outbox\InMemoryOutboxTransport;
 use Academy\Infrastructure\Outbox\PdoOutboxRepository;
 use Academy\Infrastructure\Outbox\UnconfiguredOutboxTransport;
 use Academy\Infrastructure\Payments\FakePaymentGateway;
+use Academy\Infrastructure\Payments\FakeWebhookSigner;
 use Academy\Infrastructure\Payments\PdoPaymentRepository;
 use Academy\Infrastructure\Payments\PdoPaymentStatusHistoryRepository;
+use Academy\Infrastructure\Payments\PdoPaymentWebhookEventRepository;
 use Academy\Infrastructure\Payments\RazorpayPaymentGateway;
+use Academy\Infrastructure\Payments\RazorpayWebhookEventNormalizer;
+use Academy\Infrastructure\Payments\RazorpayWebhookSignatureVerifier;
 use Academy\Infrastructure\Payments\UnconfiguredPaymentGateway;
 use Academy\Infrastructure\RateLimit\PdoRateLimitStore;
 use Academy\Infrastructure\RBAC\PdoPermissionRepository;
@@ -436,6 +458,110 @@ return static function (): ContainerInterface {
             $c->get(AuthorizationService::class),
             $c->get(PaymentRepository::class),
             $c->get(PaymentStatusHistoryRepository::class),
+        ),
+        EnrolmentRepository::class => static fn (ContainerInterface $c): EnrolmentRepository => new PdoEnrolmentRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        EnrolmentStatusHistoryRepository::class => static fn (ContainerInterface $c): EnrolmentStatusHistoryRepository => new PdoEnrolmentStatusHistoryRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        EnrolmentStateMachine::class => static fn (): EnrolmentStateMachine => new EnrolmentStateMachine(),
+        EnrolmentFactory::class => static fn (): EnrolmentFactory => new EnrolmentFactory(),
+        EnrolmentPublicReferenceGenerator::class => static fn (): EnrolmentPublicReferenceGenerator => new EnrolmentPublicReferenceGenerator(),
+        BatchCapacityPolicy::class => static fn (): BatchCapacityPolicy => new BatchCapacityPolicy(),
+        SuccessfulPaymentAcceptancePolicy::class => static fn (): SuccessfulPaymentAcceptancePolicy => new SuccessfulPaymentAcceptancePolicy(),
+        PaymentWebhookEventRepository::class => static fn (ContainerInterface $c): PaymentWebhookEventRepository => new PdoPaymentWebhookEventRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        WebhookSignatureVerifier::class => static function (ContainerInterface $c): WebhookSignatureVerifier {
+            /** @var array{payments: array{razorpay_webhook_secret: string}} $security */
+            $security = $c->get('config.security');
+
+            return new RazorpayWebhookSignatureVerifier($security['payments']['razorpay_webhook_secret']);
+        },
+        WebhookEventNormalizer::class => static fn (): WebhookEventNormalizer => new RazorpayWebhookEventNormalizer(),
+        FakeWebhookSigner::class => static function (ContainerInterface $c): FakeWebhookSigner {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{payments: array{fake_gateway_enabled: bool, razorpay_webhook_secret: string}} $security */
+            $security = $c->get('config.security');
+
+            return new FakeWebhookSigner(
+                $app['env'],
+                $security['payments']['fake_gateway_enabled'],
+                $security['payments']['razorpay_webhook_secret'] !== ''
+                    ? $security['payments']['razorpay_webhook_secret']
+                    : 'local-ci-razorpay-webhook-secret-not-for-production',
+            );
+        },
+        SuccessfulPaymentAcceptanceService::class => static fn (ContainerInterface $c): SuccessfulPaymentAcceptanceService => new SuccessfulPaymentAcceptanceService(
+            $c->get(ApplicationRepository::class),
+            $c->get(PaymentRepository::class),
+            $c->get(BatchRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(EnrolmentFactory::class),
+            $c->get(EnrolmentPublicReferenceGenerator::class),
+            $c->get(EnrolmentStatusHistoryRepository::class),
+            $c->get(ApplicationReviewAssignmentRepository::class),
+            $c->get(PaymentStateMachine::class),
+            $c->get(ApplicationStateMachine::class),
+            $c->get(SuccessfulPaymentAcceptancePolicy::class),
+            $c->get(BatchCapacityPolicy::class),
+            $c->get(PaymentStatusHistoryRepository::class),
+            $c->get(OutboxWriter::class),
+            $c->get(AuditService::class),
+        ),
+        RazorpayWebhookIngressService::class => static fn (ContainerInterface $c): RazorpayWebhookIngressService => new RazorpayWebhookIngressService(
+            $c->get(WebhookSignatureVerifier::class),
+            $c->get(WebhookEventNormalizer::class),
+            $c->get(PaymentWebhookEventRepository::class),
+            $c->get(OutboxWriter::class),
+            $c->get(AuditService::class),
+        ),
+        PaymentWebhookProcessor::class => static function (ContainerInterface $c): PaymentWebhookProcessor {
+            /** @var array{outbox: array{lease_seconds: int, max_attempts: int, backoff_base_seconds: int, backoff_cap_seconds: int}} $security */
+            $security = $c->get('config.security');
+
+            return new PaymentWebhookProcessor(
+                $c->get(TransactionManager::class),
+                $c->get(PaymentWebhookEventRepository::class),
+                $c->get(PaymentRepository::class),
+                $c->get(PaymentGateway::class),
+                $c->get(SuccessfulPaymentAcceptanceService::class),
+                $c->get(PaymentStateMachine::class),
+                $c->get(PaymentStatusHistoryRepository::class),
+                $c->get(AuditService::class),
+                $c->get(LoggerInterface::class),
+                $security['outbox']['lease_seconds'],
+                $security['outbox']['max_attempts'],
+                $security['outbox']['backoff_base_seconds'],
+                $security['outbox']['backoff_cap_seconds'],
+            );
+        },
+        PaymentReconciliationService::class => static function (ContainerInterface $c): PaymentReconciliationService {
+            /** @var array{outbox: array{lease_seconds: int}, payments: array{reconcile_pending_stale_seconds: int}} $security */
+            $security = $c->get('config.security');
+
+            return new PaymentReconciliationService(
+                $c->get(TransactionManager::class),
+                $c->get(AuthorizationService::class),
+                $c->get(PaymentRepository::class),
+                $c->get(PaymentGateway::class),
+                $c->get(SuccessfulPaymentAcceptanceService::class),
+                $c->get(PaymentStateMachine::class),
+                $c->get(PaymentStatusHistoryRepository::class),
+                $c->get(AuditService::class),
+                $c->get(LoggerInterface::class),
+                $security['outbox']['lease_seconds'],
+                $security['payments']['reconcile_pending_stale_seconds'],
+            );
+        },
+        FinanceReconciliationQueryService::class => static fn (ContainerInterface $c): FinanceReconciliationQueryService => new FinanceReconciliationQueryService(
+            $c->get(AuthorizationService::class),
+            $c->get(PaymentRepository::class),
+            $c->get(PaymentStatusHistoryRepository::class),
+            $c->get(PaymentWebhookEventRepository::class),
         ),
         ReviewerQueueQuery::class => static fn (ContainerInterface $c): ReviewerQueueQuery => new PdoReviewerQueueQuery(
             $c->get(ConnectionFactory::class),
@@ -1194,6 +1320,17 @@ return static function (): ContainerInterface {
                 'finance.payment.view',
             );
 
+            $router->post('/webhooks/razorpay', [RazorpayWebhookController::class, 'handle']);
+
+            $financeAccess->requirePermission(
+                $router->get('/finance/reconciliation', [FinancePaymentController::class, 'reconciliation']),
+                'finance.payment.reconcile',
+            );
+            $financeAccess->requirePermission(
+                $router->post('/finance/payments/{paymentId}/reconcile', [FinancePaymentController::class, 'reconcile']),
+                'finance.payment.retry_reconciliation',
+            );
+
             /** @var RouteAccess $reviewerAccess */
             $reviewerAccess = $c->get(RouteAccess::class);
             $reviewerAccess->requirePermission(
@@ -1373,7 +1510,12 @@ return static function (): ContainerInterface {
         ),
         FinancePaymentController::class => static fn (ContainerInterface $c): FinancePaymentController => new FinancePaymentController(
             $c->get(FinancePaymentQueryService::class),
+            $c->get(FinanceReconciliationQueryService::class),
+            $c->get(PaymentReconciliationService::class),
             $c->get(PhpRenderer::class),
+        ),
+        RazorpayWebhookController::class => static fn (ContainerInterface $c): RazorpayWebhookController => new RazorpayWebhookController(
+            $c->get(RazorpayWebhookIngressService::class),
         ),
         ReviewerApplicationController::class => static fn (ContainerInterface $c): ReviewerApplicationController => new ReviewerApplicationController(
             $c->get(ReviewerApplicationQueryService::class),

@@ -224,10 +224,14 @@ return static function (string $env, callable $bool, callable $string, callable 
             })(),
             'fake_scanner_enabled' => $bool('DOCUMENTS_FAKE_SCANNER', in_array($env, ['testing', 'ci'], true)),
         ],
-        'payments' => (static function () use ($env, $bool, $string): array {
+        'payments' => (static function () use ($env, $bool, $string, $int): array {
             $fakeGatewayEnabled = $bool('PAYMENTS_FAKE_GATEWAY', in_array($env, ['testing', 'ci'], true));
             $razorpayKeyId = $string('RAZORPAY_KEY_ID', '');
             $razorpayKeySecret = $string('RAZORPAY_KEY_SECRET', '');
+            $razorpayWebhookSecret = $string('RAZORPAY_WEBHOOK_SECRET', '');
+            if ($razorpayWebhookSecret === '' && in_array($env, ['local', 'testing', 'ci'], true)) {
+                $razorpayWebhookSecret = 'local-ci-razorpay-webhook-secret-not-for-production';
+            }
 
             if (in_array($env, ['staging', 'production'], true)) {
                 if ($fakeGatewayEnabled) {
@@ -243,6 +247,8 @@ return static function (string $env, callable $bool, callable $string, callable 
                 'fake_gateway_enabled' => $fakeGatewayEnabled,
                 'razorpay_key_id' => $razorpayKeyId,
                 'razorpay_key_secret' => $razorpayKeySecret,
+                'razorpay_webhook_secret' => $razorpayWebhookSecret,
+                'reconcile_pending_stale_seconds' => $int('PAYMENTS_RECONCILE_PENDING_STALE_SECONDS', 30 * 60),
             ];
         })(),
     ];

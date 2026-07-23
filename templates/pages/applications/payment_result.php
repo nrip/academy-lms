@@ -27,6 +27,13 @@ ob_start();
     <?php elseif ($primary !== null && $primary->status === PaymentStatus::SUCCESSFUL): ?>
         <div class="alert alert-success" role="status">
             <?= $e->html('Payment recorded as successful.') ?>
+            <?php if ($application->status === \Academy\Domain\Admissions\ApplicationStatus::ADMITTED): ?>
+                <?= $e->html(' Your application is admitted.') ?>
+            <?php endif; ?>
+        </div>
+    <?php elseif ($primary !== null && $primary->status === PaymentStatus::RECONCILIATION_PENDING): ?>
+        <div class="alert alert-warning" role="status">
+            <?= $e->html('Payment is pending finance reconciliation. Enrolment is not confirmed yet.') ?>
         </div>
     <?php elseif ($primary !== null && PaymentStatus::isRetryEligible($primary->status)): ?>
         <div class="alert alert-warning" role="status">
