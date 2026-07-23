@@ -1,6 +1,8 @@
 **SOFTWARE REQUIREMENTS SPECIFICATION**
 
-Academy Learning Management System - v6.0
+Academy Learning Management System - Version 6.1
+
+Date: 2026-07-23
 
 Domain: Continuing Medical Education - Obesity & Metabolic Disorders
 
@@ -10,7 +12,14 @@ Source document: Product Requirements Document v1.0 (Academy Management) - this 
 
 Prepared for: Product Management & Engineering
 
-Document status: Conditionally Approved Functional SRS - supersedes SRS v1.0-v5.0
+Document status: Conditionally Approved Functional SRS - consolidation release (supersedes SRS v1.0–v5.0 for build baseline purposes; **SRS v6.0 remains on record and is not overwritten**)
+
+## Revision history
+
+| Version | Date | Description |
+| --- | --- | --- |
+| 6.0 | (prior release) | Conditionally Approved Functional SRS — Application/Payment/Enrolment split, CourseVersion ownership, RBAC model, and Phase 1 functional baseline. |
+| **6.1** | **2026-07-23** | **Consolidation release (Decision Log `SRS-V61-1`), not a scope expansion.** Incorporates already approved and implemented decisions from WP-02 through WP-05 concerning: Application lifecycle; DocumentSubmission lifecycle (including State Machine Addendum / `SM-DOC-1`); reviewer scope and verification (`WP01-E`); Payment attempts and checkout (`PAY-ATTEMPT-1`); and explicit WP-06 handoff ownership. No new product features. Implemented behaviour is not changed merely to tidy historical wording. |
 
 Design Decision: This SRS is conditionally approved at the functional level. It becomes the Approved Build Baseline once: (1) Module, eligibility rules, required documents, certificate rules, assessment policy, and completion policy are owned by CourseVersion, not Course (Section 4); (2) Course vs. CourseVersion field ownership matches Section 4.1's identity/configuration split; (3) the Application/Payment/Enrolment model in Section 8 is implemented as specified - Payment linked to Application, Enrolment created only on Admission; (4) the Role/Permission/UserRole/RolePermission model replaces a single User.role field (Section 3); (5) the additional logical entities in Section 17 (ContentProgress, general AuditLog, Notification/NotificationTemplate, WaitlistEntry, CorporateSeatAllocation, EligibilityRule, CourseDocumentRequirement) are present in the schema; (6) the remaining Section 23 business decisions are confirmed by the academy; (7) the Capacity & NFR Addendum (Section 20.5) is completed; (8) acceptance criteria and a UAT test-scenario companion document are produced.
 
@@ -19,6 +28,8 @@ Design Decision: This SRS is conditionally approved at the functional level. It 
 ## 1.1 Purpose
 
 This SRS translates the approved Product Requirements Document (PRD v1.0) into requirements an engineering team can build against: functional requirements with IDs, a data model, status/state machines, representative APIs, and non-functional requirements. Every major section below references the PRD section it implements, so gaps or disagreements can be traced back to the source document.
+
+**v6.1 consolidation authority (Decision Log `SRS-V61-1`):** Amendments in this version reconcile the functional baseline with approved Decision Log entries, the State Machine Addendum, the Vertical Slice Roadmap, WP-02–WP-05 implementation notes, and AGENTS.md invariants. Where v6.0 narrative conflicted with the approved 11-state Application enum, the Payment attempt model, or DocumentSubmission modelling, this version records the authoritative rule and any remaining open discrepancy without inventing new product behaviour.
 
 ## 1.2 Scope
 
@@ -115,6 +126,8 @@ _Design Note: The Finance/Reviewer/Course-Admin split is a segregation-of-duties
 - **REQ-RBAC-1:** A User is not limited to a single Role. Role is a many-to-many relationship via a UserRole join, so one person can simultaneously be, for example, both Faculty and Academic Evaluator - the table above describes each Role's intended permissions, not an exclusive assignment.
 - **REQ-RBAC-2:** Each Role holds a set of Permissions via a RolePermission join; an access-control check evaluates the union of Permissions across every Role the acting user currently holds.
 - **REQ-RBAC-3:** Super Admin can create new Roles or adjust Role-Permission mappings through configuration, without a code deployment - the ten roles above are the default set, not a hard ceiling.
+- **REQ-RBAC-4 (Finance segregation — consolidated):** Finance Administrator may view normalised Payment attempts and financial metadata. Finance **cannot** access DocumentSubmission content, DocumentSubmission metadata, or signed document URLs — enforced at repository and HTTP layers, not only UI. Role names never bypass permission or object-scope checks. Privileged future Finance mutations (offline mark-paid, reconciliation resolution, refunds) require permission checks, MFA where mandated, audit records, and approved state machines; WP-05 delivers Finance **view-only** payment list/detail only.
+- **REQ-RBAC-5 (Reviewer object scope — WP01-E):** Credential Reviewer actions require (a) the relevant permission key and (b) active object scope covering the Application's Course, CourseVersion, and/or Batch. There is **no** Super Admin or role-name bypass of permission or scope. See Section 7.3.1.
 
 # 4\. Course, Batch & Curriculum Model
 
@@ -176,16 +189,29 @@ _Implements PRD §10_
 
 ## 7.2 Required Document Configuration
 
-- **REQ-DOC-1:** Per CourseVersion, Course Administrator configures each required document as a CourseDocumentRequirement record (Section 17), not an embedded array: name, description, mandatory/optional, accepted file types, max size, single/multiple files, front-and-back requirement, issue-date/expiry-date/registration-number/issuing-authority fields, reuse eligibility, and reviewer instructions.
-- **REQ-DOC-2:** Document status: Not Uploaded, Uploaded, Under Review, Approved, Rejected, Resubmission Requested, Expired, Superseded, Failed Security Scan. The applicant sees live status for every required document.
-- **REQ-DOC-3:** Uploaded files are malware-scanned asynchronously before entering the review queue; a positive scan sets Failed Security Scan and the file is quarantined, never shown to a reviewer.
-- **REQ-DOC-4:** Documents are stored in private object storage; reviewers access them via short-lived signed URLs (10-15 minute expiry) with in-browser zoom, never a raw downloadable link by default.
+- **REQ-DOC-1:** Per CourseVersion, Course Administrator configures each required document as a CourseDocumentRequirement record (Section 17), not an embedded array: name, description, mandatory/optional, accepted file types, max size, single/multiple files, front-and-back requirement, issue-date/expiry-date/registration-number/issuing-authority fields, reuse eligibility, and reviewer instructions. Application submission and review always use the exact CourseVersion referenced by the Application; client input cannot substitute another CourseVersion, requirement set, or fee.
+- **REQ-DOC-2 (business `status`):** DocumentSubmission business statuses (repository constants / snake_case persistence): `uploaded`, `under_review`, `approved`, `rejected`, `resubmission_requested`, `expired`, `superseded`, `failed_security_scan`. Display labels: Uploaded, Under Review, Approved, Rejected, Resubmission Requested, Expired, Superseded, Failed Security Scan. **Not Uploaded** remains a conceptual UI state when no current submission row exists for a requirement; persisted rows never use a `not_uploaded` status value. Do **not** add `Scan Pending` as a business status. The applicant sees live status for every required document.
+- **REQ-DOC-2a (malware `scan_status` — separate dimension):** `scan_status` is independent of business `status` (Decision Log `SM-DOC-1` / State Machine Addendum). Exact values: `not_applicable`, `pending`, `clean`, `failed`. While a scan is outstanding: business `status = uploaded` and `scan_status = pending`. A **stuck scan** is `scan_status = pending` beyond the configured SLA — an operational condition with alert/retry handling — **not** a separate enum value. Stuck or pending scans never enter the reviewer queue and are never treated as clean.
+- **REQ-DOC-3:** Uploaded files are malware-scanned asynchronously before entering the review queue; `scan_status = failed` drives business transition to `failed_security_scan` and the file is quarantined, never shown to a reviewer (no signed URL to malware-positive objects).
+- **REQ-DOC-4:** Documents are stored in private object storage; reviewers access clean current (and, where permitted, historical clean) versions via short-lived signed URLs (10-15 minute expiry) with in-browser zoom, never a raw downloadable link by default. Finance never receives document metadata or signed URLs.
+- **REQ-DOC-6 (current-row and history model — `SM-DOC-1`):** Resubmission (including retry after Failed Security Scan) **creates a new DocumentSubmission row**. Historical submissions are immutable. The previous current row is marked `superseded` and `current_marker = NULL`. The new current row uses `current_marker = 1`. Database rule: `UNIQUE(application_id, requirement_id, current_marker)` (MySQL allows multiple NULL markers for history; at most one row may hold `current_marker = 1` per application+requirement). Resubmission runs in one transaction: `SELECT … FOR UPDATE` on the current row → supersede + clear marker → insert new current (`uploaded` / `pending`) → audit + outbox → commit. Stale scan workers must not update a superseded row or a replacement submission that is no longer current. Application "documents complete / under review" logic uses `current_marker = 1` only.
 
 ## 7.3 Reviewer Workflow
 
-- **REQ-REV-1:** Reviewer can approve, reject (with a reason from a fixed list - Blurry/Illegible, Wrong Document, Incomplete, Expired Registration, Name Mismatch, Qualification Doesn't Meet Eligibility, Registration Number Not Visible, Issuing Authority Not Identifiable, Other), request resubmission, add a private internal note, and view full submission history including prior reviewer and date.
-- **REQ-REV-2:** Every review action is written to an append-only Verification Audit Log (reviewer, action, reason, notes, timestamp) - never edited or deleted, including by Super Admin.
+- **REQ-REV-1:** Reviewer can approve, reject, or request resubmission on a **current** DocumentSubmission that is `status = under_review` and `scan_status = clean`. Historical / superseded rows are read-only. Rejection and resubmission require a reason from the fixed allow-list (server-validated): `blurry_illegible`, `wrong_document`, `incomplete`, `expired_registration`, `name_mismatch`, `qualification_ineligible`, `registration_number_not_visible`, `issuing_authority_not_identifiable`, `other`. Learner-visible messaging is length-bounded and sanitized. Private internal notes are stored only in VerificationAuditLog — never in general `audit_log` payloads and never shown to the learner. Reviewers may view full submission history (prior versions) including prior reviewer and date, subject to permission and object scope; Failed Security Scan file content remains quarantined.
+- **REQ-REV-2:** Every review action is written to an append-only `verification_audit_log` (reviewer, action, reason, notes, timestamp) — never edited or deleted, including by Super Admin. This log is **separate** from the technical `audit_log`.
 - **REQ-REV-3:** A configurable maximum resubmission count (default 5) triggers manual Admin intervention rather than further self-service resubmission; this is an operational flag, not a hard database constraint, so it can be overridden.
+- **REQ-REV-4 (Application verification outcomes — Mode A / WP-04):** Application transitions owned by reviewer verification (exact repository snake_case): `under_review → payment_pending` (Mode A approval — **no Payment row created at approval**); `under_review → rejected` (with reason code); `under_review → resubmission_requested` (correction request identifying specific requirements); `resubmission_requested → under_review` (system/learner correction resubmit complete). Document business transitions: `under_review → approved` | `rejected` | `resubmission_requested`. Application approval to Payment Pending requires every mandatory current document `approved` and `clean`; no current rejected / resubmission_requested / pending-scan mandatory evidence. Learner may replace only affected documents; unrelated Application fields remain locked. Decision and correction history is append-only.
+- **REQ-REV-5 (dual assignment model — WP01-E):** See Section 7.3.1.
+
+### 7.3.1 Reviewer scope and queue claim (WP01-E)
+
+Two complementary assignment mechanisms:
+
+1. **`reviewer_scope_assignments`** — object scope targeting Course, CourseVersion, and/or Batch. Active assignments combine as a **union**. Permission **and** object scope are both required for reviewer actions. `include_future_versions` defaults to **false** (Course-level assignments do not automatically include future CourseVersions unless explicitly enabled). Assignments support effective dates, revocation history, and creator/revoker identity, with audit events.
+2. **`application_review_assignments`** — queue claim: at most one active claim per Application (`active_marker = 1`); historical claims preserved; concurrent claims produce one winner (row lock + unique constraint).
+
+No Super Admin or role-name bypass exists. Reviewer actions require permission, scope, and an active claim where the action policy requires one. Finance has no document-review access.
 
 ## 7.4 Reuse of Verified Credentials
 
@@ -199,7 +225,12 @@ _Implements PRD §11 - the highest-risk section: get explicit Product/Finance/Co
 
 Design Decision: Application and Enrolment are two separate records with two separate status machines, per PRD §11.2 and §11.4 - and, per this revision, Payment belongs to the Application, not the Enrolment. An Application tracks a learner's entire pre-admission journey: profile, documents, and payment, for one course/batch. Enrolment is created only once the Application reaches Admitted status - meaning eligibility is approved AND payment has succeeded, in whichever order the admission mode processes them. This single change resolves three problems together: (a) it removes the awkwardness of Payment belonging to an Enrolment that might not yet reflect a real admission decision; (b) a Mode B rejection after payment now simply closes out the Application and its linked Payment/Refund - there is no Enrolment to unwind, because none was ever created; (c) it removes the ambiguity of whether an Enrolment that exists before a batch starts should read as 'Active' - Enrolment now begins as Scheduled if the batch start date is in the future, or Active immediately for self-paced courses and batches already under way, so 'Active' consistently means both admitted and currently accessible.
 
-- **REQ-APP-1:** Application status: Draft, Submitted, Documents Incomplete, Under Review, Resubmission Requested, Payment Pending, Awaiting Verification, Admitted, Rejected, Withdrawn, Expired. Payment's own detailed status (Created/Pending/Successful/Failed/etc., Section 9.1) lives on the Payment entity, not duplicated as extra Application states.
+- **REQ-APP-1 (authoritative 11-status enum):** Application statuses (display / repository snake_case): Draft (`draft`), Submitted (`submitted`), Documents Incomplete (`documents_incomplete`), Under Review (`under_review`), Resubmission Requested (`resubmission_requested`), Payment Pending (`payment_pending`), Awaiting Verification (`awaiting_verification`), Admitted (`admitted`), Rejected (`rejected`), Withdrawn (`withdrawn`), Expired (`expired`). **Cancelled is not part of this enum** (see Open Discrepancy OD-APP-CANCELLED in Section 23.1). Payment's own detailed status (Section 9.1 / 18.4) lives on the Payment entity, not duplicated as extra Application states.
+- **REQ-APP-2 (Draft construction — `APP-DRAFT-1`):** Creating an Application with status Draft is an **entity-factory / constructor** operation at persistence time. It is **not** a state-machine transition from a prior Application status. After persistence, **every** status change must go through `ApplicationStateMachine`. Repositories must **not** expose general `updateStatus()` methods.
+- **REQ-APP-3 (CourseVersion binding):** At Draft creation the Application records the exact `course_version_id` (and `batch_id`) selected. CourseVersion commercial, eligibility, and document-requirement configuration is immutable once published or referenced per approved locking rules (`locked_at` / `locked_reason`). Application submission and review always use that exact referenced CourseVersion; client input cannot substitute another CourseVersion, requirement, or fee.
+- **REQ-APP-4 (edit and immutability rules):** Learner edits are permitted only in states explicitly authorized (Draft construction/completion; correction flows while Resubmission Requested for affected documents only). Submitted Applications are immutable except for approved correction flows. Unrelated Application fields remain locked during correction.
+- **REQ-APP-5 (Mode A submission preconditions — WP-03):** Before Draft → Submitted the system requires: (Account) active account; verified email; verified mobile. (Application/profile) required Application fields complete; explicit profile required fields complete; required declaration/version accepted. (Documents) every mandatory CourseVersion requirement has exactly one current submission (`current_marker = 1`) with `scan_status = clean` and acceptable business status in {`uploaded`, `under_review`, `approved`}; no missing, pending, failed, infected/stuck, or superseded current evidence for mandatory requirements. Optional requirements do not block submission. In the implemented Mode A flow, **Draft → Submitted → Under Review** occurs atomically in one service transaction when document preconditions are met (system edge Submitted → Under Review).
+- **REQ-APP-6 (vertical-slice ownership):** Payment Pending is the WP-05 starting Application state. Application → Admitted (and Enrolment creation) belongs to **WP-06** and is not claimed as implemented by WP-02–WP-05.
 - **REQ-ENR-1:** Enrolment is created only when an Application reaches Admitted. Enrolment lifecycle status (access dimension): Scheduled, Active, Suspended, Withdrawn, Cancelled, Refunded, Access Expired. Scheduled applies only to cohort courses admitted ahead of their batch's start date, and transitions to Active automatically on that date; self-paced admission goes directly to Active.
 - **REQ-ENR-2:** Enrolment academic status (progress/outcome dimension - a separate field, populated once lifecycle_status = Active): Not Started, In Progress, Academically Completed, Passed, Not Passed. Splitting lifecycle and academic status into two fields avoids the ambiguity of whether 'Passed' replaces or coexists with 'Active', and keeps a Suspended or Access-Expired learner's academic record intact rather than overwritten.
 
@@ -209,11 +240,13 @@ Recommended default for restricted/high-value programmes (PRD §11.1, §29.3).
 
 Register → Apply → Upload documents → Reviewer decision
 
-├─ Approved → Application.status = Payment Pending → Pay (Payment.application_id set)
+├─ Approved → Application.status = Payment Pending → Pay (Payment.application_id set; multiple attempts allowed per Section 9.1)
 
-│ → Payment successful → Application.status = Admitted → Enrolment created
+│ → Payment successful (**WP-06 webhook/reconcile — authoritative**) → Application.status = Admitted → Enrolment created
 
 └─ Rejected → Application.status = Rejected → resubmit (§7.3) or withdraw
+
+**Mode A implementation note (WP-02–WP-05):** Draft factory (WP-02) → document upload + atomic Draft→Submitted→Under Review (WP-03) → reviewer verification to Payment Pending (WP-04) → checkout creates Payment attempt Created→Pending (WP-05). Browser return is informational only. Admitted / Enrolment / capacity are WP-06.
 
 ## 8.3 Admission Mode B - Payment before Verification
 
@@ -250,17 +283,21 @@ _Implements PRD §12, §23_
 
 ## 9.1 Payment Processing
 
-- **REQ-PAY-1:** Razorpay and HDFC are both supported; only one gateway processes a given payment attempt; the active gateway is selectable globally or per course, and a change affects new attempts only (does not alter history).
+- **REQ-PAY-1:** Razorpay and HDFC are both supported; only one gateway processes a given payment attempt; the active gateway is selectable globally or per course, and a change affects new attempts only (does not alter history). The Mode A vertical slice uses Razorpay only (HDFC deferred — Decision Log `VS-SCOPE-1`).
 - **REQ-PAY-2:** Payment methods, subject to gateway support: UPI, debit/credit card (RuPay/Visa/Mastercard), net banking.
-- **REQ-PAY-3:** Access/Enrolment activation is driven only by a trusted server-side webhook confirmation - never by the client browser reaching a 'success' page - to eliminate the class of bug where a closed tab leaves a payment ambiguous.
-- **REQ-PAY-4:** If webhook confirmation has not arrived within 8 seconds of checkout completion, the system polls the gateway directly; unresolved after 30 minutes, the payment is flagged for manual Finance reconciliation rather than silently retried indefinitely.
-- **REQ-PAY-5:** Duplicate webhook callbacks and duplicate-enrolment attempts for the same order are detected and rejected idempotently.
-- **REQ-PAY-6:** Payment belongs to Application (application_id, required), not to Enrolment. It carries a separate, nullable enrolment_id, populated only once the Application reaches Admitted and an Enrolment is created. This is what keeps a Mode B rejection, a payment that fails before any Enrolment exists, an abandoned Application, or a refund with no corresponding academic record all straightforward: the Payment always has somewhere to belong, regardless of how far admission progressed.
-- **REQ-PAY-7:** Payment status: Created, Pending, Successful, Failed, Cancelled, Expired, Reconciliation Pending, Refunded, Partially Refunded, Disputed.
+- **REQ-PAY-3:** Access/Enrolment activation is driven only by a trusted server-side webhook confirmation - never by the client browser reaching a 'success' page - to eliminate the class of bug where a closed tab leaves a payment ambiguous. Browser checkout return is informational ("Confirming payment…") only: it **never** marks Payment Successful and **never** transitions Application.
+- **REQ-PAY-4:** If webhook confirmation has not arrived within 8 seconds of checkout completion, the system polls the gateway directly; unresolved after 30 minutes, the payment is flagged for manual Finance reconciliation rather than silently retried indefinitely. **WP-06 ownership:** durable webhook receipt, reconciliation worker/cron, and authoritative Payment → Successful are implemented in WP-06 — not WP-05.
+- **REQ-PAY-5:** Duplicate webhook callbacks and duplicate-enrolment attempts for the same order are detected and rejected idempotently. At most one accepted successful payable outcome is permitted (`successful_marker` enforcement in WP-06). Additional captured payments must enter Reconciliation Pending. Duplicate success must never create a second Enrolment.
+- **REQ-PAY-6 (ownership):** Payment belongs to Application (`application_id` NOT NULL / mandatory), not to Enrolment. It carries a separate, nullable `enrolment_id`, populated only once the Application reaches Admitted and an Enrolment is created. This keeps Mode B rejection, failed payments, abandoned Applications, and refunds-without-enrolment straightforward.
+- **REQ-PAY-6a (attempt model — `PAY-ATTEMPT-1`):** An Application may have **multiple** Payment records representing separate payment attempts. Historical attempts are preserved. Only one **in-flight** attempt may exist at a time (in-flight statuses: Created / Pending — repository `created`, `pending`). A new attempt is permitted only after the prior attempt reaches Failed, Cancelled, or Expired (`failed`, `cancelled`, `expired`). Successful or Reconciliation Pending prevents a new automatic attempt. Wording that implied "at most one Payment-chain" in v6.0 is superseded by this attempt model.
+- **REQ-PAY-7 (exactly 10 statuses):** Payment status display labels and repository snake_case: Created (`created`), Pending (`pending`), Successful (`successful`), Failed (`failed`), Cancelled (`cancelled`), Expired (`expired`), Reconciliation Pending (`reconciliation_pending`), Refunded (`refunded`), Partially Refunded (`partially_refunded`), Disputed (`disputed`). **Do not add** Authorized, Captured, or Processing as Payment domain statuses. Architecture references to "processing" are descriptive cron wording, not a Payment domain status. Transition matrix: Section 18.4 / `PaymentStateMachine`.
+- **REQ-PAY-9 (immutable amount snapshot — WP-05):** Each Payment stores an immutable commercial snapshot at initiation: base fee in integer minor units; GST in integer minor units; total payable in integer minor units; currency; CourseVersion id; Batch id; whether a Batch `fee_override` was used; applicable GST rate. Values are derived server-side from the locked Application, Batch, and exact CourseVersion (`fee_override` takes precedence where present). No client-provided amount, currency, or GST is trusted. Total equals base plus GST. All arithmetic uses integer minor units; floating-point payment calculations are forbidden.
+- **REQ-PAY-10 (WP-05 checkout flow):** (1) Learner owns a `payment_pending` Application. (2) Local Payment is created as Created within a DB transaction. (3) Audit / payment_status_history / outbox are committed. (4) Razorpay order creation occurs **outside** the DB transaction. (5) Provider order is bound in a second transaction. (6) Payment transitions Created → Pending. (7)–(9) Browser return is informational only — never Successful, never Application transition. **Orphan recovery:** an unbound Created attempt is resumed; the deterministic gateway idempotency key is reused; no duplicate local attempt is created; provider amount and currency are revalidated before binding.
+- **REQ-PAY-11 (WP-06 handoff — ownership boundary):** WP-06 owns: Razorpay webhook ingress; raw-body signature verification; durable webhook event receipt and idempotency; reconciliation worker/cron; authoritative Payment → Successful; one accepted-success enforcement using `successful_marker`; duplicate capture → Reconciliation Pending; Application Payment Pending → Admitted; capacity enforcement; Enrolment creation; ensuring no second Enrolment is created. **WP-05 owns none of those mutations.**
 
 ## 9.2 Pricing
 
-- **REQ-PRICE-1:** A course or batch may define: base fee, GST, discount, coupon, scholarship, complimentary enrolment, corporate sponsorship, and a batch-specific fee override.
+- **REQ-PRICE-1:** A course or batch may define: base fee, GST, discount, coupon, scholarship, complimentary enrolment, corporate sponsorship, and a batch-specific fee override. For Mode A checkout (WP-05), the payable snapshot uses Batch `fee_override` where present, otherwise CourseVersion `standard_fee`, plus CourseVersion `gst_rate` and `currency`, computed in integer minor units (REQ-PAY-9).
 - **REQ-PRICE-2:** Coupon codes are single-use or capped-use (configurable), time-bound, and their redemption is logged against the applying learner and course.
 
 ## 9.3 GST Invoicing
@@ -276,7 +313,7 @@ _Implements PRD §12, §23_
 
 ## 9.5 Offline Payments
 
-- **REQ-PAY-8:** Finance Administrator can record approved offline payments (bank transfer, institutional payment) with supporting reference and a mandatory audit trail entry.
+- **REQ-PAY-8:** Finance Administrator can record approved offline payments (bank transfer, institutional payment) with supporting reference and a mandatory audit trail entry. **Not part of WP-05:** WP-05 Finance access is view-only over normalised Payment attempts; no manual mark-paid or reconciliation action ships in WP-05.
 
 ## 9.6 Corporate / Sponsored Enrolment
 
@@ -421,10 +458,13 @@ A logical model - engineering may choose the physical schema, but every entity a
 
 | **Entity**              | **Key Fields**                                                                                                       | **Relationships**                                                                                                                                |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Application             | application_id, user_id, course_version_id, batch_id (nullable for self-paced), status, submitted_at                 | Has many DocumentSubmissions and at most one Payment-chain; leads to at most one Enrolment                                                       |
-| DocumentSubmission      | document_id, application_id, requirement_id, file_ref, status, resubmission_count                                    | Belongs to Application; references the CourseDocumentRequirement it satisfies; has many VerificationAuditLog entries                             |
-| VerificationAuditLog    | audit_id, document_id, reviewer_id, action, reason, notes, timestamp                                                 | Belongs to DocumentSubmission (append-only)                                                                                                      |
-| Payment                 | payment_id, application_id, enrolment_id (nullable until Admitted), gateway, method, amount, status, transaction_ref | Belongs to Application (REQ-PAY-6); may have one Refund; produces one Invoice                                                                    |
+| Application             | application_id, application_number, user_id, course_version_id, batch_id (nullable for self-paced), status, state_version, declaration_accepted_version/at, submitted_at | Has many DocumentSubmissions; has many Payment attempts (`PAY-ATTEMPT-1`); leads to at most one Enrolment |
+| DocumentSubmission      | document_submission_id, application_id, requirement_id, object_key, status, scan_status, current_marker, rejection_reason_code, learner_visible_message, row_version | Belongs to Application; references CourseDocumentRequirement; current row `current_marker=1`; history NULL; has many VerificationAuditLog entries |
+| VerificationAuditLog    | audit_id, document_id, reviewer_id, action, reason, notes, timestamp                                                 | Belongs to DocumentSubmission (append-only); distinct from technical AuditLog                                                                 |
+| ReviewerScopeAssignment | assignment_id, reviewer_user_id, scope_type (Course/CourseVersion/Batch), scope_id, include_future_versions, effective dates, revoked_at, created_by, revoked_by | Union of active scopes; permission + scope required (WP01-E)                                                                              |
+| ApplicationReviewAssignment | assignment_id, application_id, reviewer_user_id, active_marker, claimed_at, released_at                            | At most one active claim per Application; historical claims preserved                                                                     |
+| Payment                 | payment_id, application_id (NOT NULL), enrolment_id (nullable until Admitted), attempt_number, immutable minor-unit snapshot (base/gst/total), currency, gst_rate, course_version_id, batch_id, fee_override flag, gateway, provider_order_id, idempotency_key, status, successful_marker, transaction_ref | Belongs to Application (REQ-PAY-6/6a); many attempts per Application; may have Refund; produces Invoice; PaymentStatusHistory append-only |
+| PaymentStatusHistory    | history_id, payment_id, from_status, to_status, actor, reason, timestamp                                             | Append-only Payment history                                                                                                               |
 | Invoice                 | invoice_id, payment_id, status, gstin, taxable_amount, gst_amount, total                                             | Belongs to Payment                                                                                                                               |
 | Refund                  | refund_id, payment_id, reason, amount, status, processed_by                                                          | Belongs to Payment                                                                                                                               |
 | Coupon                  | coupon_id, code, discount_rule, max_uses, valid_from/to                                                              | Referenced by Payment                                                                                                                            |
@@ -461,17 +501,25 @@ These formalize PRD §11.2-11.4 into explicit, buildable transition rules, updat
 
 ## 18.1 Application Status Transitions
 
-| **From**               | **Allowed To**                                      | **Trigger**                                                                                            |
-| ---------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Draft                  | Submitted, Withdrawn                                | Learner submits, or abandons                                                                           |
-| Submitted              | Documents Incomplete, Under Review, Payment Pending | System checks required documents present; Mode C/no-documents courses skip straight to Payment Pending |
-| Documents Incomplete   | Under Review                                        | Learner completes uploads                                                                              |
-| Under Review           | Resubmission Requested, Payment Pending, Rejected   | Reviewer decision (Mode A: approval moves to Payment Pending)                                          |
-| Resubmission Requested | Under Review, Expired                               | Learner resubmits, or resubmission window lapses                                                       |
-| Payment Pending        | Awaiting Verification, Admitted, Cancelled          | Payment success (Mode B: to Awaiting Verification; Mode A/C: to Admitted); or cancelled before payment |
-| Awaiting Verification  | Admitted, Rejected                                  | Reviewer decision, post-payment (Mode B only)                                                          |
-| Admitted               | - (Enrolment created)                               | Terminal for Application; triggers Enrolment creation (Section 8.1)                                    |
-| Rejected               | Withdrawn                                           | Terminal unless a manual override reopens it; triggers refund per REQ-REFUND-2 if a Payment exists     |
+**Authoritative machine:** `ApplicationStateMachine` / `ApplicationStatus` (11 statuses). Draft construction is **not** a transition (REQ-APP-2). Every persisted status change goes through the state machine; repositories expose no general `updateStatus()`.
+
+| **From** | **Allowed To** | **Trigger / notes** | **Persistence** |
+| --- | --- | --- | --- |
+| Draft | Submitted, Withdrawn | Learner submits or abandons | `draft` → `submitted` \| `withdrawn` |
+| Submitted | Documents Incomplete, Under Review, Payment Pending | System document checks; Mode C/no-documents may skip to Payment Pending | `submitted` → `documents_incomplete` \| `under_review` \| `payment_pending` |
+| Documents Incomplete | Under Review | Learner completes uploads | `documents_incomplete` → `under_review` |
+| Under Review | Resubmission Requested, Payment Pending, Rejected | Reviewer decision (Mode A approval → Payment Pending; **no Payment row at approval**) | `under_review` → `resubmission_requested` \| `payment_pending` \| `rejected` |
+| Resubmission Requested | Under Review, Expired | Learner correction resubmit complete, or window lapses | `resubmission_requested` → `under_review` \| `expired` |
+| Payment Pending | Awaiting Verification, Admitted | Payment success (Mode B → Awaiting Verification; Mode A/C → Admitted). **Admitted is WP-06.** | `payment_pending` → `awaiting_verification` \| `admitted` |
+| Awaiting Verification | Admitted, Rejected | Reviewer decision, post-payment (Mode B) | `awaiting_verification` → `admitted` \| `rejected` |
+| Admitted | — (Enrolment created) | Terminal; Enrolment creation (Section 8.1) — **WP-06** | `admitted` |
+| Rejected | Withdrawn | Learner withdraw after reject; refund rules if Payment exists | `rejected` → `withdrawn` |
+| Withdrawn | — | Terminal | `withdrawn` |
+| Expired | — | Terminal | `expired` |
+
+**Implemented Mode A edges already exercised in WP-02–WP-05:** Draft→Submitted; Submitted→Under Review; Under Review→Resubmission Requested; Resubmission Requested→Under Review; Under Review→Rejected; Under Review→Payment Pending. Payment Pending is the WP-05 starting state. Application→Admitted belongs to WP-06.
+
+**Open discrepancy OD-APP-CANCELLED:** v6.0 narrative listed Payment Pending → Cancelled, but the approved 11-state Application enum does **not** contain Cancelled, and no Cancelled transition is implemented. Resolution is deferred to a future product decision / SRS revision. This does **not** block Mode A WP-06.
 
 ## 18.2 Enrolment Lifecycle Status Transitions
 
@@ -483,6 +531,40 @@ These formalize PRD §11.2-11.4 into explicit, buildable transition rules, updat
 | Withdrawn / Access Expired | Refunded                             | Only if a refund is separately approved under REQ-REFUND-1              |
 
 _Design Note: Enrolment now exists only from Admitted onward - there is no 'Awaiting Payment' or 'Awaiting Verification' Enrolment state, because those phases of the journey now belong entirely to Application (18.1) and its linked Payment. Scheduled applies only to cohort courses admitted ahead of the batch start date; self-paced admission goes directly to Active. Academic Status (Not Started / In Progress / Academically Completed / Passed / Not Passed) advances only while lifecycle_status = Active, and is tracked independently, so a Suspended or Access-Expired learner's academic record stays intact rather than being overwritten._
+
+## 18.3 DocumentSubmission Status Transitions
+
+**Authority:** Decision Log `SM-ADDENDUM-1` / `SM-DOC-1`; machine: `DocumentSubmissionStateMachine` / `DocumentSubmissionStatus` + `DocumentScanStatus`. Business status and malware `scan_status` are separate dimensions (Section 7.2).
+
+| **From (business)** | **Allowed To** | **Notes** |
+| --- | --- | --- |
+| _(conceptual Not Uploaded)_ | Uploaded (`uploaded`) | First current row created after upload acceptance; `scan_status = pending` |
+| Uploaded (`uploaded`) | Under Review (`under_review`), Failed Security Scan (`failed_security_scan`) | Under Review only when `scan_status = clean` and queue-entry conditions met; Failed Security Scan when `scan_status = failed` |
+| Under Review (`under_review`) | Approved (`approved`), Rejected (`rejected`), Resubmission Requested (`resubmission_requested`) | Reviewer actions; reject/resubmission require reason code |
+| Approved (`approved`) | Superseded (`superseded`), Expired (`expired`) | Newer submission or validity expiry |
+| Rejected (`rejected`) | Superseded (`superseded`) | Learner re-upload creates new row |
+| Resubmission Requested (`resubmission_requested`) | Expired (`expired`), Superseded (`superseded`) | Window lapse, or new row on replace |
+| Failed Security Scan (`failed_security_scan`) | Superseded (`superseded`) | Retry creates new row |
+| Superseded (`superseded`) | — | Terminal for that row |
+| Expired (`expired`) | — | Terminal for that row |
+
+**Queue-entry condition:** `status = under_review` AND `scan_status = clean` AND `current_marker = 1` AND acting reviewer has permission + object scope. There is no same-row transition Resubmission Requested → Uploaded or Failed Security Scan → Uploaded — retries always create a new row.
+
+## 18.4 Payment Status Transitions
+
+**Authoritative machine:** `PaymentStateMachine` / `PaymentStatus` (exactly 10 statuses). No `authorized`, `captured`, or `processing` domain statuses.
+
+| **From** | **Allowed To** | **Persistence** |
+| --- | --- | --- |
+| Created | Pending, Failed, Cancelled | `created` → `pending` \| `failed` \| `cancelled` |
+| Pending | Successful, Failed, Cancelled, Expired, Reconciliation Pending | `pending` → `successful` \| `failed` \| `cancelled` \| `expired` \| `reconciliation_pending` |
+| Successful | Refunded, Partially Refunded, Disputed, Reconciliation Pending | `successful` → `refunded` \| `partially_refunded` \| `disputed` \| `reconciliation_pending` |
+| Partially Refunded | Refunded, Disputed | `partially_refunded` → `refunded` \| `disputed` |
+| Reconciliation Pending | Successful, Failed, Cancelled, Refunded | `reconciliation_pending` → `successful` \| `failed` \| `cancelled` \| `refunded` |
+| Disputed | Successful, Refunded | `disputed` → `successful` \| `refunded` |
+| Failed / Cancelled / Expired / Refunded | — | Terminal |
+
+**WP-05 HTTP path** uses Created → Pending (and failure edges as needed). Authoritative Pending → Successful and Application admission effects are **WP-06**.
 
 # 19\. Representative API Endpoints
 
@@ -554,9 +636,19 @@ _Implements PRD §25_
 
 Audit records are required for: document approval/rejection, application approval/rejection, payment and refund actions, offline-payment entry, course publication and configuration changes, learner access changes, attendance overrides, additional assessment attempts, grade changes, certificate issuance/reissue/revocation, and permission changes.
 
-Document-specific review actions are captured in VerificationAuditLog (Section 17.3); everything else in this list - grades, refunds, course/version changes, permissions, attendance overrides, certificate actions - is captured in a general AuditLog entity (Section 17.5), not folded into the document-review log.
+**Separation of logs (consolidated):**
 
-Each record captures: acting user, action, affected record, previous value, new value, reason, and timestamp - and is append-only, including against Super Admin.
+- **`audit_log`** — technical / general administrative audit (grades, refunds, course/version changes, permissions, attendance overrides, certificate actions, payment technical events, and other sensitive state changes).
+- **`verification_audit_log`** — reviewer / business verification history for DocumentSubmission and related Application correction decisions (append-only; never edited or deleted).
+- **`payment_status_history`** — append-only Payment attempt history (from_status, to_status, actor, reason, timestamp).
+
+Document-specific review actions are captured in VerificationAuditLog (Section 17.3); everything else in the general list above is captured in AuditLog (Section 17.5), not folded into the document-review log.
+
+Each technical / verification / payment-history record captures: acting user (where applicable), action, affected record, previous value, new value, reason, and timestamp — and is append-only, including against Super Admin.
+
+**Payload hygiene:** Audit and history payloads must exclude PII dumps, secrets, document content, signed URLs, gateway credentials, raw signatures, and unrestricted gateway payloads.
+
+**Atomicity:** Sensitive state changes and matching audit / history / outbox writes occur in the same database transaction.
 
 # 22\. Explicitly Out of Scope for This Release
 
@@ -571,6 +663,22 @@ _Per PRD §5.2 (Future) and §5.3 (Explicit Exclusions) - listed here for tracea
 
 Design Decision: Corporate/sponsored enrolment (Section 9.6), coupons/scholarships (Section 9.2), and CME-credit display (Section 12) are confirmed Phase 1 scope - they are already specified as functional requirements elsewhere in this SRS (REQ-CORP-1-3, REQ-PRICE-1-2, REQ-CERT-3) and are therefore removed from the open-decision list below. A feature cannot be simultaneously approved scope and open for a scope decision; where the PRD listed a question about whether something ships in Phase 1, this SRS treats the PRD's Section 5.1 scope list as the answer, and only lists genuinely undecided items below.
 
+## 23.1 Open decisions after WP-02–WP-05 consolidation (genuine unresolved only)
+
+| ID | Item | Status | Notes |
+| --- | --- | --- | --- |
+| OD-APP-CANCELLED | Application Cancelled-state discrepancy | Open | v6.0 §18.1 narrative mentioned Payment Pending → Cancelled; approved 11-state enum and `ApplicationStateMachine` omit Cancelled; no transition implemented. Deferred; does **not** block Mode A WP-06. |
+| WP01-B | Production email provider | Pending | Decision Log WP01-B (Amazon SES recommended). |
+| WP01-C | Production SMS/OTP provider and DLT pack | Preferred / Pending | Blocks WP-01B production completion; sandbox/fake allowed for development. |
+| WP01-A TL | Technical Lead security/failure-behaviour sign-off for shared session + rate-limit store | Pending | Product Owner approved; TL pending. |
+| WP01-D TL | Technical Lead TOTP implementation review | Pending | Product Owner approved `spomky-labs/otphp` subject to conditions; TL review pending. |
+| WP01-F TL | Final hosting / DR approval | Pending | `ap-south-1` working assumption approved; final infra/backup/logging/residency/DR approval pending. |
+| WP-06 | Production Razorpay webhook / reconciliation / Admitted / Enrolment | Not yet implemented | Owned by WP-06 (REQ-PAY-11). Not claimed as implemented in this consolidation. |
+
+**Resolved — do not re-list as pending:** WP01-E reviewer object scope (Product Owner approved; Technical Lead schema review completed through WP-04, 2026-07-23).
+
+## 23.2 PRD open items still carried forward
+
 The remaining items are unchanged from PRD §30 and remain business decisions, not engineering defaults - restated here so the SRS doesn't quietly resolve them by implementation choice:
 
 - Per-course admission mode assignment (A/B/C) and refund policy for eligibility rejection
@@ -579,3 +687,37 @@ The remaining items are unchanged from PRD §30 and remain business decisions, n
 - Grade bands per programme; minimum live-session attendance requirement for long courses
 - Post-completion access retention period; credential-reuse policy; document retention period
 - Whether learners outside India are expected in Phase 1; which reports are essential for first launch
+
+# 24\. Requirements Traceability (SRS-V61-1)
+
+| Requirement / decision | Decision Log / authority | Work package | State machine / schema | Implementation status |
+| --- | --- | --- | --- | --- |
+| APP-DRAFT-1 | Decision Log `APP-DRAFT-1` | WP-02 | Application Draft factory; no SM transition | Implemented |
+| SM-ADDENDUM-1 | Decision Log `SM-ADDENDUM-1`; `STATE_MACHINE_ADDENDUM.md` | WP-03 (incorporated into this SRS §7.2 / §18.3) | DocumentSubmission SM + scan_status | Implemented (docs consolidated in v6.1) |
+| SM-DOC-1 | Decision Log `SM-DOC-1` | WP-03 | `current_marker`, resubmission txn, stuck-scan policy | Implemented |
+| WP01-E | Decision Log `WP01-E` | WP-01B schema + WP-04 review | `reviewer_scope_assignments`, `application_review_assignments` | Implemented; TL review completed 2026-07-23 |
+| PAY-ATTEMPT-1 | Decision Log `PAY-ATTEMPT-1` | WP-05 | Payment attempts; in-flight gate; snapshot | Implemented (checkout); accepted-success marker WP-06 |
+| SRS-V61-1 | Decision Log `SRS-V61-1` | Docs checkpoint before WP-06 | This document + consolidation note | Documentation consolidation |
+| WP-02 | Roadmap WP-02 | WP-02 | Course/Batch/Draft Application | Merged |
+| WP-03 | Roadmap WP-03 | WP-03 | Application SM; DocumentSubmission SM; submit preconditions | Merged |
+| WP-04 | Roadmap WP-04 | WP-04 | Reviewer verification; VerificationAuditLog; → Payment Pending | Merged |
+| WP-05 | Roadmap WP-05 | WP-05 | Payment SM; checkout Created→Pending; Finance view-only | Merged |
+| WP-06 handoff | Roadmap WP-06; REQ-PAY-11 | WP-06 (not started) | Webhook, Successful, Admitted, Enrolment, capacity, `successful_marker` | **Not implemented** — ownership documented only |
+
+# 25\. WP-06 Ownership Handoff
+
+Before WP-06 begins, this consolidation (`SRS-V61-1`) must be complete. WP-06 owns exclusively:
+
+1. Razorpay webhook ingress
+2. Raw-body signature verification
+3. Durable webhook event receipt and idempotency
+4. Reconciliation worker / cron
+5. Authoritative Payment → Successful
+6. One accepted-success enforcement using `successful_marker`
+7. Duplicate capture → Reconciliation Pending
+8. Application Payment Pending → Admitted
+9. Capacity enforcement
+10. Enrolment creation
+11. Ensuring no second Enrolment is created
+
+WP-05 owns **none** of those mutations. Browser callbacks remain informational only.
