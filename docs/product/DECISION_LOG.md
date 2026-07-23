@@ -40,14 +40,15 @@ See [`WP01_DECISION_NOTE.md`](./WP01_DECISION_NOTE.md) for full text, requiremen
 | WP01-B | Email verification provider | Recommendation Amazon SES (B1) | **Pending** |
 | WP01-C | Mobile verification | SMS OTP is **Preferred but Pending**. Production SMS implementation is **not** approved until provider, DLT setup, sender identity, template approvals, SLA, fallback and commercials are approved. Provider-neutral interface + fake/sandbox adapter allowed for development. Does not block WP-01A; **blocks WP-01B production completion**. | **Preferred / Pending** |
 | WP01-D | TOTP package | `spomky-labs/otphp`, subject to compatible version pinning, licence and dependency review, `composer audit`, encrypted TOTP secrets, hashed single-use recovery codes, no secret/provisioning URI in logs, audited enrolment/reset/recovery use. | **Approved — Product Owner (Nrip Nihalani), 2026-07-19** (subject to listed conditions). Technical Lead implementation review: **Pending** |
-| WP01-E | Reviewer object scope | Assignments may target Course, CourseVersion and/or Batch; active assignments combine as a **union**; **permission and object scope both required**. Course-level assignments must **not** automatically include future CourseVersions unless explicit `include_future_versions` is approved and enabled. Assignments support effective dates, revocation history, creator/revoker identity and audit events. | **Approved — Product Owner (Nrip Nihalani), 2026-07-19.** Technical Lead schema review: **Pending** |
+| WP01-E | Reviewer object scope | Assignments may target Course, CourseVersion and/or Batch; active assignments combine as a **union**; **permission and object scope both required**. Course-level assignments must **not** automatically include future CourseVersions unless explicit `include_future_versions` is approved and enabled. Assignments support effective dates, revocation history, creator/revoker identity and audit events. | **Approved — Product Owner (Nrip Nihalani), 2026-07-19. Technical Lead schema review completed through WP-04 implementation review, 2026-07-23.** Both independent reviewers confirmed that the implemented dual-assignment schema matches the approved model; no schema correction was required. |
 | WP01-F | Hosting / India region | AWS `ap-south-1` as primary production-region **working assumption**, subject to final infrastructure, backup, logging, residency and disaster-recovery approval. Region choice alone does **not** satisfy all compliance requirements. | **Approved (working assumption) — Product Owner (Nrip Nihalani), 2026-07-19.** Technical Lead / hosting final approval: **Pending** |
 | WP01-G | Middleware order: RateLimit before CSRF | Application middleware retains **Session → Authentication → RateLimit → CSRF → Route Dispatch**. Rate limiting must apply to invalid-CSRF traffic as well as valid requests (reduces CSRF-token abuse as a throttle bypass). Implemented and security-reviewed in WP-01A; regression tests depend on this order. Route-level permission middleware continues to run only after League\Route match. Does not weaken CSRF validation on mutating requests. **Supersedes** Technical Architecture §5.2 ordering that listed CSRF before RateLimit. | **Approved — 2026-07-20.** Applies to WP-01A onward |
 | SM-DOC-1 | DocumentSubmission modelling | Business `status` and malware `scan_status` are separate. Resubmission creates a **new** DocumentSubmission row; prior row immutable and marked **Superseded**. Current row enforced via nullable `current_marker` (`1` = current, `NULL` = historical) and `UNIQUE (application_id, requirement_id, current_marker)`. Resubmission transaction: `SELECT … FOR UPDATE` → supersede + clear marker → insert new current → audit/outbox → commit; unique constraint is final concurrency defence. Stuck `scan_status = pending` beyond SLA: alert + retry; never queue as clean; exhausted retries need manual ops. Details in `STATE_MACHINE_ADDENDUM.md`. | **Approved** |
 | SRS-V61-1 | SRS consolidation checkpoint | Before WP-06 begins, approved functional amendments affecting Admissions, DocumentSubmission, Payments and Reviewer Scope must be consolidated into **SRS v6.1**. | **Recorded.** Owner: Product Owner **Nrip Nihalani**. Technical validation: **Technical Lead**. |
 
 **WP-01A may start** with WP01-A and WP01-F Product Owner approvals (satisfied); Technical Lead pending items do not block planning but must be closed during WP-01A implementation review.  
-**WP-01B may start** after WP-01A is merged and WP01-D, WP01-E Product Owner approvals (satisfied); WP01-B email provider still Pending; Technical Lead schema/TOTP reviews Pending at implementation.  
+**WP-01B may start** after WP-01A is merged and WP01-D, WP01-E Product Owner approvals (satisfied); WP01-B email provider remains Pending. The WP01-E Technical Lead schema review was completed through the WP-04 implementation review on 2026-07-23. The WP01-D TOTP implementation review remains Pending unless separately closed.
+
 **WP-01B production completion** additionally requires WP01-C production SMS pack (or Product-approved interim — not default).  
 **WP-06 may start** only after `SRS-V61-1` consolidation into SRS v6.1.
 
@@ -56,6 +57,13 @@ See [`WP01_DECISION_NOTE.md`](./WP01_DECISION_NOTE.md) for full text, requiremen
 | Decision IDs | Approver | Date | Notes |
 | --- | --- | --- | --- |
 | WP01-A, WP01-D, WP01-E, WP01-F | **Nrip Nihalani** (Product Owner) | 2026-07-19 | Product approval recorded. Where separate Technical Lead approval remains required, status is **Pending** (not implied complete). |
+
+
+## Technical review record
+
+| Decision ID | Review completed through | Date | Outcome |
+| --- | --- | --- | --- |
+| WP01-E | WP-04 Reviewer Verification implementation review; independently reviewed by Claude and Qwen | 2026-07-23 | Approved. The implemented `reviewer_scope_assignments` and `application_review_assignments` model matches the Product Owner-approved reviewer object-scope design. No schema correction required. |
 
 Recorded at Phase 0 install time on `foundation/repository-scaffold`. Constraints remain the reviewed ranges in `composer.json` / `package.json`; lockfiles are authoritative.
 
