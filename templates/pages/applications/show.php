@@ -34,7 +34,8 @@ ob_start();
 
     <?php if ($application->status === ApplicationStatus::PAYMENT_PENDING): ?>
         <div class="alert alert-info" role="status">
-            <?= $e->html('Your application has been approved. Payment will be the next step — checkout is not available yet.') ?>
+            <?= $e->html('Your application has been approved. Continue to payment when you are ready.') ?>
+            <a class="alert-link" href="/applications/<?= $e->attr($application->applicationId) ?>/payment"><?= $e->html('Go to payment') ?></a>
         </div>
     <?php endif; ?>
 

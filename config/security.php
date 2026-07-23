@@ -224,5 +224,26 @@ return static function (string $env, callable $bool, callable $string, callable 
             })(),
             'fake_scanner_enabled' => $bool('DOCUMENTS_FAKE_SCANNER', in_array($env, ['testing', 'ci'], true)),
         ],
+        'payments' => (static function () use ($env, $bool, $string): array {
+            $fakeGatewayEnabled = $bool('PAYMENTS_FAKE_GATEWAY', in_array($env, ['testing', 'ci'], true));
+            $razorpayKeyId = $string('RAZORPAY_KEY_ID', '');
+            $razorpayKeySecret = $string('RAZORPAY_KEY_SECRET', '');
+
+            if (in_array($env, ['staging', 'production'], true)) {
+                if ($fakeGatewayEnabled) {
+                    throw new InvalidArgumentException(
+                        'PAYMENTS_FAKE_GATEWAY is forbidden in staging/production.',
+                    );
+                }
+                // Credentials may be empty at bootstrap (UnconfiguredPaymentGateway fails on use).
+                // Fake gateway is the only payments setting that must fail closed here.
+            }
+
+            return [
+                'fake_gateway_enabled' => $fakeGatewayEnabled,
+                'razorpay_key_id' => $razorpayKeyId,
+                'razorpay_key_secret' => $razorpayKeySecret,
+            ];
+        })(),
     ];
 };
