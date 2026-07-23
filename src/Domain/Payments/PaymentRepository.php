@@ -63,6 +63,42 @@ interface PaymentRepository
         ?int $successfulMarker = null,
     ): bool;
 
+    public function bindEnrolmentId(
+        int $paymentId,
+        int $enrolmentId,
+        int $expectedRowVersion,
+        DateTimeImmutable $now,
+    ): bool;
+
+    /**
+     * Claim pending (stale beyond threshold) or reconciliation_pending payments.
+     *
+     * @return list<Payment>
+     */
+    public function claimForReconciliation(
+        string $workerId,
+        DateTimeImmutable $now,
+        int $leaseSeconds,
+        int $pendingStaleSeconds,
+        int $limit,
+    ): array;
+
+    public function hasActiveReconcileLease(
+        int $paymentId,
+        string $leaseOwner,
+        string $leaseToken,
+        DateTimeImmutable $now,
+    ): bool;
+
+    public function clearReconcileLease(
+        int $paymentId,
+        string $leaseOwner,
+        string $leaseToken,
+        DateTimeImmutable $now,
+    ): bool;
+
+    public function findSuccessfulMarkerForApplication(int $applicationId): ?Payment;
+
     /**
      * @return list<Payment>
      */

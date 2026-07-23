@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Academy\Domain\Audit;
 
-final class AdmissionsAuditPayload implements AuditPayload
+final class EnrolmentAuditPayload implements AuditPayload
 {
     /**
      * @param array<string, scalar|null> $previous
@@ -58,21 +58,18 @@ final class AdmissionsAuditPayload implements AuditPayload
     public static function allowedFields(): array
     {
         return [
-            'user_id',
+            'enrolment_id',
             'application_id',
+            'user_id',
+            'payment_id',
+            'batch_id',
             'course_id',
             'course_version_id',
-            'batch_id',
-            'assignment_id',
-            'reviewer_user_id',
-            'payment_id',
-            'enrolment_id',
+            'lifecycle_status',
+            'academic_status',
+            'public_reference',
+            'row_version',
             'result',
-            'status',
-            'state_version',
-            'application_number',
-            'declaration_version',
-            'reason_code',
         ];
     }
 
