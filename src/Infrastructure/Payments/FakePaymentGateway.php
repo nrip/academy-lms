@@ -6,6 +6,7 @@ namespace Academy\Infrastructure\Payments;
 
 use Academy\Domain\Exception\ExternalServiceException;
 use Academy\Domain\Payments\GatewayOrderResult;
+use Academy\Domain\Payments\GatewayPaymentResult;
 use Academy\Domain\Payments\PaymentGateway;
 use Academy\Domain\Payments\PaymentProvider;
 use InvalidArgumentException;
@@ -18,6 +19,12 @@ final class FakePaymentGateway implements PaymentGateway
 {
     /** @var array<string, GatewayOrderResult> */
     private array $ordersById = [];
+
+    /** @var array<string, GatewayPaymentResult> */
+    private array $paymentsById = [];
+
+    /** @var array<string, list<string>> */
+    private array $orderPaymentIds = [];
 
     public function __construct(string $env, bool $enabled)
     {
@@ -64,8 +71,91 @@ final class FakePaymentGateway implements PaymentGateway
         return $this->ordersById[$providerOrderId];
     }
 
+    public function fetchPayment(string $providerPaymentId): GatewayPaymentResult
+    {
+        if (!isset($this->paymentsById[$providerPaymentId])) {
+            throw new ExternalServiceException('Fake payment gateway payment not found.');
+        }
+
+        return $this->paymentsById[$providerPaymentId];
+    }
+
+    public function fetchPaymentsForOrder(string $providerOrderId): array
+    {
+        $ids = $this->orderPaymentIds[$providerOrderId] ?? [];
+        $out = [];
+        foreach ($ids as $id) {
+            if (isset($this->paymentsById[$id])) {
+                $out[] = $this->paymentsById[$id];
+            }
+        }
+
+        return $out;
+    }
+
     public function publicKeyId(): string
     {
         return 'rzp_test_fake_public_key';
+    }
+
+    public function simulateCapture(
+        string $providerOrderId,
+        int $amountMinor,
+        string $currency,
+        ?string $providerPaymentId = null,
+    ): GatewayPaymentResult {
+        if (!isset($this->ordersById[$providerOrderId])) {
+            throw new ExternalServiceException('Fake payment gateway order not found.');
+        }
+
+        $paymentId = $providerPaymentId ?? ('pay_fake_' . substr(hash('sha256', $providerOrderId . microtime(true)), 0, 14));
+        $result = new GatewayPaymentResult(
+            providerPaymentId: $paymentId,
+            providerOrderId: $providerOrderId,
+            amountMinor: $amountMinor,
+            currency: strtoupper($currency),
+            providerStatus: 'captured',
+            captured: true,
+        );
+        $this->paymentsById[$paymentId] = $result;
+        $this->orderPaymentIds[$providerOrderId] ??= [];
+        $this->orderPaymentIds[$providerOrderId][] = $paymentId;
+        $this->ordersById[$providerOrderId] = new GatewayOrderResult(
+            providerOrderId: $providerOrderId,
+            amountMinor: $amountMinor,
+            currency: strtoupper($currency),
+            providerStatus: 'paid',
+        );
+
+        return $result;
+    }
+
+    public function simulateFailure(
+        string $providerOrderId,
+        int $amountMinor,
+        string $currency,
+        string $failureCode = 'payment_failed',
+        ?string $providerPaymentId = null,
+    ): GatewayPaymentResult {
+        if (!isset($this->ordersById[$providerOrderId])) {
+            throw new ExternalServiceException('Fake payment gateway order not found.');
+        }
+
+        $paymentId = $providerPaymentId ?? ('pay_fake_fail_' . substr(hash('sha256', $providerOrderId), 0, 10));
+        $result = new GatewayPaymentResult(
+            providerPaymentId: $paymentId,
+            providerOrderId: $providerOrderId,
+            amountMinor: $amountMinor,
+            currency: strtoupper($currency),
+            providerStatus: 'failed',
+            captured: false,
+            failureCode: $failureCode,
+            failureCategory: 'gateway_declined',
+        );
+        $this->paymentsById[$paymentId] = $result;
+        $this->orderPaymentIds[$providerOrderId] ??= [];
+        $this->orderPaymentIds[$providerOrderId][] = $paymentId;
+
+        return $result;
     }
 }

@@ -16,11 +16,12 @@ use PDO;
 
 final class PdoPaymentRepository implements PaymentRepository
 {
-    private const COLUMNS = 'payment_id, public_reference, application_id, user_id, provider, provider_order_id,
+    private const COLUMNS = 'payment_id, public_reference, application_id, enrolment_id, user_id, provider, provider_order_id,
         provider_payment_id, base_fee_minor, gst_minor, amount_minor, currency, gst_rate_percent,
         course_version_id, batch_id, fee_override_applied, status, failure_code, failure_category,
         attempt_number, idempotency_key, row_version, successful_marker, initiated_at,
         provider_order_bound_at, authorized_at, captured_at, failed_at, expired_at, reconciled_at,
+        reconcile_lease_owner, reconcile_lease_token, reconcile_lease_expires_at,
         created_at, updated_at';
 
     public function __construct(
@@ -133,14 +134,14 @@ final class PdoPaymentRepository implements PaymentRepository
 
         $stmt = $pdo->prepare(
             'INSERT INTO payments (
-                public_reference, application_id, user_id, provider, provider_order_id, provider_payment_id,
+                public_reference, application_id, enrolment_id, user_id, provider, provider_order_id, provider_payment_id,
                 base_fee_minor, gst_minor, amount_minor, currency, gst_rate_percent,
                 course_version_id, batch_id, fee_override_applied, status, failure_code, failure_category,
                 attempt_number, idempotency_key, row_version, successful_marker, initiated_at,
                 provider_order_bound_at, authorized_at, captured_at, failed_at, expired_at, reconciled_at,
                 created_at, updated_at
             ) VALUES (
-                :public_reference, :application_id, :user_id, :provider, NULL, NULL,
+                :public_reference, :application_id, NULL, :user_id, :provider, NULL, NULL,
                 :base_fee_minor, :gst_minor, :amount_minor, :currency, :gst_rate_percent,
                 :course_version_id, :batch_id, :fee_override_applied, :status, NULL, NULL,
                 :attempt_number, :idempotency_key, 1, NULL, :initiated_at,
@@ -267,6 +268,175 @@ final class PdoPaymentRepository implements PaymentRepository
         return $stmt->rowCount() === 1;
     }
 
+    public function bindEnrolmentId(
+        int $paymentId,
+        int $enrolmentId,
+        int $expectedRowVersion,
+        DateTimeImmutable $now,
+    ): bool {
+        $pdo = $this->connections->connection();
+        $nowStr = $now->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u');
+        $stmt = $pdo->prepare(
+            'UPDATE payments
+             SET enrolment_id = :enrolment_id,
+                 row_version = row_version + 1,
+                 updated_at = :updated_at
+             WHERE payment_id = :payment_id
+               AND enrolment_id IS NULL
+               AND row_version = :row_version',
+        );
+        $stmt->execute([
+            'enrolment_id' => $enrolmentId,
+            'updated_at' => $nowStr,
+            'payment_id' => $paymentId,
+            'row_version' => $expectedRowVersion,
+        ]);
+
+        return $stmt->rowCount() === 1;
+    }
+
+    public function claimForReconciliation(
+        string $workerId,
+        DateTimeImmutable $now,
+        int $leaseSeconds,
+        int $pendingStaleSeconds,
+        int $limit,
+    ): array {
+        $pdo = $this->connections->connection();
+        $nowStr = $now->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u');
+        $leaseExpires = $now->modify('+' . $leaseSeconds . ' seconds')
+            ->setTimezone(new DateTimeZone('UTC'))
+            ->format('Y-m-d H:i:s.u');
+        $staleBefore = $now->modify('-' . max(0, $pendingStaleSeconds) . ' seconds')
+            ->setTimezone(new DateTimeZone('UTC'))
+            ->format('Y-m-d H:i:s.u');
+        $limit = max(1, min(50, $limit));
+
+        $select = $pdo->prepare(
+            'SELECT payment_id FROM payments
+             WHERE (
+                (status = :pending AND provider_order_bound_at IS NOT NULL AND provider_order_bound_at <= :stale_before)
+                OR status = :reconciliation_pending
+             )
+             AND (
+                reconcile_lease_expires_at IS NULL
+                OR reconcile_lease_expires_at < :now
+             )
+             ORDER BY payment_id ASC
+             LIMIT ' . $limit . ' FOR UPDATE SKIP LOCKED',
+        );
+        $select->execute([
+            'pending' => PaymentStatus::PENDING,
+            'reconciliation_pending' => PaymentStatus::RECONCILIATION_PENDING,
+            'stale_before' => $staleBefore,
+            'now' => $nowStr,
+        ]);
+        $ids = array_map(static fn (array $r): int => (int) $r['payment_id'], $select->fetchAll(PDO::FETCH_ASSOC));
+        if ($ids === []) {
+            return [];
+        }
+
+        $claimed = [];
+        foreach ($ids as $paymentId) {
+            $token = $this->newLeaseToken();
+            $update = $pdo->prepare(
+                'UPDATE payments
+                 SET reconcile_lease_owner = :owner,
+                     reconcile_lease_token = :token,
+                     reconcile_lease_expires_at = :expires,
+                     updated_at = :updated_at
+                 WHERE payment_id = :payment_id
+                   AND (
+                     reconcile_lease_expires_at IS NULL
+                     OR reconcile_lease_expires_at < :now
+                   )',
+            );
+            $update->execute([
+                'owner' => $workerId,
+                'token' => $token,
+                'expires' => $leaseExpires,
+                'updated_at' => $nowStr,
+                'payment_id' => $paymentId,
+                'now' => $nowStr,
+            ]);
+            if ($update->rowCount() !== 1) {
+                continue;
+            }
+            $payment = $this->findById($paymentId);
+            if ($payment !== null) {
+                $claimed[] = $payment;
+            }
+        }
+
+        return $claimed;
+    }
+
+    public function hasActiveReconcileLease(
+        int $paymentId,
+        string $leaseOwner,
+        string $leaseToken,
+        DateTimeImmutable $now,
+    ): bool {
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'SELECT 1 FROM payments
+             WHERE payment_id = :payment_id
+               AND reconcile_lease_owner = :owner
+               AND reconcile_lease_token = :token
+               AND reconcile_lease_expires_at IS NOT NULL
+               AND reconcile_lease_expires_at >= :now',
+        );
+        $stmt->execute([
+            'payment_id' => $paymentId,
+            'owner' => $leaseOwner,
+            'token' => $leaseToken,
+            'now' => $now->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u'),
+        ]);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
+    public function clearReconcileLease(
+        int $paymentId,
+        string $leaseOwner,
+        string $leaseToken,
+        DateTimeImmutable $now,
+    ): bool {
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'UPDATE payments
+             SET reconcile_lease_owner = NULL,
+                 reconcile_lease_token = NULL,
+                 reconcile_lease_expires_at = NULL,
+                 updated_at = :updated_at
+             WHERE payment_id = :payment_id
+               AND reconcile_lease_owner = :owner
+               AND reconcile_lease_token = :token',
+        );
+        $stmt->execute([
+            'updated_at' => $now->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u'),
+            'payment_id' => $paymentId,
+            'owner' => $leaseOwner,
+            'token' => $leaseToken,
+        ]);
+
+        return $stmt->rowCount() === 1;
+    }
+
+    public function findSuccessfulMarkerForApplication(int $applicationId): ?Payment
+    {
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'SELECT ' . self::COLUMNS . ' FROM payments
+             WHERE application_id = :application_id AND successful_marker = 1
+             LIMIT 1',
+        );
+        $stmt->execute(['application_id' => $applicationId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : $this->mapRow($row);
+    }
+
     public function listForFinance(
         ?string $status,
         ?string $publicReference,
@@ -344,6 +514,21 @@ final class PdoPaymentRepository implements PaymentRepository
         return [$where, $params];
     }
 
+    private function newLeaseToken(): string
+    {
+        return sprintf(
+            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+            random_int(0, 0xffff),
+            random_int(0, 0xffff),
+            random_int(0, 0xffff),
+            random_int(0, 0x0fff) | 0x4000,
+            random_int(0, 0x3fff) | 0x8000,
+            random_int(0, 0xffff),
+            random_int(0, 0xffff),
+            random_int(0, 0xffff),
+        );
+    }
+
     /**
      * @param array<string, mixed> $row
      */
@@ -355,6 +540,7 @@ final class PdoPaymentRepository implements PaymentRepository
             paymentId: (int) $row['payment_id'],
             publicReference: (string) $row['public_reference'],
             applicationId: (int) $row['application_id'],
+            enrolmentId: $row['enrolment_id'] === null ? null : (int) $row['enrolment_id'],
             userId: (int) $row['user_id'],
             provider: (string) $row['provider'],
             providerOrderId: $row['provider_order_id'] === null ? null : (string) $row['provider_order_id'],
@@ -393,6 +579,15 @@ final class PdoPaymentRepository implements PaymentRepository
             reconciledAt: $row['reconciled_at'] === null
                 ? null
                 : new DateTimeImmutable((string) $row['reconciled_at'], $utc),
+            reconcileLeaseOwner: $row['reconcile_lease_owner'] === null
+                ? null
+                : (string) $row['reconcile_lease_owner'],
+            reconcileLeaseToken: $row['reconcile_lease_token'] === null
+                ? null
+                : (string) $row['reconcile_lease_token'],
+            reconcileLeaseExpiresAt: $row['reconcile_lease_expires_at'] === null
+                ? null
+                : new DateTimeImmutable((string) $row['reconcile_lease_expires_at'], $utc),
             createdAt: new DateTimeImmutable((string) $row['created_at'], $utc),
             updatedAt: new DateTimeImmutable((string) $row['updated_at'], $utc),
         );

@@ -6,6 +6,7 @@ namespace Academy\Infrastructure\Payments;
 
 use Academy\Domain\Exception\ExternalServiceException;
 use Academy\Domain\Payments\GatewayOrderResult;
+use Academy\Domain\Payments\GatewayPaymentResult;
 use Academy\Domain\Payments\PaymentGateway;
 use Academy\Domain\Payments\PaymentProvider;
 
@@ -68,6 +69,51 @@ final class RazorpayPaymentGateway implements PaymentGateway
         );
 
         return $this->mapOrder($decoded);
+    }
+
+    public function fetchPayment(string $providerPaymentId): GatewayPaymentResult
+    {
+        if ($providerPaymentId === '' || !preg_match('/^[A-Za-z0-9_]+$/', $providerPaymentId)) {
+            throw new ExternalServiceException('Invalid Razorpay payment id.');
+        }
+
+        $decoded = $this->request(
+            'GET',
+            '/payments/' . rawurlencode($providerPaymentId),
+            null,
+            null,
+        );
+
+        return $this->mapPayment($decoded);
+    }
+
+    public function fetchPaymentsForOrder(string $providerOrderId): array
+    {
+        if ($providerOrderId === '' || !preg_match('/^[A-Za-z0-9_]+$/', $providerOrderId)) {
+            throw new ExternalServiceException('Invalid Razorpay order id.');
+        }
+
+        $decoded = $this->request(
+            'GET',
+            '/orders/' . rawurlencode($providerOrderId) . '/payments',
+            null,
+            null,
+        );
+
+        $items = $decoded['items'] ?? null;
+        if (!is_array($items)) {
+            throw new ExternalServiceException('Razorpay order payments response missing items.');
+        }
+
+        $out = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $out[] = $this->mapPayment($item);
+        }
+
+        return $out;
     }
 
     public function publicKeyId(): string
@@ -213,6 +259,30 @@ final class RazorpayPaymentGateway implements PaymentGateway
             amountMinor: (int) $decoded['amount'],
             currency: strtoupper((string) $decoded['currency']),
             providerStatus: (string) $decoded['status'],
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $decoded
+     */
+    private function mapPayment(array $decoded): GatewayPaymentResult
+    {
+        if (!isset($decoded['id'], $decoded['amount'], $decoded['currency'], $decoded['status'])) {
+            throw new ExternalServiceException('Razorpay payment response missing required fields.');
+        }
+
+        $status = strtolower((string) $decoded['status']);
+        $captured = !empty($decoded['captured']) || $status === 'captured';
+
+        return new GatewayPaymentResult(
+            providerPaymentId: (string) $decoded['id'],
+            providerOrderId: isset($decoded['order_id']) ? (string) $decoded['order_id'] : null,
+            amountMinor: (int) $decoded['amount'],
+            currency: strtoupper((string) $decoded['currency']),
+            providerStatus: (string) $decoded['status'],
+            captured: $captured,
+            failureCode: isset($decoded['error_code']) ? (string) $decoded['error_code'] : null,
+            failureCategory: isset($decoded['error_reason']) ? (string) $decoded['error_reason'] : null,
         );
     }
 }
