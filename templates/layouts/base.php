@@ -19,8 +19,9 @@ declare(strict_types=1);
 <body>
 <div class="acad-shell">
     <header class="acad-shell__header">
-        <a class="acad-shell__brand" href="/smoke">Academy LMS</a>
+        <a class="acad-shell__brand" href="/dashboard">Academy LMS</a>
         <nav class="acad-shell__nav">
+            <a href="/dashboard">Dashboard</a>
             <a href="/courses">Courses</a>
         </nav>
     </header>

@@ -21,6 +21,7 @@ final class PaymentResultView
         public readonly array $attempts,
         public readonly bool $isConfirming,
         public readonly string $statusHeadline,
+        public readonly ?string $enrolmentLifecycleLabel = null,
     ) {
     }
 }

@@ -80,7 +80,7 @@ final class LoginHttpTest extends TestCase
         );
 
         self::assertSame(302, $response->getStatusCode());
-        self::assertSame('/smoke', $response->getHeaderLine('Location'));
+        self::assertSame('/dashboard', $response->getHeaderLine('Location'));
         $newSession = $this->cookieValue($response->getHeader('Set-Cookie'), $this->sessionCookieName);
         self::assertNotNull($newSession);
         self::assertNotSame($oldSession, $newSession);

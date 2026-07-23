@@ -36,7 +36,7 @@ final class LoginController
         /** @var AuthContext|null $auth */
         $auth = $request->getAttribute(AuthenticationMiddleware::ATTR_AUTH);
         if ($auth instanceof AuthContext && $auth->authenticated) {
-            return new RedirectResponse('/smoke', 302);
+            return new RedirectResponse('/dashboard', 302);
         }
 
         /** @var string $csrf */
@@ -86,7 +86,7 @@ final class LoginController
 
         $established = $this->login->establishSession($this->sessions, $session, $success);
 
-        $response = new RedirectResponse('/smoke', 302);
+        $response = new RedirectResponse('/dashboard', 302);
         $response = $response->withAddedHeader(
             'Set-Cookie',
             $this->sessionCookies->buildSessionSetCookie($established['raw_token']),
