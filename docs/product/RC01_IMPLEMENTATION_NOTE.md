@@ -40,3 +40,25 @@ Course player, content authoring, assessments, certificates, refund automation, 
 ## Escalations
 
 None. Fake-provider policy for `uat` is deliberate and documented; production/staging remain fail-closed.
+
+## Validation (final)
+
+| Gate | Result |
+|---|---|
+| Full PHPUnit | **1122 tests / 3055 assertions** |
+| PHPStan | Pass (0 errors) |
+| php-cs-fixer dry-run | Pass (0 files) |
+| composer validate --strict | Pass |
+| composer audit | No advisories (cache; network limited in local run) |
+| UAT seed ×2 idempotency | Pass |
+| UAT reset + reseed | Pass |
+| `bin/setup.php --skip-assets --skip-migrate` | Pass (readiness OK) |
+| Backup/restore rehearsal | Pass (13 phinx rows; 0 orphan enrolments) |
+| `git diff --check` | Pass |
+
+## Known limitations
+
+1. UAT scenario applications use controlled fixture inserts for list/detail states; interactive `learner@uat.example.test` has no conflicting application so Mode A journeys use real services/SMs.
+2. Backup rehearsal is local `mysqldump` only — does not claim production DR readiness (`PR-BACKUP`).
+3. Node moved to 22 for CI; `package.json` engines `>=22`.
+4. `git pull origin main` could not refresh in this environment (DNS); branch started from local `main` at `c88ba61` (already tracking origin/main).
