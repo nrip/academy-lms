@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * CLI entry for WP-01A / WP-01B-2a operational jobs.
+ * CLI entry for operational jobs (WP-01A … RC-01).
  *
  * Usage:
  *   php bin/jobs.php session:cleanup
@@ -15,6 +15,8 @@ declare(strict_types=1);
  *   php bin/jobs.php document:stuck-scan
  *   php bin/jobs.php payment:webhook-process
  *   php bin/jobs.php payment:reconcile
+ *   php bin/jobs.php uat:seed
+ *   php bin/jobs.php uat:reset --confirm
  */
 
 use Academy\Application\Credentials\DocumentScanWorker;
@@ -22,6 +24,8 @@ use Academy\Application\Credentials\StuckScanWatchService;
 use Academy\Application\Identity\TokenConfirmationCleanupService;
 use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
 use Academy\Application\Notifications\TransactionalNotificationDeliveryWorker;
+use Academy\Application\Ops\UatResetService;
+use Academy\Application\Ops\UatSeedService;
 use Academy\Application\Outbox\OutboxRelayService;
 use Academy\Application\Payments\PaymentReconciliationService;
 use Academy\Application\Payments\PaymentWebhookProcessor;
@@ -36,6 +40,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 $container = require dirname(__DIR__) . '/config/bootstrap.php';
 
 $command = $argv[1] ?? '';
+$confirm = in_array('--confirm', $argv, true);
 $workerId = gethostname() . ':' . getmypid();
 
 $lock = $container->get(PdoSchedulerLock::class);
@@ -142,9 +147,44 @@ $exit = match ($command) {
 
         return 0;
     })(),
+    'uat:seed' => (static function () use ($container): int {
+        try {
+            $result = $container->get(UatSeedService::class)->seed();
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'uat:seed failed: ' . $e->getMessage() . "\n");
+
+            return 1;
+        }
+        fwrite(STDOUT, 'uat:seed personas=' . $result['personas']
+            . ' catalogue=' . ($result['catalogue'] ? 'yes' : 'no')
+            . ' applications=' . $result['applications']
+            . ' notifications=' . $result['notifications'] . "\n");
+        foreach ($result['summary'] as $line) {
+            fwrite(STDOUT, '  ' . $line . "\n");
+        }
+
+        return $result['catalogue'] ? 0 : 2;
+    })(),
+    'uat:reset' => (static function () use ($container, $confirm): int {
+        try {
+            $result = $container->get(UatResetService::class)->reset($confirm);
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'uat:reset failed: ' . $e->getMessage() . "\n");
+
+            return 1;
+        }
+        fwrite(STDOUT, 'uat:reset deleted_users=' . $result['deleted_users']
+            . ' deleted_applications=' . $result['deleted_applications']
+            . ' deleted_notifications=' . $result['deleted_notifications'] . "\n");
+        foreach ($result['summary'] as $line) {
+            fwrite(STDOUT, '  ' . $line . "\n");
+        }
+
+        return 0;
+    })(),
     default => (static function () use ($command): int {
         fwrite(STDERR, "Unknown command: {$command}\n");
-        fwrite(STDERR, "Commands: session:cleanup | rate-limit:cleanup | outbox:relay | notification:deliver | token-confirmation:cleanup | document:scan | document:stuck-scan | payment:webhook-process | payment:reconcile\n");
+        fwrite(STDERR, "Commands: session:cleanup | rate-limit:cleanup | outbox:relay | notification:deliver | token-confirmation:cleanup | document:scan | document:stuck-scan | payment:webhook-process | payment:reconcile | uat:seed | uat:reset --confirm\n");
 
         return 1;
     })(),

@@ -43,6 +43,11 @@
         "phpstan": "phpstan analyse",
         "cs-check": "php-cs-fixer fix --dry-run --diff",
         "cs-fix": "php-cs-fixer fix",
-        "assets:install": "node bin/install-frontend-assets.mjs"
+        "assets:install": "node bin/install-frontend-assets.mjs",
+        "setup": "php bin/setup.php",
+        "setup-uat": "php bin/setup.php --seed-uat",
+        "migrate": "php vendor/bin/phinx migrate -c phinx.php",
+        "uat-seed": "php bin/jobs.php uat:seed",
+        "uat-reset": "php bin/jobs.php uat:reset --confirm"
     }
 }
