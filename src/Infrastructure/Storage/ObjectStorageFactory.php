@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Academy\Infrastructure\Storage;
 
+use Academy\Application\Ops\EnvironmentCapability;
 use Academy\Domain\Storage\ObjectStorage;
 
 final class ObjectStorageFactory
@@ -13,7 +14,8 @@ final class ObjectStorageFactory
      */
     public static function create(array $config, string $env): ObjectStorage
     {
-        if ($config['driver'] === 'local' && in_array($env, ['local', 'testing', 'ci'], true)) {
+        $capability = EnvironmentCapability::fromEnvName($env);
+        if ($config['driver'] === 'local' && $capability->allowsFakeOrLocalAdapters()) {
             return new LocalObjectStorage(
                 $config['local_base_path'],
                 $config['local_signing_secret'],

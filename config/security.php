@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Academy\Application\Ops\EnvironmentCapability;
 use Academy\Http\Security\SessionCookieSettings;
 
 /**
@@ -11,37 +12,19 @@ use Academy\Http\Security\SessionCookieSettings;
  * @param callable(string, string): string $string
  * @param callable(string, int): int $int
  *
- * @return array{
- *   trusted_proxies: list<string>,
- *   force_https: bool,
- *   rate_limit_pepper: string,
- *   session: array{
- *     cookie_secure: bool,
- *     cookies: array{session_name: string, csrf_name: string},
- *     activity_write_throttle_seconds: int,
- *     required_path_prefixes: list<string>,
- *     timeouts: array{
- *       default: array{idle_seconds: int, absolute_seconds: int},
- *       privileged: array{idle_seconds: int, absolute_seconds: int}
- *     }
- *   },
- *   rate_limit: array{
- *     policies: array<string, array{limit: int, window_seconds: int, failure: string}>,
- *     path_policies: array<string, string>
- *   },
- *   outbox: array{
- *     lease_seconds: int,
- *     max_attempts: int,
- *     backoff_base_seconds: int,
- *     backoff_cap_seconds: int,
- *     transport: string
- *   }
- * }
+ * @return array<string, mixed>
  */
-return static function (string $env, callable $bool, callable $string, callable $int): array {
-    $forceHttps = $bool('FORCE_HTTPS', $env === 'production');
-    $cookieSecure = $bool('SESSION_COOKIE_SECURE', in_array($env, ['production', 'staging'], true) || $forceHttps);
-    $useHostPrefix = in_array($env, ['production', 'staging'], true) && $cookieSecure;
+return static function (
+    string $env,
+    callable $bool,
+    callable $string,
+    callable $int,
+    ?EnvironmentCapability $capability = null,
+): array {
+    $capability ??= EnvironmentCapability::fromEnvName($env);
+    $forceHttps = $bool('FORCE_HTTPS', $capability->defaultForceHttps());
+    $cookieSecure = $bool('SESSION_COOKIE_SECURE', $capability->defaultSessionCookieSecure() || $forceHttps);
+    $useHostPrefix = $capability->isProductionLike() && $cookieSecure;
 
     $sessionCookieName = $useHostPrefix ? '__Host-acad_session' : 'acad_session';
     $csrfCookieName = $useHostPrefix ? '__Host-acad_csrf' : 'acad_csrf';
@@ -50,7 +33,7 @@ return static function (string $env, callable $bool, callable $string, callable 
     new SessionCookieSettings($sessionCookieName, $csrfCookieName, $cookieSecure);
 
     $rateLimitPepper = $string('RATE_LIMIT_PEPPER', '');
-    if ($rateLimitPepper === '' && in_array($env, ['local', 'testing', 'ci'], true)) {
+    if ($rateLimitPepper === '' && $capability->allowsSoftSecretDefaults()) {
         $rateLimitPepper = 'local-ci-rate-limit-pepper-not-for-production';
     }
 
@@ -90,7 +73,7 @@ return static function (string $env, callable $bool, callable $string, callable 
 
     $requiredPathPrefixes = $env === 'testing' ? ['/__wp01a/protected'] : [];
 
-    $softSecretsAllowed = in_array($env, ['local', 'testing', 'ci'], true);
+    $softSecretsAllowed = $capability->allowsSoftSecretDefaults();
 
     $tokenPepper = $string('TOKEN_PEPPER', '');
     if ($tokenPepper === '' && $softSecretsAllowed) {
@@ -128,25 +111,22 @@ return static function (string $env, callable $bool, callable $string, callable 
     $emailAdapter = $string('NOTIFICATION_EMAIL_ADAPTER', '');
     $smsAdapter = $string('NOTIFICATION_SMS_ADAPTER', '');
     if ($emailAdapter === '') {
-        $emailAdapter = match ($env) {
-            'testing', 'ci' => 'recording',
-            'local' => 'local_file',
-            default => 'unavailable',
-        };
+        $emailAdapter = $capability->defaultEmailAdapter();
     }
     if ($smsAdapter === '') {
-        $smsAdapter = match ($env) {
-            'testing', 'ci' => 'recording',
-            default => 'unavailable',
-        };
+        $smsAdapter = $capability->defaultSmsAdapter();
     }
-    if (in_array($env, ['staging', 'production'], true)) {
+    if ($capability->isProductionLike()) {
         if (in_array($emailAdapter, ['recording', 'local_file'], true)) {
             throw new InvalidArgumentException('Recording/local email adapters are forbidden in staging/production.');
         }
         if ($smsAdapter === 'recording') {
             throw new InvalidArgumentException('Recording SMS adapters are forbidden in staging/production.');
         }
+    } elseif (!$capability->allowsFakeOrLocalAdapters()
+        && in_array($emailAdapter, ['recording', 'local_file'], true)
+    ) {
+        throw new InvalidArgumentException('Recording/local email adapters are not permitted in this environment.');
     }
 
     return [
@@ -212,7 +192,7 @@ return static function (string $env, callable $bool, callable $string, callable 
             'stuck_scan_sla_seconds' => $int('DOCUMENTS_STUCK_SCAN_SLA_SECONDS', 900),
             'stuck_scan_max_attempts' => $int('DOCUMENTS_STUCK_SCAN_MAX_ATTEMPTS', 5),
             'scan_lease_seconds' => $int('DOCUMENTS_SCAN_LEASE_SECONDS', 60),
-            'storage_driver' => $string('DOCUMENTS_STORAGE_DRIVER', in_array($env, ['local', 'testing', 'ci'], true) ? 'local' : 'unconfigured'),
+            'storage_driver' => $string('DOCUMENTS_STORAGE_DRIVER', $capability->defaultDocumentsStorageDriver()),
             'local_base_path' => $string('DOCUMENTS_LOCAL_BASE_PATH', 'storage/documents'),
             'local_signing_secret' => (static function () use ($string, $softSecretsAllowed): string {
                 $secret = $string('DOCUMENTS_LOCAL_SIGNING_SECRET', '');
@@ -222,25 +202,27 @@ return static function (string $env, callable $bool, callable $string, callable 
 
                 return $secret;
             })(),
-            'fake_scanner_enabled' => $bool('DOCUMENTS_FAKE_SCANNER', in_array($env, ['testing', 'ci'], true)),
+            'fake_scanner_enabled' => $bool('DOCUMENTS_FAKE_SCANNER', $capability->defaultFakeScannerEnabled()),
         ],
-        'payments' => (static function () use ($env, $bool, $string, $int): array {
-            $fakeGatewayEnabled = $bool('PAYMENTS_FAKE_GATEWAY', in_array($env, ['testing', 'ci'], true));
+        'payments' => (static function () use ($capability, $bool, $string, $int): array {
+            $fakeGatewayEnabled = $bool('PAYMENTS_FAKE_GATEWAY', $capability->defaultFakePaymentGatewayEnabled());
             $razorpayKeyId = $string('RAZORPAY_KEY_ID', '');
             $razorpayKeySecret = $string('RAZORPAY_KEY_SECRET', '');
             $razorpayWebhookSecret = $string('RAZORPAY_WEBHOOK_SECRET', '');
-            if ($razorpayWebhookSecret === '' && in_array($env, ['local', 'testing', 'ci'], true)) {
+            if ($razorpayWebhookSecret === '' && $capability->allowsSoftSecretDefaults()) {
                 $razorpayWebhookSecret = 'local-ci-razorpay-webhook-secret-not-for-production';
             }
 
-            if (in_array($env, ['staging', 'production'], true)) {
+            if ($capability->isProductionLike()) {
                 if ($fakeGatewayEnabled) {
                     throw new InvalidArgumentException(
                         'PAYMENTS_FAKE_GATEWAY is forbidden in staging/production.',
                     );
                 }
-                // Credentials may be empty at bootstrap (UnconfiguredPaymentGateway fails on use).
-                // Fake gateway is the only payments setting that must fail closed here.
+            } elseif ($fakeGatewayEnabled && !$capability->allowsFakeOrLocalAdapters()) {
+                throw new InvalidArgumentException(
+                    'PAYMENTS_FAKE_GATEWAY is not permitted in this environment.',
+                );
             }
 
             return [

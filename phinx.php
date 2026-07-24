@@ -6,7 +6,7 @@ $root = dirname(__DIR__);
 
 $envName = $_ENV['APP_ENV'] ?? $_SERVER['APP_ENV'] ?? getenv('APP_ENV') ?: 'local';
 $envName = is_string($envName) ? strtolower($envName) : 'local';
-if (in_array($envName, ['local', 'ci', 'testing'], true) && is_readable($root . '/.env')) {
+if (in_array($envName, ['local', 'ci', 'testing', 'uat'], true) && is_readable($root . '/.env')) {
     Dotenv\Dotenv::createImmutable($root)->safeLoad();
 }
 
@@ -59,6 +59,16 @@ return [
             'name' => $getenv('DB_NAME', 'academy_lms_ci'),
             'user' => $getenv('DB_USER', 'root'),
             'pass' => $getenv('DB_PASSWORD', 'root'),
+            'port' => (int) $getenv('DB_PORT', '3306'),
+            'charset' => $getenv('DB_CHARSET', 'utf8mb4'),
+            'collation' => 'utf8mb4_unicode_ci',
+        ],
+        'uat' => [
+            'adapter' => 'mysql',
+            'host' => $getenv('DB_HOST', '127.0.0.1'),
+            'name' => $getenv('DB_NAME', 'academy_lms_uat'),
+            'user' => $getenv('DB_USER', 'academy'),
+            'pass' => $getenv('DB_PASSWORD', ''),
             'port' => (int) $getenv('DB_PORT', '3306'),
             'charset' => $getenv('DB_CHARSET', 'utf8mb4'),
             'collation' => 'utf8mb4_unicode_ci',

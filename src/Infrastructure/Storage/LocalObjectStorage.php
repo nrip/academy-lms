@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Academy\Infrastructure\Storage;
 
+use Academy\Application\Ops\EnvironmentCapability;
 use Academy\Domain\Exception\NotFoundException;
 use Academy\Domain\Exception\ServiceUnavailableException;
 use Academy\Domain\Exception\ValidationException;
@@ -13,7 +14,7 @@ use DateTimeImmutable;
 use RuntimeException;
 
 /**
- * Private local object store for local/testing/ci only.
+ * Private local object store for local/testing/ci/uat only.
  */
 final class LocalObjectStorage implements ObjectStorage
 {
@@ -22,7 +23,8 @@ final class LocalObjectStorage implements ObjectStorage
         private readonly string $signingSecret,
         private readonly string $env,
     ) {
-        if (!in_array($this->env, ['local', 'testing', 'ci'], true)) {
+        $capability = EnvironmentCapability::fromEnvName($this->env);
+        if (!$capability->allowsFakeOrLocalAdapters()) {
             throw new ServiceUnavailableException('Local object storage is not permitted in this environment.');
         }
         if ($this->signingSecret === '') {

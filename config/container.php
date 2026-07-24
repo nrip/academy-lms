@@ -44,6 +44,10 @@ use Academy\Application\Notifications\NotificationRecipientResolver;
 use Academy\Application\Notifications\NotificationTemplateRenderer;
 use Academy\Application\Notifications\TransactionalNotificationDeliveryWorker;
 use Academy\Application\Notifications\TransactionalNotificationTemplateRegistry;
+use Academy\Application\Ops\EnvironmentCapability;
+use Academy\Application\Ops\ReadinessProbe;
+use Academy\Application\Ops\UatResetService;
+use Academy\Application\Ops\UatSeedService;
 use Academy\Application\Outbox\OutboxRelayService;
 use Academy\Application\Payments\FinancePaymentQueryService;
 use Academy\Application\Payments\FinanceReconciliationQueryService;
@@ -441,7 +445,7 @@ return static function (): ContainerInterface {
             $payments = $security['payments'];
             $env = $app['env'];
 
-            if ($payments['fake_gateway_enabled'] && in_array($env, ['local', 'testing', 'ci'], true)) {
+            if ($payments['fake_gateway_enabled'] && EnvironmentCapability::fromEnvName($env)->allowsFakeOrLocalAdapters()) {
                 return new FakePaymentGateway($env, true);
             }
 
@@ -639,7 +643,7 @@ return static function (): ContainerInterface {
             $security = $c->get('config.security');
             $documents = $security['documents'];
 
-            if ($documents['storage_driver'] === 'local' && in_array($app['env'], ['local', 'testing', 'ci'], true)) {
+            if ($documents['storage_driver'] === 'local' && EnvironmentCapability::fromEnvName($app['env'])->allowsFakeOrLocalAdapters()) {
                 return $c->get(LocalObjectStorage::class);
             }
 
@@ -652,7 +656,7 @@ return static function (): ContainerInterface {
             $security = $c->get('config.security');
             $documents = $security['documents'];
 
-            if ($documents['fake_scanner_enabled'] && in_array($app['env'], ['local', 'testing', 'ci'], true)) {
+            if ($documents['fake_scanner_enabled'] && EnvironmentCapability::fromEnvName($app['env'])->allowsFakeOrLocalAdapters()) {
                 return new FakeMalwareScanner($app['env'], $documents['fake_scanner_enabled']);
             }
 
@@ -708,7 +712,8 @@ return static function (): ContainerInterface {
             /** @var array{documents: array{upload_ttl_seconds: int, storage_driver: string}} $security */
             $security = $c->get('config.security');
             $documents = $security['documents'];
-            $localUploadUrlOverride = $documents['storage_driver'] === 'local' && in_array($app['env'], ['local', 'testing', 'ci'], true);
+            $localUploadUrlOverride = $documents['storage_driver'] === 'local'
+                && EnvironmentCapability::fromEnvName($app['env'])->allowsFakeOrLocalAdapters();
 
             return new DocumentUploadService(
                 $c->get(TransactionManager::class),
@@ -1263,6 +1268,8 @@ return static function (): ContainerInterface {
             $router->setStrategy($strategy);
 
             $router->get('/health', [HealthController::class, 'handle']);
+            $router->get('/health/live', [HealthController::class, 'live']);
+            $router->get('/health/ready', [HealthController::class, 'ready']);
             $router->get('/smoke', [SmokeController::class, 'handle']);
 
             $router->get('/register', [RegistrationController::class, 'showForm']);
@@ -1514,7 +1521,9 @@ return static function (): ContainerInterface {
 
             /** @var array{documents: array{storage_driver: string}} $security */
             $security = $c->get('config.security');
-            if ($security['documents']['storage_driver'] === 'local' && in_array($app['env'], ['local', 'testing', 'ci'], true)) {
+            if ($security['documents']['storage_driver'] === 'local'
+                && EnvironmentCapability::fromEnvName($app['env'])->allowsFakeOrLocalAdapters()
+            ) {
                 // Emulates the client "upload to S3" / "signed GET" steps for local
                 // development only — never registered when a real object storage
                 // driver is configured (WP03_IMPLEMENTATION_NOTE.md "Storage / scanner").
@@ -1569,7 +1578,30 @@ return static function (): ContainerInterface {
             $c->get(Router::class),
         ),
 
-        HealthController::class => static fn (): HealthController => new HealthController(),
+        HealthController::class => static fn (ContainerInterface $c): HealthController => new HealthController(
+            $c->get('config'),
+            $c->get(ConnectionFactory::class),
+            $c->get(ReadinessProbe::class),
+        ),
+        ReadinessProbe::class => static fn (): ReadinessProbe => new ReadinessProbe(),
+        UatSeedService::class => static function (ContainerInterface $c): UatSeedService {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+
+            return new UatSeedService(
+                $c->get(ConnectionFactory::class),
+                EnvironmentCapability::fromEnvName($app['env']),
+            );
+        },
+        UatResetService::class => static function (ContainerInterface $c): UatResetService {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+
+            return new UatResetService(
+                $c->get(ConnectionFactory::class),
+                EnvironmentCapability::fromEnvName($app['env']),
+            );
+        },
         SmokeController::class => static fn (ContainerInterface $c): SmokeController => new SmokeController(
             $c->get(PhpRenderer::class),
         ),

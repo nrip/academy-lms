@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Academy\Infrastructure\Payments;
 
+use Academy\Application\Ops\EnvironmentCapability;
 use InvalidArgumentException;
 
 /**
- * Local/testing helper to produce Razorpay-compatible webhook signatures.
+ * Local/testing/UAT helper to produce Razorpay-compatible webhook signatures.
  */
 final class FakeWebhookSigner
 {
@@ -16,7 +17,8 @@ final class FakeWebhookSigner
         private readonly bool $enabled,
         private readonly string $webhookSecret,
     ) {
-        if (!$enabled || !in_array($env, ['local', 'testing', 'ci'], true)) {
+        $capability = EnvironmentCapability::fromEnvName($env);
+        if (!$enabled || !$capability->allowsFakeOrLocalAdapters()) {
             throw new InvalidArgumentException('FakeWebhookSigner is not permitted in this environment.');
         }
         if (trim($webhookSecret) === '') {

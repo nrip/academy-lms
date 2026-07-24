@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
+use Academy\Application\Ops\EnvironmentCapability;
 use Dotenv\Dotenv;
 
 /**
- * Composition-root bootstrap. Loads dotenv only for local/CI environments.
+ * Composition-root bootstrap. Loads dotenv for local/testing/ci/uat only.
  *
  * @return array{
  *   app: array{name: string, env: string, debug: bool, url: string},
@@ -52,9 +53,9 @@ $root = dirname(__DIR__);
 
 $envName = $_ENV['APP_ENV'] ?? $_SERVER['APP_ENV'] ?? getenv('APP_ENV') ?: 'local';
 $envName = is_string($envName) ? strtolower($envName) : 'local';
+$capabilityEarly = EnvironmentCapability::fromEnvName($envName);
 
-$dotenvAllowed = in_array($envName, ['local', 'ci', 'testing'], true);
-if ($dotenvAllowed && is_readable($root . '/.env')) {
+if ($capabilityEarly->allowsDotenvFile() && is_readable($root . '/.env')) {
     Dotenv::createImmutable($root)->safeLoad();
 }
 
@@ -95,7 +96,12 @@ $int = static function (string $key, int $default): int {
 };
 
 $env = strtolower($string('APP_ENV', 'local'));
-$debug = $bool('APP_DEBUG', $env !== 'production');
+$capability = EnvironmentCapability::fromEnvName($env);
+$debug = $bool('APP_DEBUG', $capability->allowsDebugDetails());
+$timezone = $string('APP_TIMEZONE', 'UTC');
+if (function_exists('date_default_timezone_set')) {
+    date_default_timezone_set($timezone !== '' ? $timezone : 'UTC');
+}
 
 $trustedProxiesRaw = $string('TRUSTED_PROXIES', '');
 $trustedProxies = $trustedProxiesRaw === ''
@@ -108,7 +114,7 @@ if (!str_starts_with($logPath, '/')) {
 }
 
 $securityBuilder = require __DIR__ . '/security.php';
-$security = $securityBuilder($env, $bool, $string, $int);
+$security = $securityBuilder($env, $bool, $string, $int, $capability);
 $security['trusted_proxies'] = $trustedProxies;
 
 return [
@@ -117,6 +123,7 @@ return [
         'env' => $env,
         'debug' => $debug,
         'url' => $string('APP_URL', 'http://localhost:8080'),
+        'timezone' => $timezone !== '' ? $timezone : 'UTC',
     ],
     'database' => [
         'host' => $string('DB_HOST', '127.0.0.1'),
