@@ -6,8 +6,13 @@ namespace Academy\Http\Controllers;
 
 use Academy\Application\Credentials\DocumentDownloadService;
 use Academy\Application\Credentials\DocumentUploadService;
+use Academy\Application\Credentials\PhpUploadRuntimeGuard;
 use Academy\Application\Credentials\UploadAuthorizationResult;
+use Academy\Domain\Credentials\DocumentFileValidator;
 use Academy\Domain\Exception\AuthenticationException;
+use Academy\Domain\Exception\ConflictException;
+use Academy\Domain\Exception\DomainRuleException;
+use Academy\Domain\Exception\NotFoundException;
 use Academy\Domain\Exception\ValidationException;
 use Academy\Domain\Security\AuthContext;
 use Academy\Http\Middleware\AuthenticationMiddleware;
@@ -15,6 +20,7 @@ use Laminas\Diactoros\Response\JsonResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\UploadedFileInterface;
 
 final class DocumentController
 {
@@ -22,6 +28,44 @@ final class DocumentController
         private readonly DocumentUploadService $uploads,
         private readonly DocumentDownloadService $downloads,
     ) {
+    }
+
+    /**
+     * Multipart form upload from the documents workspace (PRG).
+     *
+     * @param array<string, string> $args
+     */
+    public function uploadForm(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        $applicationId = (int) ($args['id'] ?? 0);
+        $body = (array) $request->getParsedBody();
+        $requirementId = $this->intField($body, 'requirement_id');
+        $replaceSubmissionId = isset($body['replace_submission_id']) && is_string($body['replace_submission_id'])
+            && preg_match('/^\d+$/', trim($body['replace_submission_id'])) === 1
+            ? (int) trim($body['replace_submission_id'])
+            : null;
+
+        try {
+            [$filename, $mimeType, $contents] = $this->readUploadedDocument($request);
+            $this->uploads->uploadBrowserFile(
+                $this->auth($request),
+                $applicationId,
+                $requirementId,
+                $replaceSubmissionId,
+                $filename,
+                $mimeType,
+                $contents,
+            );
+        } catch (ValidationException $exception) {
+            return $this->redirectDocuments($applicationId, $requirementId, $this->firstValidationMessage($exception));
+        } catch (DomainRuleException | ConflictException | NotFoundException $exception) {
+            return $this->redirectDocuments($applicationId, $requirementId, $exception->getMessage());
+        }
+
+        return new RedirectResponse(
+            '/applications/' . $applicationId . '/documents?uploaded=1&requirement_id=' . $requirementId,
+            303,
+        );
     }
 
     /**
@@ -101,6 +145,93 @@ final class DocumentController
         $result = $this->downloads->getOwnSignedDownloadUrl($this->auth($request), $applicationId, $submissionId);
 
         return new RedirectResponse($result['url'], 303);
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string} filename, mime, contents
+     */
+    private function readUploadedDocument(ServerRequestInterface $request): array
+    {
+        $files = $request->getUploadedFiles();
+        $uploaded = $files['document'] ?? null;
+        if (!$uploaded instanceof UploadedFileInterface) {
+            throw new ValidationException('Please choose a file to upload.', [
+                'document' => ['Please choose a file to upload.'],
+            ]);
+        }
+
+        $error = $uploaded->getError();
+        if ($error === UPLOAD_ERR_NO_FILE) {
+            throw new ValidationException('Please choose a file to upload.', [
+                'document' => ['Please choose a file to upload.'],
+            ]);
+        }
+        if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+            $report = PhpUploadRuntimeGuard::inspect(DocumentFileValidator::PLATFORM_MAX_BYTES);
+            $limitMb = PhpUploadRuntimeGuard::formatMb($report['upload_max_bytes']);
+            throw new ValidationException('The server cannot accept this file.', [
+                'document' => [
+                    'The server is currently configured to accept files only up to '
+                    . $limitMb
+                    . ' MB. Please contact support.',
+                ],
+            ]);
+        }
+        if ($error === UPLOAD_ERR_PARTIAL) {
+            throw new ValidationException('The file upload was interrupted. Please try again.', [
+                'document' => ['The file upload was interrupted. Please try again.'],
+            ]);
+        }
+        if ($error !== UPLOAD_ERR_OK) {
+            throw new ValidationException('Please choose a file to upload.', [
+                'document' => ['The file could not be read. Please try again.'],
+            ]);
+        }
+
+        $filename = $uploaded->getClientFilename();
+        if (!is_string($filename) || trim($filename) === '') {
+            throw new ValidationException('Please correct the highlighted fields.', [
+                'filename' => ['A valid filename is required.'],
+            ]);
+        }
+
+        $mimeType = $uploaded->getClientMediaType();
+        if (!is_string($mimeType) || trim($mimeType) === '') {
+            $mimeType = 'application/octet-stream';
+        }
+
+        $stream = $uploaded->getStream();
+        $contents = $stream->getContents();
+        if ($contents === '') {
+            throw new ValidationException('Please choose a file to upload.', [
+                'document' => ['Please choose a file to upload.'],
+            ]);
+        }
+
+        return [trim($filename), strtolower(trim($mimeType)), $contents];
+    }
+
+    private function redirectDocuments(int $applicationId, int $requirementId, string $error): RedirectResponse
+    {
+        return new RedirectResponse(
+            '/applications/' . $applicationId . '/documents?error=' . rawurlencode($error)
+            . '&requirement_id=' . $requirementId,
+            303,
+        );
+    }
+
+    private function firstValidationMessage(ValidationException $exception): string
+    {
+        $fields = $exception->fields();
+        foreach ($fields as $messages) {
+            if (is_array($messages) && isset($messages[0]) && is_string($messages[0]) && $messages[0] !== '') {
+                return $messages[0];
+            }
+        }
+
+        $message = $exception->getMessage();
+
+        return $message !== '' ? $message : 'Please correct the highlighted fields.';
     }
 
     /**

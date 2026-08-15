@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Academy\Http\Controllers;
 
+use Academy\Application\Dashboard\LearnerStatusPresenter;
+use Academy\Application\Payments\DemoPaymentSimulationService;
 use Academy\Application\Payments\PaymentCheckoutService;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\ConflictException;
@@ -20,11 +22,15 @@ use Laminas\Diactoros\Response\JsonResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use RuntimeException;
+use Throwable;
 
 final class PaymentController
 {
     public function __construct(
         private readonly PaymentCheckoutService $checkout,
+        private readonly DemoPaymentSimulationService $demoPayment,
+        private readonly LearnerStatusPresenter $statusPresenter,
         private readonly PhpRenderer $renderer,
     ) {
     }
@@ -111,9 +117,42 @@ final class PaymentController
             'application' => $page->application,
             'payment' => $payment,
             'gatewayPublicKeyId' => $page->gatewayPublicKeyId,
+            'demoPaymentAvailable' => $this->demoPayment->isAvailable(),
         ]);
 
         return new HtmlResponse($html);
+    }
+
+    /**
+     * Demo-only: simulate capture webhook ingress. Never marks success itself.
+     *
+     * @param array<string, string> $args
+     */
+    public function demoCapture(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        $applicationId = (int) ($args['id'] ?? 0);
+        $paymentId = (int) ($args['paymentId'] ?? 0);
+
+        try {
+            $this->demoPayment->simulateBrowserCapture($this->auth($request), $applicationId, $paymentId);
+        } catch (ConflictException | DomainRuleException $exception) {
+            return new RedirectResponse(
+                '/applications/' . $applicationId . '/payment?error=' . rawurlencode($exception->getMessage()),
+                303,
+            );
+        } catch (RuntimeException $exception) {
+            return new RedirectResponse(
+                '/applications/' . $applicationId . '/payment?error=' . rawurlencode($exception->getMessage()),
+                303,
+            );
+        } catch (Throwable) {
+            return new RedirectResponse(
+                '/applications/' . $applicationId . '/payment?error=' . rawurlencode('Demo payment simulation failed.'),
+                303,
+            );
+        }
+
+        return new RedirectResponse('/applications/' . $applicationId . '/payment-result', 303);
     }
 
     /**
@@ -142,12 +181,17 @@ final class PaymentController
     {
         $applicationId = (int) ($args['id'] ?? 0);
         $view = $this->checkout->getPaymentResult($this->auth($request), $applicationId);
+        $paymentStatusLabel = null;
+        if ($view->primaryPayment !== null) {
+            $paymentStatusLabel = $this->statusPresenter->paymentPresentation($view->primaryPayment->status)->label;
+        }
 
         $html = $this->renderer->render('pages/applications/payment_result', [
             'title' => 'Payment status',
             'csrf' => $this->csrf($request),
             'view' => $view,
             'enrolmentLifecycleLabel' => $view->enrolmentLifecycleLabel,
+            'paymentStatusLabel' => $paymentStatusLabel,
         ]);
 
         return new HtmlResponse($html);

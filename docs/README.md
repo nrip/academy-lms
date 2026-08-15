@@ -17,6 +17,7 @@ If documents conflict, stop and identify the conflict. Do not resolve by assumpt
 - `/docs/design/high-fidelity/` — Interactive HTML prototypes for the 9 core flows.
 - `/docs/technical/` — Technical Architecture and Coding Standards.
 - `/docs/uat/` — UAT overview, accounts, journey scripts, defect/sign-off templates (RC-01).
+- `/docs/demo/` — Mode A Product Owner demo: local run, script, readiness, feedback.
 - `/docs/operations/` — Workers, alerts, logging, backup/restore, deployment, supervision examples (RC-01).
 - `/docs/releases/` — Release checklists (RC-01).
 - `/docs/engineering/` — Engineering process notes (e.g. flaky test register).

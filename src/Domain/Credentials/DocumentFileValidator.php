@@ -9,7 +9,7 @@ use Academy\Domain\Exception\ValidationException;
 
 final class DocumentFileValidator
 {
-    private const PLATFORM_MAX_BYTES = 10485760;
+    public const PLATFORM_MAX_BYTES = 10485760;
 
     /** @var list<string> */
     private const DENIED_EXTENSIONS = [
@@ -32,7 +32,10 @@ final class DocumentFileValidator
 
         $max = min((int) $requirement->maxSizeBytes, self::PLATFORM_MAX_BYTES);
         if ($sizeBytes > $max) {
-            throw new ValidationException('Please correct the highlighted fields.', ['size_bytes' => ['File exceeds the maximum allowed size.']]);
+            $mb = (int) ($max / 1048576);
+            throw new ValidationException('Please correct the highlighted fields.', [
+                'size_bytes' => ['This file is larger than the ' . $mb . ' MB limit.'],
+            ]);
         }
 
         $sanitized = $this->sanitizeFilename($originalFilename);

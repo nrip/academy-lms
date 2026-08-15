@@ -40,14 +40,14 @@ final class Wp02DemoCatalogueSeeder extends AbstractSeed
         $courseId = $this->findCourseId($pdo, $courseCode);
 
         if ($courseId === null) {
-            $courseId = $this->insertCourse($pdo, $courseCode, 'obesity-management-foundations', 'Foundations of Obesity Management', $now);
+            $courseId = $this->insertCourse($pdo, $courseCode, 'certificate-course-obesity-metabolic-health', 'Certificate Course in Obesity and Metabolic Health', $now);
             $versionId = $this->insertDraftVersion($pdo, $courseId, [
                 'version_number' => 1,
-                'title' => 'Foundations of Obesity Management — Batch 2026',
-                'description' => 'A foundational Continuing Medical Education course covering evidence-based assessment and management of obesity for doctors, nurses and allied medical professionals.',
-                'learning_objectives' => 'Diagnose obesity using current clinical guidelines; design individualised management plans; counsel patients on lifestyle, pharmacological and surgical options.',
-                'intended_audience' => 'Doctors, nurses and allied medical professionals managing adult patients with obesity or metabolic risk factors.',
-                'syllabus_summary' => 'Module 1: Pathophysiology of obesity. Module 2: Clinical assessment. Module 3: Lifestyle and behavioural interventions. Module 4: Pharmacotherapy. Module 5: Surgical referral pathways.',
+                'title' => 'Certificate Course in Obesity and Metabolic Health',
+                'description' => 'A Continuing Medical Education certificate course for clinicians who assess and manage obesity and metabolic risk in adult patients. Covers guideline-based assessment, lifestyle and behavioural interventions, pharmacotherapy options, and referral pathways — delivered online with weekly live sessions.',
+                'learning_objectives' => 'Apply current clinical guidelines to diagnose and stage obesity; design individualised management plans; counsel patients on lifestyle, pharmacological and surgical options; recognise metabolic complications and when to escalate care.',
+                'intended_audience' => 'Registered doctors, nurses and allied medical professionals in India who manage adult patients with obesity or metabolic risk factors.',
+                'syllabus_summary' => 'Module 1: Pathophysiology of obesity and metabolic syndrome. Module 2: Clinical assessment and risk stratification. Module 3: Lifestyle and behavioural interventions. Module 4: Pharmacotherapy. Module 5: Surgical referral pathways and follow-up. (Course player content is not included in this demonstration release.)',
                 'admission_mode' => 'A',
                 'delivery_type' => 'online',
                 'duration_text' => '6 weeks, self-paced with weekly live sessions',
@@ -57,7 +57,8 @@ final class Wp02DemoCatalogueSeeder extends AbstractSeed
                 'currency' => 'INR',
                 'certificate_type' => 'Certificate of Completion',
                 'faq_json' => json_encode([
-                    ['question' => 'Is this course accredited?', 'answer' => 'Yes, it carries CME credit points.'],
+                    ['question' => 'Is this course accredited?', 'answer' => 'Yes, it carries CME credit points upon completion when the certificate pathway is enabled.'],
+                    ['question' => 'Does this demo include the course player?', 'answer' => 'No. This demonstration covers admissions through enrolment. Lessons, assessments and certificate issuance are out of scope for this build.'],
                 ], JSON_THROW_ON_ERROR),
             ], $now);
 
@@ -105,7 +106,7 @@ final class Wp02DemoCatalogueSeeder extends AbstractSeed
             $this->setCoursePublishedVersion($pdo, $courseId, $versionId, $now);
 
             $this->insertBatchIfMissing($pdo, $versionId, 'WP02-DEMO-OBESITY-101-OPEN', [
-                'name' => 'January 2027 cohort (open)',
+                'name' => 'March 2027 cohort (open for applications)',
                 'starts_at' => $this->daysFromNow(45),
                 'ends_at' => $this->daysFromNow(87),
                 'applications_open_at' => $this->daysFromNow(-5),
@@ -113,7 +114,7 @@ final class Wp02DemoCatalogueSeeder extends AbstractSeed
                 'min_capacity' => 10,
                 'max_capacity' => 60,
                 'delivery_mode' => 'online',
-                'venue_or_online_details' => 'Live sessions via Zoom; recordings available.',
+                'venue_or_online_details' => 'Live sessions via Zoom; recordings available for enrolled learners.',
                 'timezone' => 'Asia/Kolkata',
                 'fee_override' => null,
                 'currency' => 'INR',

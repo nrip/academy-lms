@@ -22,6 +22,7 @@ use Academy\Http\Routing\RouteRequestHandler;
 use Academy\Http\Security\SecurityHeaderPolicy;
 use Academy\Http\Security\SessionCookieClearance;
 use Academy\Http\Security\SessionCookieSettings;
+use Academy\Http\View\CurrentAuth;
 use Academy\Infrastructure\Identity\PdoUserSecuritySnapshotRepository;
 use Academy\Infrastructure\Session\PdoSessionRepository;
 use Academy\Infrastructure\View\Escaper;
@@ -200,6 +201,7 @@ final class Wp01bCookieClearanceTest extends TestCase
                     new PdoUserSecuritySnapshotRepository(DatabaseTestCase::connectionFactory()),
                     $sessions,
                     $cookieSettings,
+                    new CurrentAuth(),
                 ),
             ],
             new RouteRequestHandler($router),

@@ -411,6 +411,62 @@ final class DocumentUploadService
         ];
     }
 
+    /**
+     * Browser multipart upload (no client-side JS required).
+     * Runs the real authorize → store → confirm path via DocumentUploadService.
+     */
+    public function uploadBrowserFile(
+        AuthContext $auth,
+        int $applicationId,
+        int $requirementId,
+        ?int $replaceSubmissionId,
+        string $filename,
+        string $mimeType,
+        string $contents,
+    ): DocumentSubmission {
+        if ($contents === '') {
+            throw new ValidationException('Please choose a file to upload.', [
+                'document' => ['Please choose a file to upload.'],
+            ]);
+        }
+
+        if ($replaceSubmissionId !== null && $replaceSubmissionId > 0) {
+            $authorization = $this->replaceUpload(
+                $auth,
+                $applicationId,
+                $requirementId,
+                $replaceSubmissionId,
+                $filename,
+                $mimeType,
+                strlen($contents),
+            );
+        } else {
+            $authorization = $this->authorizeUpload(
+                $auth,
+                $applicationId,
+                $requirementId,
+                $filename,
+                $mimeType,
+                strlen($contents),
+            );
+        }
+
+        $stored = $this->receiveLocalUpload(
+            $auth,
+            $applicationId,
+            $authorization->authorizationId,
+            $contents,
+        );
+
+        return $this->confirmUpload(
+            $auth,
+            $applicationId,
+            $requirementId,
+            $stored['object_key'],
+            $stored['checksum_sha256'],
+        );
+    }
+
     private function assertLearnerMayManageDocument(
         \Academy\Domain\Admissions\Application $application,
         ?DocumentSubmission $current,

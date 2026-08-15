@@ -100,6 +100,25 @@ final class FakePaymentGateway implements PaymentGateway
         return 'rzp_test_fake_public_key';
     }
 
+    /**
+     * Rehydrate an order known from durable Payment.provider_order_id so
+     * cross-request demo capture can call simulateCapture (PHP memory is
+     * per-request; FakePaymentGateway does not share state across requests).
+     */
+    public function rememberOrder(string $providerOrderId, int $amountMinor, string $currency): void
+    {
+        if (isset($this->ordersById[$providerOrderId])) {
+            return;
+        }
+
+        $this->ordersById[$providerOrderId] = new GatewayOrderResult(
+            providerOrderId: $providerOrderId,
+            amountMinor: $amountMinor,
+            currency: strtoupper($currency),
+            providerStatus: 'created',
+        );
+    }
+
     public function simulateCapture(
         string $providerOrderId,
         int $amountMinor,

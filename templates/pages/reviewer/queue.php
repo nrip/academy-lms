@@ -45,6 +45,7 @@ ob_start();
                 <thead>
                     <tr>
                         <th><?= $e->html('Application') ?></th>
+                        <th><?= $e->html('Learner') ?></th>
                         <th><?= $e->html('Course') ?></th>
                         <th><?= $e->html('Batch') ?></th>
                         <th><?= $e->html('Submitted') ?></th>
@@ -59,10 +60,11 @@ ob_start();
                     <?php foreach ($page->items as $item): ?>
                         <tr>
                             <td>
-                                <a href="/reviewer/applications/<?= $e->attr($item->applicationId) ?>">
+                                <a class="fw-semibold" href="/reviewer/applications/<?= $e->attr($item->applicationId) ?>">
                                     <?= $e->html($item->applicationNumber) ?>
                                 </a>
                             </td>
+                            <td><?= $e->html($item->learnerDisplayName !== '' ? $item->learnerDisplayName : '—') ?></td>
                             <td><?= $e->html($item->courseTitle) ?></td>
                             <td><?= $e->html($item->batchLabel) ?></td>
                             <td>
@@ -70,7 +72,17 @@ ob_start();
                                     ? $e->html($item->submittedAt->format('d M Y H:i'))
                                     : $e->html('—') ?>
                             </td>
-                            <td><span class="badge bg-secondary text-uppercase"><?= $e->html($item->status) ?></span></td>
+                            <td><span class="badge bg-secondary"><?= $e->html(match ($item->status) {
+                                'under_review' => 'Under review',
+                                'resubmission_requested' => 'Correction required',
+                                'payment_pending' => 'Payment pending',
+                                'awaiting_verification' => 'Awaiting verification',
+                                'admitted' => 'Admitted',
+                                'rejected' => 'Rejected',
+                                'draft' => 'Draft',
+                                'submitted' => 'Submitted',
+                                default => $item->status,
+                            }) ?></span></td>
                             <td>
                                 <?php if ($item->assignedReviewerUserId === null): ?>
                                     <?= $e->html('Unassigned') ?>

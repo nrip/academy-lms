@@ -75,11 +75,11 @@ final class UatSeedService
     private function seedPersonas(PDO $pdo, string $hash, string $now, array &$summary): int
     {
         $personas = [
-            ['email' => 'learner@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000001', 'roles' => [RoleKeys::APPLICANT], 'label' => 'Learner'],
+            ['email' => 'learner@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000001', 'roles' => [RoleKeys::APPLICANT], 'label' => 'Learner', 'first_name' => 'Ananya', 'last_name' => 'Sharma'],
             ['email' => 'reviewer@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000002', 'roles' => [RoleKeys::CREDENTIAL_REVIEWER], 'label' => 'Reviewer'],
             ['email' => 'finance@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000003', 'roles' => [RoleKeys::FINANCE_ADMIN], 'label' => 'Finance'],
             ['email' => 'ops@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000004', 'roles' => [RoleKeys::SUPER_ADMIN], 'label' => 'Notification Operations'],
-            ['email' => 'multi@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000005', 'roles' => [RoleKeys::APPLICANT, RoleKeys::CREDENTIAL_REVIEWER], 'label' => 'Multi-permission'],
+            ['email' => 'multi@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000005', 'roles' => [RoleKeys::APPLICANT, RoleKeys::CREDENTIAL_REVIEWER], 'label' => 'Multi-permission', 'first_name' => 'Rohan', 'last_name' => 'Mehta'],
         ];
 
         $count = 0;
@@ -89,7 +89,13 @@ final class UatSeedService
                 $this->ensureRole($pdo, $userId, $roleKey, $now);
             }
             if (in_array(RoleKeys::APPLICANT, $persona['roles'], true)) {
-                $this->ensureLearnerProfile($pdo, $userId, $now);
+                $this->ensureLearnerProfile(
+                    $pdo,
+                    $userId,
+                    $now,
+                    $persona['first_name'] ?? 'Demo',
+                    $persona['last_name'] ?? 'Learner',
+                );
             }
             if (in_array(RoleKeys::CREDENTIAL_REVIEWER, $persona['roles'], true)) {
                 $this->ensureReviewerBatchScope($pdo, $userId, $now);
@@ -147,10 +153,31 @@ final class UatSeedService
             ['slug' => 'review', 'number' => self::MARKER_PREFIX . 'REVIEW-001', 'status' => 'under_review', 'mobile' => '+919900001002'],
             ['slug' => 'correct', 'number' => self::MARKER_PREFIX . 'CORRECT-001', 'status' => 'resubmission_requested', 'mobile' => '+919900001003'],
             ['slug' => 'paypend', 'number' => self::MARKER_PREFIX . 'PAYPEND-001', 'status' => 'payment_pending', 'mobile' => '+919900001004', 'payment' => 'pending'],
+            // In-flight pending payment — payment-result shows "Confirming payment…"
+            ['slug' => 'confirm', 'number' => self::MARKER_PREFIX . 'CONFIRM-001', 'status' => 'payment_pending', 'mobile' => '+919900001009', 'payment' => 'pending'],
             ['slug' => 'await', 'number' => self::MARKER_PREFIX . 'AWAIT-001', 'status' => 'awaiting_verification', 'mobile' => '+919900001005', 'payment' => 'reconciliation_pending'],
             ['slug' => 'admit-sched', 'number' => self::MARKER_PREFIX . 'ADMIT-SCHED-001', 'status' => 'admitted', 'mobile' => '+919900001006', 'payment' => 'successful', 'enrolment' => 'scheduled'],
             ['slug' => 'admit-active', 'number' => self::MARKER_PREFIX . 'ADMIT-ACTIVE-001', 'status' => 'admitted', 'mobile' => '+919900001007', 'payment' => 'successful', 'enrolment' => 'active'],
             ['slug' => 'reject', 'number' => self::MARKER_PREFIX . 'REJECT-001', 'status' => 'rejected', 'mobile' => '+919900001008'],
+            // Successful payment already present + second reconciliation_pending (duplicate capture discussion)
+            [
+                'slug' => 'dup',
+                'number' => self::MARKER_PREFIX . 'DUP-001',
+                'status' => 'admitted',
+                'mobile' => '+919900001010',
+                'payment' => 'successful',
+                'enrolment' => 'scheduled',
+                'extra_payment' => 'reconciliation_pending',
+            ],
+            // Captured payment awaiting finance after capacity exhaustion
+            [
+                'slug' => 'fullbatch',
+                'number' => self::MARKER_PREFIX . 'FULLBATCH-001',
+                'status' => 'payment_pending',
+                'mobile' => '+919900001011',
+                'payment' => 'reconciliation_pending',
+                'payment_failure' => 'capacity_exhausted_after_payment',
+            ],
         ];
 
         $count = 0;
@@ -158,7 +185,7 @@ final class UatSeedService
             $email = 'learner-' . $scenario['slug'] . '@' . self::EMAIL_DOMAIN;
             $userId = $this->ensureUser($pdo, $email, $scenario['mobile'], $hash, $now);
             $this->ensureRole($pdo, $userId, RoleKeys::APPLICANT, $now);
-            $this->ensureLearnerProfile($pdo, $userId, $now);
+            $this->ensureLearnerProfile($pdo, $userId, $now, 'Demo', ucfirst($scenario['slug']));
 
             $applicationId = $this->ensureApplication(
                 $pdo,
@@ -181,6 +208,21 @@ final class UatSeedService
                     $scenario['payment'],
                     $scenario['number'] . '-PAY',
                     $now,
+                    $scenario['payment_failure'] ?? null,
+                );
+            }
+
+            if (isset($scenario['extra_payment'])) {
+                $this->ensurePayment(
+                    $pdo,
+                    $applicationId,
+                    $userId,
+                    $versionId,
+                    $batchId,
+                    $scenario['extra_payment'],
+                    $scenario['number'] . '-PAY-DUP',
+                    $now,
+                    'duplicate_capture',
                 );
             }
 
@@ -349,8 +391,13 @@ final class UatSeedService
         ]);
     }
 
-    private function ensureLearnerProfile(PDO $pdo, int $userId, string $now): void
-    {
+    private function ensureLearnerProfile(
+        PDO $pdo,
+        int $userId,
+        string $now,
+        string $firstName = 'Demo',
+        string $lastName = 'Learner',
+    ): void {
         $existing = $pdo->prepare('SELECT learner_profile_id FROM learner_profiles WHERE user_id = :id LIMIT 1');
         $existing->execute(['id' => $userId]);
         if ($existing->fetchColumn() !== false) {
@@ -364,10 +411,10 @@ final class UatSeedService
                  WHERE user_id = :user_id',
             );
             $update->execute([
-                'first_name' => 'UAT',
-                'last_name' => 'Learner',
+                'first_name' => $firstName,
+                'last_name' => $lastName,
                 'profession' => 'doctor',
-                'reg' => 'UAT-MCI-' . $userId,
+                'reg' => 'DEMO-MCI-' . $userId,
                 'updated_at' => $now,
                 'user_id' => $userId,
             ]);
@@ -386,10 +433,10 @@ final class UatSeedService
         );
         $insert->execute([
             'user_id' => $userId,
-            'first_name' => 'UAT',
-            'last_name' => 'Learner',
+            'first_name' => $firstName,
+            'last_name' => $lastName,
             'profession' => 'doctor',
-            'reg' => 'UAT-MCI-' . $userId,
+            'reg' => 'DEMO-MCI-' . $userId,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
@@ -498,6 +545,7 @@ final class UatSeedService
         string $status,
         string $publicRef,
         string $now,
+        ?string $failureCategory = null,
     ): int {
         $existing = $pdo->prepare('SELECT payment_id FROM payments WHERE public_reference = :ref LIMIT 1');
         $existing->execute(['ref' => $publicRef]);
@@ -507,6 +555,7 @@ final class UatSeedService
         }
 
         $successfulMarker = $status === 'successful' ? 1 : null;
+        $attemptNumber = str_contains($publicRef, '-PAY-DUP') ? 2 : 1;
         $insert = $pdo->prepare(
             'INSERT INTO payments (
                 public_reference, application_id, user_id, provider, provider_order_id, provider_payment_id,
@@ -519,7 +568,7 @@ final class UatSeedService
                 :ref, :application_id, :user_id, :provider, :order_id, :payment_id,
                 :base_fee, :gst, :amount, :currency, :gst_rate,
                 :version_id, :batch_id, NULL, :status,
-                NULL, NULL, 1, :idempotency, 1,
+                :failure_code, :failure_category, :attempt_number, :idempotency, 1,
                 :successful_marker, :initiated_at, :bound_at, NULL, :captured_at,
                 NULL, NULL, :reconciled_at, :created_at, :updated_at
             )',
@@ -530,7 +579,9 @@ final class UatSeedService
             'user_id' => $userId,
             'provider' => 'razorpay',
             'order_id' => 'order_' . substr(hash('sha256', $publicRef), 0, 14),
-            'payment_id' => $status === 'successful' ? 'pay_' . substr(hash('sha256', $publicRef), 0, 14) : null,
+            'payment_id' => in_array($status, ['successful', 'reconciliation_pending'], true)
+                ? 'pay_' . substr(hash('sha256', $publicRef), 0, 14)
+                : null,
             'base_fee' => 1500000,
             'gst' => 270000,
             'amount' => 1770000,
@@ -539,11 +590,14 @@ final class UatSeedService
             'version_id' => $versionId,
             'batch_id' => $batchId,
             'status' => $status,
+            'failure_code' => $failureCategory,
+            'failure_category' => $failureCategory,
+            'attempt_number' => $attemptNumber,
             'idempotency' => 'uat:' . $publicRef,
             'successful_marker' => $successfulMarker,
             'initiated_at' => $now,
             'bound_at' => $now,
-            'captured_at' => $status === 'successful' ? $now : null,
+            'captured_at' => in_array($status, ['successful', 'reconciliation_pending'], true) ? $now : null,
             'reconciled_at' => $status === 'reconciliation_pending' ? null : ($status === 'successful' ? $now : null),
             'created_at' => $now,
             'updated_at' => $now,

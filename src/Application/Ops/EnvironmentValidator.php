@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Academy\Application\Ops;
 
+use Academy\Application\Credentials\PhpUploadRuntimeGuard;
+use Academy\Domain\Credentials\DocumentFileValidator;
+
 /**
  * Validates required configuration without echoing secret values (RC-01).
  *
@@ -120,6 +123,23 @@ final class EnvironmentValidator
 
         if (($app['debug'] ?? false) === true && $capability->isProductionLike()) {
             $warnings[] = 'APP_DEBUG=true in a production-like environment; prefer false for UAT/production.';
+        }
+
+        $uploadReport = PhpUploadRuntimeGuard::inspect(DocumentFileValidator::PLATFORM_MAX_BYTES);
+        if (!$uploadReport['adequate']
+            && !in_array($capability->environment(), [AppEnvironment::Testing, AppEnvironment::Ci], true)
+        ) {
+            $uploadMessage = 'PHP upload runtime is below the application document limit ('
+                . PhpUploadRuntimeGuard::formatMb(DocumentFileValidator::PLATFORM_MAX_BYTES)
+                . ' MB). '
+                . implode(' ', $uploadReport['problems'])
+                . ' Start local demo with: composer demo-serve';
+            // Local demo must fail closed; other envs surface a readiness warning for ops.
+            if ($capability->environment() === AppEnvironment::Local) {
+                $errors[] = $uploadMessage;
+            } else {
+                $warnings[] = $uploadMessage;
+            }
         }
 
         if ($errors !== []) {

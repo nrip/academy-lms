@@ -5,6 +5,17 @@ declare(strict_types=1);
 /** @var \Academy\Infrastructure\View\Escaper $e */
 /** @var string $title */
 /** @var string $content */
+/** @var list<array{label: string, href: string, method?: string}>|null $navItems */
+/** @var string|null $navCsrf */
+/** @var string|null $csrf */
+
+$nav = $navItems ?? [
+    ['label' => 'Courses', 'href' => '/courses'],
+    ['label' => 'Sign in', 'href' => '/login'],
+];
+$csrfToken = is_string($navCsrf ?? null) && $navCsrf !== ''
+    ? $navCsrf
+    : (is_string($csrf ?? null) ? $csrf : '');
 
 ?><!DOCTYPE html>
 <html lang="en">
@@ -20,9 +31,17 @@ declare(strict_types=1);
 <div class="acad-shell">
     <header class="acad-shell__header">
         <a class="acad-shell__brand" href="/dashboard">Academy LMS</a>
-        <nav class="acad-shell__nav">
-            <a href="/dashboard">Dashboard</a>
-            <a href="/courses">Courses</a>
+        <nav class="acad-shell__nav" aria-label="Primary">
+            <?php foreach ($nav as $item): ?>
+                <?php if (($item['method'] ?? 'get') === 'post'): ?>
+                    <form method="post" action="<?= $e->attr($item['href']) ?>" class="d-inline">
+                        <input type="hidden" name="_csrf" value="<?= $e->attr($csrfToken) ?>">
+                        <button type="submit" class="btn btn-link acad-shell__nav-button p-0 align-baseline"><?= $e->html($item['label']) ?></button>
+                    </form>
+                <?php else: ?>
+                    <a href="<?= $e->attr($item['href']) ?>"><?= $e->html($item['label']) ?></a>
+                <?php endif; ?>
+            <?php endforeach; ?>
         </nav>
     </header>
     <main class="acad-shell__main">

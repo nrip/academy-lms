@@ -9,9 +9,12 @@ use Academy\Domain\Payments\PaymentStatus;
 /** @var string $title */
 /** @var string $csrf */
 /** @var \Academy\Application\Payments\PaymentResultView $view */
+/** @var string|null $enrolmentLifecycleLabel */
+/** @var string|null $paymentStatusLabel */
 
 $application = $view->application;
 $primary = $view->primaryPayment;
+$paymentStatusLabel = $paymentStatusLabel ?? null;
 
 ob_start();
 ?>
@@ -23,6 +26,7 @@ ob_start();
     <?php if ($view->isConfirming): ?>
         <div class="alert alert-info" role="status">
             <?= $e->html('Confirming payment… Browser return is not final confirmation. Please wait while the server verifies the payment.') ?>
+            <p class="mb-0 mt-2 small"><?= $e->html('Demo tip: run php bin/jobs.php demo:process then refresh this page.') ?></p>
         </div>
     <?php elseif ($primary !== null && $primary->status === PaymentStatus::SUCCESSFUL): ?>
         <div class="alert alert-success" role="status">
@@ -50,7 +54,7 @@ ob_start();
             <dt class="col-sm-4"><?= $e->html('Reference') ?></dt>
             <dd class="col-sm-8"><?= $e->html($primary->publicReference) ?></dd>
             <dt class="col-sm-4"><?= $e->html('Status') ?></dt>
-            <dd class="col-sm-8 text-uppercase"><?= $e->html($primary->status) ?></dd>
+            <dd class="col-sm-8"><?= $e->html($paymentStatusLabel ?? $primary->status) ?></dd>
             <dt class="col-sm-4"><?= $e->html('Amount') ?></dt>
             <dd class="col-sm-8"><?= $e->html($primary->currency . ' ' . PaymentAmountSnapshot::minorToDecimal($primary->amountMinor)) ?></dd>
         </dl>
@@ -62,14 +66,14 @@ ob_start();
             <?php foreach ($view->attempts as $attempt): ?>
                 <li>
                     <?= $e->html($attempt->publicReference) ?>
-                    — <span class="text-uppercase"><?= $e->html($attempt->status) ?></span>
+                    — <?= $e->html($attempt->status) ?>
                 </li>
             <?php endforeach; ?>
         </ul>
     <?php endif; ?>
 
     <p class="mt-4 mb-0">
-        <a href="/dashboard"><?= $e->html('Go to dashboard') ?></a>
+        <a href="/dashboard"><?= $e->html('Go to My Applications') ?></a>
         ·
         <a href="/applications/<?= $e->attr($application->applicationId) ?>"><?= $e->html('Back to application') ?></a>
     </p>

@@ -60,6 +60,23 @@ final class EnvironmentValidatorTest extends TestCase
         self::assertStringContainsString('TOKEN_PEPPER', $joined);
     }
 
+    public function testLocalEnvFailsClosedWhenPhpUploadLimitsAreInadequate(): void
+    {
+        $report = \Academy\Application\Credentials\PhpUploadRuntimeGuard::inspect(
+            \Academy\Domain\Credentials\DocumentFileValidator::PLATFORM_MAX_BYTES,
+        );
+        if ($report['adequate']) {
+            self::markTestSkipped('PHP limits already meet the 10 MB application cap.');
+        }
+
+        $result = (new EnvironmentValidator())->validate(
+            $this->baseConfig('local'),
+            EnvironmentCapability::fromEnvName('local'),
+        );
+        self::assertFalse($result->ok());
+        self::assertStringContainsString('upload', implode(' ', $result->errors()));
+    }
+
     /**
      * @return array<string, mixed>
      */

@@ -25,6 +25,7 @@ use Academy\Application\Identity\LoginService;
 use Academy\Application\Identity\LogoutService;
 use Academy\Application\Identity\MobileOtpResendService;
 use Academy\Application\Identity\MobileOtpVerificationService;
+use Academy\Application\Identity\NavigationMenuBuilder;
 use Academy\Application\Identity\PasswordHasher;
 use Academy\Application\Identity\PasswordResetService;
 use Academy\Application\Identity\PostLoginDestinationResolver;
@@ -44,10 +45,13 @@ use Academy\Application\Notifications\NotificationRecipientResolver;
 use Academy\Application\Notifications\NotificationTemplateRenderer;
 use Academy\Application\Notifications\TransactionalNotificationDeliveryWorker;
 use Academy\Application\Notifications\TransactionalNotificationTemplateRegistry;
+use Academy\Application\Ops\DemoPrepareService;
+use Academy\Application\Ops\DemoProcessService;
 use Academy\Application\Ops\EnvironmentCapability;
 use Academy\Application\Ops\ReadinessProbe;
 use Academy\Application\Ops\UatResetService;
 use Academy\Application\Ops\UatSeedService;
+use Academy\Application\Payments\DemoPaymentSimulationService;
 use Academy\Application\Outbox\OutboxRelayService;
 use Academy\Application\Payments\FinancePaymentQueryService;
 use Academy\Application\Payments\FinanceReconciliationQueryService;
@@ -180,6 +184,8 @@ use Academy\Http\Security\ConfirmationCookieSettings;
 use Academy\Http\Security\SecurityHeaderPolicy;
 use Academy\Http\Security\SessionCookieSettings;
 use Academy\Http\Security\TokenPageHeaderPolicy;
+use Academy\Http\View\CurrentAuth;
+use Academy\Http\View\CurrentCsrfToken;
 use Academy\Infrastructure\Admissions\PdoApplicationRepository;
 use Academy\Infrastructure\Audit\PdoAuditWriter;
 use Academy\Infrastructure\Courses\PdoBatchRepository;
@@ -290,11 +296,25 @@ return static function (): ContainerInterface {
 
         Escaper::class => static fn (): Escaper => new Escaper(),
 
+        CurrentAuth::class => static fn (): CurrentAuth => new CurrentAuth(),
+
+        CurrentCsrfToken::class => static fn (): CurrentCsrfToken => new CurrentCsrfToken(),
+
+        NavigationMenuBuilder::class => static fn (ContainerInterface $c): NavigationMenuBuilder => new NavigationMenuBuilder(
+            $c->get(AuthorizationService::class),
+        ),
+
         PhpRenderer::class => static function (ContainerInterface $c): PhpRenderer {
             /** @var array{templates: string} $paths */
             $paths = $c->get('config.paths');
 
-            return new PhpRenderer($paths['templates'], $c->get(Escaper::class));
+            return new PhpRenderer(
+                $paths['templates'],
+                $c->get(Escaper::class),
+                $c->get(CurrentAuth::class),
+                $c->get(NavigationMenuBuilder::class),
+                $c->get(CurrentCsrfToken::class),
+            );
         },
 
         SecurityHeaderPolicy::class => static function (ContainerInterface $c): SecurityHeaderPolicy {
@@ -475,6 +495,23 @@ return static function (): ContainerInterface {
             $c->get(EnrolmentRepository::class),
             $c->get(LearnerStatusPresenter::class),
         ),
+        DemoPaymentSimulationService::class => static function (ContainerInterface $c): DemoPaymentSimulationService {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{payments: array{fake_gateway_enabled: bool}} $security */
+            $security = $c->get('config.security');
+
+            return new DemoPaymentSimulationService(
+                EnvironmentCapability::fromEnvName($app['env']),
+                $security['payments']['fake_gateway_enabled'],
+                $c->get(PaymentCheckoutService::class),
+                $c->get(PaymentRepository::class),
+                $c->get(PaymentGateway::class),
+                $c->get(FakeWebhookSigner::class),
+                $c->get(RazorpayWebhookIngressService::class),
+                $c->get(PaymentWebhookProcessor::class),
+            );
+        },
         FinancePaymentQueryService::class => static fn (ContainerInterface $c): FinancePaymentQueryService => new FinancePaymentQueryService(
             $c->get(AuthorizationService::class),
             $c->get(PaymentRepository::class),
@@ -1426,6 +1463,10 @@ return static function (): ContainerInterface {
                 'payment.view_own',
             );
             $applicationAccess->requirePermission(
+                $router->post('/applications/{id}/payments/{paymentId}/demo-capture', [PaymentController::class, 'demoCapture']),
+                'payment.initiate_own',
+            );
+            $applicationAccess->requirePermission(
                 $router->get('/applications/{id}/payment-result', [PaymentController::class, 'result']),
                 'payment.view_own',
             );
@@ -1499,6 +1540,10 @@ return static function (): ContainerInterface {
                 'reviewer.application.view',
             );
 
+            $applicationAccess->requirePermission(
+                $router->post('/applications/{id}/documents/upload', [DocumentController::class, 'uploadForm']),
+                'document.upload_own',
+            );
             $applicationAccess->requirePermission(
                 $router->post('/applications/{id}/documents/upload-authorizations', [DocumentController::class, 'authorizeUpload']),
                 'document.upload_own',
@@ -1602,6 +1647,44 @@ return static function (): ContainerInterface {
                 EnvironmentCapability::fromEnvName($app['env']),
             );
         },
+        DemoPrepareService::class => static function (ContainerInterface $c): DemoPrepareService {
+            /** @var array{env: string, url: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{
+             *   payments: array{fake_gateway_enabled: bool},
+             *   documents: array{fake_scanner_enabled: bool, storage_driver: string},
+             *   notifications: array{email_adapter: string}
+             * } $security
+             */
+            $security = $c->get('config.security');
+            /** @var array{root: string} $paths */
+            $paths = $c->get('config.paths');
+
+            return new DemoPrepareService(
+                EnvironmentCapability::fromEnvName($app['env']),
+                $c->get(UatSeedService::class),
+                $paths['root'],
+                $app['url'] !== '' ? $app['url'] : 'http://127.0.0.1:8080',
+                $security['payments']['fake_gateway_enabled'],
+                $security['documents']['fake_scanner_enabled'],
+                $security['documents']['storage_driver'],
+                $security['notifications']['email_adapter'],
+            );
+        },
+        DemoProcessService::class => static function (ContainerInterface $c): DemoProcessService {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+
+            return new DemoProcessService(
+                EnvironmentCapability::fromEnvName($app['env']),
+                $c->get(DocumentScanWorker::class),
+                $c->get(OutboxRelayService::class),
+                $c->get(PaymentWebhookProcessor::class),
+                $c->get(PaymentReconciliationService::class),
+                $c->get(IdentityNotificationDeliveryWorker::class),
+                $c->get(TransactionalNotificationDeliveryWorker::class),
+            );
+        },
         SmokeController::class => static fn (ContainerInterface $c): SmokeController => new SmokeController(
             $c->get(PhpRenderer::class),
         ),
@@ -1652,6 +1735,8 @@ return static function (): ContainerInterface {
         ),
         PaymentController::class => static fn (ContainerInterface $c): PaymentController => new PaymentController(
             $c->get(PaymentCheckoutService::class),
+            $c->get(DemoPaymentSimulationService::class),
+            $c->get(LearnerStatusPresenter::class),
             $c->get(PhpRenderer::class),
         ),
         FinancePaymentController::class => static fn (ContainerInterface $c): FinancePaymentController => new FinancePaymentController(
@@ -1786,6 +1871,7 @@ return static function (): ContainerInterface {
                 $c->get(SessionService::class),
                 SessionCookieSettings::fromSessionConfig($security['session']),
                 $security['session']['required_path_prefixes'],
+                $c->get(CurrentCsrfToken::class),
             );
         },
 
@@ -1803,6 +1889,7 @@ return static function (): ContainerInterface {
                 $c->get(UserSecuritySnapshotRepository::class),
                 $c->get(SessionService::class),
                 SessionCookieSettings::fromSessionConfig($security['session']),
+                $c->get(CurrentAuth::class),
             );
         },
 
