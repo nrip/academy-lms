@@ -28,9 +28,32 @@ ob_start();
     <?php endif; ?>
 
     <?php if ($detail->item->contentType === 'mcq_assessment'): ?>
-        <div class="alert alert-info">
-            <?= $e->html('This is an MCQ assessment item. Attempts and scoring arrive in a later work package.') ?>
-        </div>
+        <?php if ($detail->assessment === null): ?>
+            <div class="alert alert-warning">
+                <?= $e->html('Assessment configuration is not available for this item.') ?>
+            </div>
+        <?php else: ?>
+            <p class="mb-3">
+                <?= $e->html($detail->assessment->title) ?>
+                · <?= $e->html((string) $detail->assessment->questionsPerAttempt . ' questions') ?>
+                · <?= $e->html('Pass ' . $detail->assessment->passThresholdPercent . '%') ?>
+                · <?= $e->html('Attempts used ' . (string) $detail->assessmentAttemptsUsed . ' / ' . (string) $detail->assessment->maxAttempts) ?>
+            </p>
+            <?php if ($detail->inProgressAttempt !== null): ?>
+                <a class="btn btn-primary"
+                   href="/learning/attempts/<?= $e->attr((string) $detail->inProgressAttempt->attemptId) ?>">
+                    <?= $e->html('Continue attempt') ?>
+                </a>
+            <?php elseif ($detail->assessmentAttemptsUsed < $detail->assessment->maxAttempts): ?>
+                <form method="post"
+                      action="<?= $e->attr($base . '/assessments/' . (string) $detail->assessment->assessmentId . '/attempts') ?>">
+                    <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+                    <button class="btn btn-primary" type="submit"><?= $e->html('Start attempt') ?></button>
+                </form>
+            <?php else: ?>
+                <p class="text-muted"><?= $e->html('No attempts remaining.') ?></p>
+            <?php endif; ?>
+        <?php endif; ?>
     <?php elseif ($detail->item->bodyText !== null && $detail->item->bodyText !== ''): ?>
         <div class="acad-lesson-body mb-4">
             <?= nl2br($e->html($detail->item->bodyText)) ?>
@@ -52,7 +75,7 @@ ob_start();
         <p class="text-muted"><?= $e->html($detail->markCompleteBlockedReason) ?></p>
     <?php endif; ?>
 
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 mt-3">
         <?php if ($detail->previousContentId !== null): ?>
             <a class="btn btn-outline-secondary btn-sm"
                href="<?= $e->attr($base . '/items/' . (string) $detail->previousContentId) ?>">

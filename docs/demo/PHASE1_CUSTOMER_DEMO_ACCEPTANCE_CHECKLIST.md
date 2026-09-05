@@ -43,7 +43,7 @@ Login always starts at: **`/login`**
 - [x] New course appears in admin list with a **Draft** version *(WP-L1)*
 - [x] Draft is **unlocked** (`locked_at` null — verified by ability to edit later steps) *(WP-L1)*
 
-> Remaining checklist steps 6–7 unlock in WP-L7…WP-L8.
+> Remaining checklist step 7 unlocks in WP-L8.
 
 ---
 
@@ -60,11 +60,11 @@ Login always starts at: **`/login`**
 
 - [x] Modules and content visible in curriculum outline *(WP-L3 — text lessons + mcq_assessment content type via WP-L5)*
 - [x] Text lesson body editable and saved *(WP-L3)*
-- [x] MCQ questions saved in course question bank; correct answers shown only on Course Admin bank UI *(WP-L4)*. Learner-facing assessment URLs still deferred to WP-L7.
+- [x] MCQ questions saved in course question bank; correct answers shown only on Course Admin bank UI *(WP-L4)*. Learner attempt runtime unlocked in WP-L7.
 - [x] MCQ assessment content can be configured with title, question count, pass %, max attempts, and linked bank questions *(WP-L5)*
 - [x] Attempting the same edits on a **published/locked** version is blocked (**409** / clear message to clone Version N+1) *(WP-L3 curriculum + WP-L5 assessment)*
 
-> Step 3 unlocked in WP-L2. Step 5 unlocked in WP-L6. Steps 6–7 unlock in WP-L7…WP-L8.
+> Step 3 unlocked in WP-L2. Step 5 unlocked in WP-L6. Step 6 unlocked in WP-L7. Step 7 unlocks in WP-L8.
 
 ---
 
@@ -85,7 +85,7 @@ Login always starts at: **`/login`**
 
 **Facilitator note:** If live publish is slow, WP-L9 may seed an already-published curriculum version + open batch; facilitator must still show **either** live publish **or** that a Course Admin–built published version is what learners apply to.
 
-> Step 5 unlocked in WP-L6. Steps 6–7 unlock in WP-L7…WP-L8 (Mode A enrol already exists).
+> Step 5 unlocked in WP-L6. Step 6 unlocked in WP-L7. Step 7 unlocks in WP-L8 (Mode A enrol already exists).
 
 ---
 
@@ -135,7 +135,7 @@ Mode A admissions path is **unchanged**. Enrolment means Application **Admitted*
 - [x] Content is from enrolment’s `course_version_id` only *(WP-L6)*
 - [x] Dashboard links into player for the demo enrolment *(WP-L6)*
 
-> Steps 6–7 unlock in WP-L7 / WP-L8 (assessment runtime + certificates).
+> Step 6 unlocked in WP-L7. Step 7 unlocks in WP-L8 (certificates).
 
 ---
 
@@ -150,12 +150,12 @@ Mode A admissions path is **unchanged**. Enrolment means Application **Admitted*
 
 **Pass criteria**
 
-- [ ] Second concurrent in-progress attempt blocked (409)
-- [ ] Scoring matches snapshot (editing bank afterward does not change submitted score)
-- [ ] Failed attempt can retry up to `max_attempts` / cooldown rules configured in admin
-- [ ] On pass, assessment ContentItem progress = completed
+- [x] Second concurrent in-progress attempt blocked / resumes existing (409 → continue) *(WP-L7)*
+- [x] Scoring matches snapshot (editing bank afterward does not change submitted score) *(WP-L7)*
+- [x] Failed attempt can retry up to `max_attempts` / cooldown rules configured in admin *(WP-L7)*
+- [x] On pass, assessment ContentItem progress = completed *(WP-L7)*
 
----
+> Step 7 unlocks in WP-L8 (certificates).
 
 ### 7. Learner receives certificate
 

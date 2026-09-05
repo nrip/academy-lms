@@ -2,8 +2,13 @@
 
 declare(strict_types=1);
 
+use Academy\Application\Assessments\AssessmentAttemptAccessGuard;
+use Academy\Application\Assessments\AssessmentAttemptQueryService;
 use Academy\Application\Assessments\AssessmentConfigService;
 use Academy\Application\Assessments\QuestionBankService;
+use Academy\Application\Assessments\SaveAssessmentResponsesService;
+use Academy\Application\Assessments\StartAssessmentAttemptService;
+use Academy\Application\Assessments\SubmitAssessmentAttemptService;
 use Academy\Application\Admissions\ApplicationDeclarationService;
 use Academy\Application\Admissions\ApplicationSubmitService;
 use Academy\Application\Admissions\ApplicationWorkspaceService;
@@ -92,8 +97,14 @@ use Academy\Domain\Admissions\ApplicationDraftFactory;
 use Academy\Domain\Admissions\ApplicationRepository;
 use Academy\Domain\Admissions\ApplicationStateMachine;
 use Academy\Domain\Admissions\ApplicationSubmissionPreconditions;
+use Academy\Domain\Assessments\AssessmentAttemptQuestionRepository;
+use Academy\Domain\Assessments\AssessmentAttemptRepository;
+use Academy\Domain\Assessments\AssessmentAttemptStateMachine;
+use Academy\Domain\Assessments\AssessmentAttemptStatusHistoryRepository;
 use Academy\Domain\Assessments\AssessmentQuestionLinkRepository;
 use Academy\Domain\Assessments\AssessmentRepository;
+use Academy\Domain\Assessments\AssessmentResponseRepository;
+use Academy\Domain\Assessments\AttemptScoringService;
 use Academy\Domain\Assessments\QuestionBankRepository;
 use Academy\Domain\Assessments\QuestionOptionRepository;
 use Academy\Domain\Assessments\QuestionRepository;
@@ -176,6 +187,7 @@ use Academy\Domain\Security\SessionRepository;
 use Academy\Domain\Storage\ObjectStorage;
 use Academy\Http\Controllers\AdminNotificationController;
 use Academy\Http\Controllers\ApplicationController;
+use Academy\Http\Controllers\AssessmentAttemptController;
 use Academy\Http\Controllers\AssessmentConfigController;
 use Academy\Http\Controllers\BatchController;
 use Academy\Http\Controllers\CourseAdminController;
@@ -225,8 +237,12 @@ use Academy\Http\View\CurrentAuth;
 use Academy\Http\View\CurrentCsrfToken;
 use Academy\Infrastructure\Admissions\PdoApplicationRepository;
 use Academy\Infrastructure\Audit\PdoAuditWriter;
+use Academy\Infrastructure\Assessments\PdoAssessmentAttemptQuestionRepository;
+use Academy\Infrastructure\Assessments\PdoAssessmentAttemptRepository;
+use Academy\Infrastructure\Assessments\PdoAssessmentAttemptStatusHistoryRepository;
 use Academy\Infrastructure\Assessments\PdoAssessmentQuestionLinkRepository;
 use Academy\Infrastructure\Assessments\PdoAssessmentRepository;
+use Academy\Infrastructure\Assessments\PdoAssessmentResponseRepository;
 use Academy\Infrastructure\Assessments\PdoQuestionBankRepository;
 use Academy\Infrastructure\Assessments\PdoQuestionOptionRepository;
 use Academy\Infrastructure\Assessments\PdoQuestionRepository;
@@ -608,6 +624,66 @@ return static function (): ContainerInterface {
             $c->get(ConnectionFactory::class),
             $c->get(AuditService::class),
         ),
+        AssessmentAttemptRepository::class => static fn (ContainerInterface $c): AssessmentAttemptRepository => new PdoAssessmentAttemptRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentAttemptQuestionRepository::class => static fn (ContainerInterface $c): AssessmentAttemptQuestionRepository => new PdoAssessmentAttemptQuestionRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentResponseRepository::class => static fn (ContainerInterface $c): AssessmentResponseRepository => new PdoAssessmentResponseRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentAttemptStatusHistoryRepository::class => static fn (ContainerInterface $c): AssessmentAttemptStatusHistoryRepository => new PdoAssessmentAttemptStatusHistoryRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentAttemptStateMachine::class => static fn (): AssessmentAttemptStateMachine => new AssessmentAttemptStateMachine(),
+        AttemptScoringService::class => static fn (): AttemptScoringService => new AttemptScoringService(),
+        AssessmentAttemptAccessGuard::class => static fn (ContainerInterface $c): AssessmentAttemptAccessGuard => new AssessmentAttemptAccessGuard(
+            $c->get(AuthorizationService::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(AssessmentRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(PlayerAccessPolicy::class),
+            $c->get(ModuleReleasePolicy::class),
+        ),
+        StartAssessmentAttemptService::class => static fn (ContainerInterface $c): StartAssessmentAttemptService => new StartAssessmentAttemptService(
+            $c->get(AssessmentAttemptAccessGuard::class),
+            $c->get(AssessmentAttemptRepository::class),
+            $c->get(AssessmentAttemptQuestionRepository::class),
+            $c->get(AssessmentQuestionLinkRepository::class),
+            $c->get(QuestionRepository::class),
+            $c->get(QuestionOptionRepository::class),
+            $c->get(AssessmentAttemptStatusHistoryRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        SaveAssessmentResponsesService::class => static fn (ContainerInterface $c): SaveAssessmentResponsesService => new SaveAssessmentResponsesService(
+            $c->get(AssessmentAttemptAccessGuard::class),
+            $c->get(AssessmentAttemptRepository::class),
+            $c->get(AssessmentAttemptQuestionRepository::class),
+            $c->get(AssessmentResponseRepository::class),
+        ),
+        SubmitAssessmentAttemptService::class => static fn (ContainerInterface $c): SubmitAssessmentAttemptService => new SubmitAssessmentAttemptService(
+            $c->get(AssessmentAttemptAccessGuard::class),
+            $c->get(AssessmentAttemptRepository::class),
+            $c->get(AssessmentAttemptQuestionRepository::class),
+            $c->get(AssessmentResponseRepository::class),
+            $c->get(AssessmentAttemptStateMachine::class),
+            $c->get(AttemptScoringService::class),
+            $c->get(AssessmentAttemptStatusHistoryRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        AssessmentAttemptQueryService::class => static fn (ContainerInterface $c): AssessmentAttemptQueryService => new AssessmentAttemptQueryService(
+            $c->get(AssessmentAttemptAccessGuard::class),
+            $c->get(AssessmentAttemptRepository::class),
+            $c->get(AssessmentAttemptQuestionRepository::class),
+            $c->get(AssessmentResponseRepository::class),
+            $c->get(AssessmentRepository::class),
+        ),
         BatchRepository::class => static fn (ContainerInterface $c): BatchRepository => new PdoBatchRepository(
             $c->get(ConnectionFactory::class),
         ),
@@ -722,6 +798,8 @@ return static function (): ContainerInterface {
             $c->get(ContentProgressRepository::class),
             $c->get(PlayerAccessPolicy::class),
             $c->get(ModuleReleasePolicy::class),
+            $c->get(AssessmentRepository::class),
+            $c->get(AssessmentAttemptRepository::class),
         ),
         MarkContentCompleteService::class => static fn (ContainerInterface $c): MarkContentCompleteService => new MarkContentCompleteService(
             $c->get(AuthorizationService::class),
@@ -1619,6 +1697,26 @@ return static function (): ContainerInterface {
                 $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/complete', [LearnerPlayerController::class, 'complete']),
                 'learning.content.access',
             );
+            $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/assessments/{assessmentId}/attempts', [AssessmentAttemptController::class, 'start']),
+                'assessment.attempt.own',
+            );
+            $learningAccess->requirePermission(
+                $router->get('/learning/attempts/{attemptId}', [AssessmentAttemptController::class, 'show']),
+                'assessment.attempt.own',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/attempts/{attemptId}/responses', [AssessmentAttemptController::class, 'saveResponses']),
+                'assessment.attempt.own',
+            );
+            $learningAccess->requirePermission(
+                $router->put('/learning/attempts/{attemptId}/responses', [AssessmentAttemptController::class, 'saveResponses']),
+                'assessment.attempt.own',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/attempts/{attemptId}/submit', [AssessmentAttemptController::class, 'submit']),
+                'assessment.attempt.own',
+            );
 
             /** @var RouteAccess $notificationAccess */
             $notificationAccess = $c->get(RouteAccess::class);
@@ -2105,6 +2203,13 @@ return static function (): ContainerInterface {
         LearnerPlayerController::class => static fn (ContainerInterface $c): LearnerPlayerController => new LearnerPlayerController(
             $c->get(LearnerPlayerQueryService::class),
             $c->get(MarkContentCompleteService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        AssessmentAttemptController::class => static fn (ContainerInterface $c): AssessmentAttemptController => new AssessmentAttemptController(
+            $c->get(StartAssessmentAttemptService::class),
+            $c->get(SaveAssessmentResponsesService::class),
+            $c->get(SubmitAssessmentAttemptService::class),
+            $c->get(AssessmentAttemptQueryService::class),
             $c->get(PhpRenderer::class),
         ),
         AdminNotificationController::class => static fn (ContainerInterface $c): AdminNotificationController => new AdminNotificationController(

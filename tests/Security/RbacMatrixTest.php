@@ -27,6 +27,7 @@ final class RbacMatrixTest extends TestCase
         self::assertContains('application.create', $applicant);
         self::assertContains('identity.session.view_own', $applicant);
         self::assertContains('learning.content.access', $applicant);
+        self::assertContains('assessment.attempt.own', $applicant);
         self::assertNotContains('rbac.role.assign', $applicant);
         self::assertNotContains('document.metadata.view', $applicant);
 

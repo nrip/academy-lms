@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Academy\Application\Learning;
 
 use Academy\Application\RBAC\AuthorizationService;
+use Academy\Domain\Assessments\AssessmentAttemptRepository;
+use Academy\Domain\Assessments\AssessmentRepository;
 use Academy\Domain\Courses\ContentItemRepository;
 use Academy\Domain\Courses\ContentItemType;
 use Academy\Domain\Courses\CourseRepository;
@@ -35,6 +37,8 @@ final class LearnerPlayerQueryService
         private readonly ContentProgressRepository $progress,
         private readonly PlayerAccessPolicy $accessPolicy,
         private readonly ModuleReleasePolicy $releasePolicy,
+        private readonly AssessmentRepository $assessments,
+        private readonly AssessmentAttemptRepository $assessmentAttempts,
     ) {
     }
 
@@ -160,9 +164,24 @@ final class LearnerPlayerQueryService
         $canMarkComplete = in_array($target->contentType, [ContentItemType::TEXT_LESSON, ContentItemType::PDF], true)
             && !$progress->isCompleted();
         $blockedReason = null;
+        $assessment = null;
+        $inProgressAttempt = null;
+        $attemptsUsed = 0;
         if ($target->contentType === ContentItemType::MCQ_ASSESSMENT) {
-            $blockedReason = 'Assessment attempts are not available in this work package.';
             $canMarkComplete = false;
+            $assessment = $this->assessments->findByContentId($target->contentId);
+            if ($assessment !== null) {
+                $inProgressAttempt = $this->assessmentAttempts->findInProgress(
+                    $assessment->assessmentId,
+                    $enrolmentId,
+                );
+                $attemptsUsed = $this->assessmentAttempts->countSubmittedOrTimedOut(
+                    $assessment->assessmentId,
+                    $enrolmentId,
+                );
+            } else {
+                $blockedReason = 'Assessment configuration is not available for this item.';
+            }
         } elseif ($progress->isCompleted()) {
             $blockedReason = 'Already marked complete.';
             $canMarkComplete = false;
@@ -194,6 +213,9 @@ final class LearnerPlayerQueryService
             markCompleteBlockedReason: $blockedReason,
             previousContentId: $previousContentId,
             nextContentId: $nextContentId,
+            assessment: $assessment,
+            inProgressAttempt: $inProgressAttempt,
+            assessmentAttemptsUsed: $attemptsUsed,
         );
     }
 
