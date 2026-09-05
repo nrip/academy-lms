@@ -15,6 +15,12 @@ $course = $detail->course;
     <p class="mb-2"><a href="/admin/courses"><?= $e->html('← Course administration') ?></a></p>
     <h1 class="h3 mb-1"><?= $e->html($course->masterTitle) ?></h1>
     <p class="text-muted"><?= $e->html($course->courseCode) ?> · <?= $e->html($course->slug) ?></p>
+    <p class="mb-3">
+        <a class="btn btn-outline-primary btn-sm"
+           href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/question-bank">
+            <?= $e->html('Open question bank') ?>
+        </a>
+    </p>
     <?php if ($flash !== null): ?>
         <div class="alert alert-success"><?= $e->html($flash) ?></div>
     <?php endif; ?>

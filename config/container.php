@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Academy\Application\Assessments\QuestionBankService;
 use Academy\Application\Admissions\ApplicationDeclarationService;
 use Academy\Application\Admissions\ApplicationSubmitService;
 use Academy\Application\Admissions\ApplicationWorkspaceService;
@@ -85,6 +86,9 @@ use Academy\Domain\Admissions\ApplicationDraftFactory;
 use Academy\Domain\Admissions\ApplicationRepository;
 use Academy\Domain\Admissions\ApplicationStateMachine;
 use Academy\Domain\Admissions\ApplicationSubmissionPreconditions;
+use Academy\Domain\Assessments\QuestionBankRepository;
+use Academy\Domain\Assessments\QuestionOptionRepository;
+use Academy\Domain\Assessments\QuestionRepository;
 use Academy\Domain\Audit\AuditWriter;
 use Academy\Domain\Courses\BatchAvailabilityEvaluator;
 use Academy\Domain\Courses\BatchDateValidator;
@@ -168,6 +172,7 @@ use Academy\Http\Controllers\EmailVerificationController;
 use Academy\Http\Controllers\FinancePaymentController;
 use Academy\Http\Controllers\ForgotPasswordController;
 use Academy\Http\Controllers\HealthController;
+use Academy\Http\Controllers\HomeController;
 use Academy\Http\Controllers\LocalStorageDownloadController;
 use Academy\Http\Controllers\LocalUploadController;
 use Academy\Http\Controllers\LoginController;
@@ -176,6 +181,7 @@ use Academy\Http\Controllers\PasswordResetController;
 use Academy\Http\Controllers\PaymentController;
 use Academy\Http\Controllers\ProfileController;
 use Academy\Http\Controllers\QualificationController;
+use Academy\Http\Controllers\QuestionBankController;
 use Academy\Http\Controllers\RazorpayWebhookController;
 use Academy\Http\Controllers\RegistrationController;
 use Academy\Http\Controllers\ReviewerApplicationController;
@@ -202,6 +208,9 @@ use Academy\Http\View\CurrentAuth;
 use Academy\Http\View\CurrentCsrfToken;
 use Academy\Infrastructure\Admissions\PdoApplicationRepository;
 use Academy\Infrastructure\Audit\PdoAuditWriter;
+use Academy\Infrastructure\Assessments\PdoQuestionBankRepository;
+use Academy\Infrastructure\Assessments\PdoQuestionOptionRepository;
+use Academy\Infrastructure\Assessments\PdoQuestionRepository;
 use Academy\Infrastructure\Courses\PdoBatchRepository;
 use Academy\Infrastructure\Courses\PdoContentItemRepository;
 use Academy\Infrastructure\Courses\PdoCourseAdminScopeAssignmentRepository;
@@ -458,6 +467,7 @@ return static function (): ContainerInterface {
             $c->get(CourseRepository::class),
             $c->get(CourseVersionRepository::class),
             $c->get(CourseAdminScopeAssignmentRepository::class),
+            $c->get(QuestionBankService::class),
             $c->get(ConnectionFactory::class),
             $c->get(AuditService::class),
         ),
@@ -503,6 +513,23 @@ return static function (): ContainerInterface {
             $c->get(CourseAdminAccessGuard::class),
             $c->get(ModuleRepository::class),
             $c->get(ContentItemRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        QuestionBankRepository::class => static fn (ContainerInterface $c): QuestionBankRepository => new PdoQuestionBankRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        QuestionRepository::class => static fn (ContainerInterface $c): QuestionRepository => new PdoQuestionRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        QuestionOptionRepository::class => static fn (ContainerInterface $c): QuestionOptionRepository => new PdoQuestionOptionRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        QuestionBankService::class => static fn (ContainerInterface $c): QuestionBankService => new QuestionBankService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(QuestionBankRepository::class),
+            $c->get(QuestionRepository::class),
+            $c->get(QuestionOptionRepository::class),
             $c->get(ConnectionFactory::class),
             $c->get(AuditService::class),
         ),
@@ -1553,6 +1580,22 @@ return static function (): ContainerInterface {
                 $router->post('/admin/courses/{courseId}/versions/{versionId}/modules/{moduleId}/content/{contentId}/delete', [CourseCurriculumController::class, 'deleteContent']),
                 'content.manage',
             );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/question-bank', [QuestionBankController::class, 'index']),
+                'question_bank.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/question-bank/questions', [QuestionBankController::class, 'create']),
+                'question_bank.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/question-bank/questions/{questionId}', [QuestionBankController::class, 'update']),
+                'question_bank.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/question-bank/questions/{questionId}/delete', [QuestionBankController::class, 'delete']),
+                'question_bank.manage',
+            );
 
             /** @var RouteAccess $applicationAccess */
             $applicationAccess = $c->get(RouteAccess::class);
@@ -1934,6 +1977,10 @@ return static function (): ContainerInterface {
             $c->get(CurriculumQueryService::class),
             $c->get(ModuleCommandService::class),
             $c->get(ContentItemCommandService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        QuestionBankController::class => static fn (ContainerInterface $c): QuestionBankController => new QuestionBankController(
+            $c->get(QuestionBankService::class),
             $c->get(PhpRenderer::class),
         ),
         LoginController::class => static fn (ContainerInterface $c): LoginController => new LoginController(

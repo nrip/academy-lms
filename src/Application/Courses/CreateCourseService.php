@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Academy\Application\Courses;
 
 use Academy\Application\Audit\AuditService;
+use Academy\Application\Assessments\QuestionBankService;
 use Academy\Domain\Audit\CoursesAuditPayload;
 use Academy\Domain\Courses\Course;
 use Academy\Domain\Courses\CourseAdminScopeAssignmentRepository;
@@ -28,6 +29,7 @@ final class CreateCourseService
         private readonly CourseRepository $courses,
         private readonly CourseVersionRepository $courseVersions,
         private readonly CourseAdminScopeAssignmentRepository $scopes,
+        private readonly QuestionBankService $questionBanks,
         private readonly ConnectionFactory $connections,
         private readonly AuditService $audit,
     ) {
@@ -95,6 +97,8 @@ final class CreateCourseService
                 $now,
                 $actorUserId,
             );
+
+            $this->questionBanks->ensureBankForCourse($courseId, $masterTitle);
 
             $this->audit->record(
                 new CoursesAuditPayload(
