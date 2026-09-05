@@ -43,7 +43,7 @@ Login always starts at: **`/login`**
 - [x] New course appears in admin list with a **Draft** version *(WP-L1)*
 - [x] Draft is **unlocked** (`locked_at` null — verified by ability to edit later steps) *(WP-L1)*
 
-> Remaining checklist steps 2–7 unlock in WP-L3…WP-L8.
+> Remaining checklist steps 3–7 unlock in WP-L2 / WP-L4…WP-L8. Step 2 MCQ criteria unlock with WP-L4/L5.
 
 ---
 
@@ -58,10 +58,12 @@ Login always starts at: **`/login`**
 
 **Pass criteria**
 
-- [ ] Modules and content visible in curriculum outline
-- [ ] Text lesson body editable and saved
-- [ ] MCQ questions saved; correct answers **not** shown on any learner-facing URL
-- [ ] Attempting the same edits on a **published/locked** version is blocked (**409** / clear message to clone Version N+1)
+- [x] Modules and content visible in curriculum outline *(WP-L3 — text lessons; MCQ assessment content deferred to WP-L4/L5)*
+- [x] Text lesson body editable and saved *(WP-L3)*
+- [ ] MCQ questions saved; correct answers **not** shown on any learner-facing URL *(WP-L4 / WP-L5)*
+- [x] Attempting the same edits on a **published/locked** version is blocked (**409** / clear message to clone Version N+1) *(WP-L3)*
+
+> Remaining checklist steps 3–7 unlock in WP-L2 / WP-L4…WP-L8. Step 2 MCQ items unlock with WP-L4/L5.
 
 ---
 

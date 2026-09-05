@@ -18,7 +18,7 @@ ob_start();
     <?php if ($flash !== null): ?>
         <div class="alert alert-success"><?= $e->html($flash) ?></div>
     <?php endif; ?>
-    <p class="text-muted"><?= $e->html('Courses in your Course Admin scope. Curriculum, publish, and batches arrive in later work packages.') ?></p>
+    <p class="text-muted"><?= $e->html('Courses in your Course Admin scope. Open a draft version to edit overview and curriculum. Publish and batches arrive in a later work package.') ?></p>
     <?php if ($courses === []): ?>
         <div class="alert alert-secondary"><?= $e->html('No courses in scope yet. Create a course to get started.') ?></div>
     <?php else: ?>

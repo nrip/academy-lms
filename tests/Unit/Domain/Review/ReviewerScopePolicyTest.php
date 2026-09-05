@@ -208,6 +208,16 @@ final class FakeCourseVersionRepository implements CourseVersionRepository
         return [$this->version];
     }
 
+    public function insertDraft(array $fields): int
+    {
+        throw new \RuntimeException('Not implemented in test double.');
+    }
+
+    public function updateDraftOverview(int $versionId, array $fields): bool
+    {
+        return false;
+    }
+
     public function lock(int $versionId, string $lockedReason, DateTimeImmutable $lockedAt): void
     {
     }

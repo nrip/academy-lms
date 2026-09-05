@@ -50,8 +50,13 @@ final class RbacMatrixTest extends TestCase
         self::assertContains('course.create', $courseAdmin);
         self::assertContains('course.view_assigned', $courseAdmin);
         self::assertContains('course.version.edit', $courseAdmin);
+        self::assertContains('module.manage', $courseAdmin);
+        self::assertContains('content.manage', $courseAdmin);
         self::assertNotContains('document.metadata.view', $courseAdmin);
         self::assertNotContains('finance.refund.approve', $courseAdmin);
         self::assertNotContains('course.admin.scope.assign', $courseAdmin);
+
+        self::assertContains('module.manage', $super);
+        self::assertContains('content.manage', $super);
     }
 }

@@ -48,6 +48,12 @@ ob_start();
         · <?= $e->html($version->isLocked() ? 'Locked (immutable)' : 'Draft (editable)') ?>
         · <?= $e->html('Admission mode: ' . $version->admissionMode) ?>
     </p>
+    <p class="mb-3">
+        <a class="btn btn-outline-primary btn-sm"
+           href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/versions/<?= $e->attr((string) $version->versionId) ?>/curriculum">
+            <?= $e->html('Open curriculum') ?>
+        </a>
+    </p>
     <?php if ($flash !== null): ?>
         <div class="alert alert-success"><?= $e->html($flash) ?></div>
     <?php endif; ?>

@@ -62,8 +62,21 @@ final class CourseAdminAccessGuard
 
     public function requireVersionEditable(AuthContext $auth, int $courseId, int $versionId, DateTimeImmutable $at): CourseVersion
     {
+        return $this->requireVersionMutableWithPermission($auth, $courseId, $versionId, 'course.version.edit', $at);
+    }
+
+    /**
+     * Curriculum mutations (modules / content) require a dedicated permission plus an unlocked version in scope.
+     */
+    public function requireVersionMutableWithPermission(
+        AuthContext $auth,
+        int $courseId,
+        int $versionId,
+        string $permissionKey,
+        DateTimeImmutable $at,
+    ): CourseVersion {
         $adminUserId = $this->requireUserId($auth);
-        $this->requirePermission($auth, 'course.version.edit');
+        $this->requirePermission($auth, $permissionKey);
         $this->requireCourseInScope($auth, $courseId, $at);
 
         $version = $this->courseVersions->findById($versionId);

@@ -74,6 +74,17 @@ final class CoursesAuditPayload implements AuditPayload
             'scope_type',
             'include_future_versions',
             'scope_assignment_id',
+            'module_id',
+            'sequence',
+            'description',
+            'mandatory_flag',
+            'release_rule',
+            'prerequisite_module_id',
+            'content_id',
+            'content_type',
+            'completion_rule',
+            'body_text_length',
+            'object_key_present',
         ];
     }
 

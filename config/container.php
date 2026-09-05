@@ -10,9 +10,12 @@ use Academy\Application\Audit\AuditRedactor;
 use Academy\Application\Audit\AuditService;
 use Academy\Application\Courses\AssignCourseAdminScopeService;
 use Academy\Application\Courses\CatalogueService;
+use Academy\Application\Courses\ContentItemCommandService;
 use Academy\Application\Courses\CourseAdminAccessGuard;
 use Academy\Application\Courses\CourseAdminQueryService;
 use Academy\Application\Courses\CreateCourseService;
+use Academy\Application\Courses\CurriculumQueryService;
+use Academy\Application\Courses\ModuleCommandService;
 use Academy\Application\Courses\UpdateDraftCourseVersionService;
 use Academy\Application\Credentials\DocumentDownloadService;
 use Academy\Application\Credentials\DocumentScanWorker;
@@ -86,6 +89,7 @@ use Academy\Domain\Audit\AuditWriter;
 use Academy\Domain\Courses\BatchAvailabilityEvaluator;
 use Academy\Domain\Courses\BatchDateValidator;
 use Academy\Domain\Courses\BatchRepository;
+use Academy\Domain\Courses\ContentItemRepository;
 use Academy\Domain\Courses\CourseDocumentRequirementRepository;
 use Academy\Domain\Courses\CourseAdminScopeAssignmentRepository;
 use Academy\Domain\Courses\CourseAdminScopePolicy;
@@ -93,6 +97,7 @@ use Academy\Domain\Courses\CourseRepository;
 use Academy\Domain\Courses\CourseVersionImmutabilityGuard;
 use Academy\Domain\Courses\CourseVersionRepository;
 use Academy\Domain\Courses\EligibilityRuleRepository;
+use Academy\Domain\Courses\ModuleRepository;
 use Academy\Domain\Credentials\DocumentFileValidator;
 use Academy\Domain\Credentials\DocumentObjectKeyGenerator;
 use Academy\Domain\Credentials\DocumentSubmissionRepository;
@@ -156,6 +161,7 @@ use Academy\Http\Controllers\ApplicationController;
 use Academy\Http\Controllers\BatchController;
 use Academy\Http\Controllers\CourseAdminController;
 use Academy\Http\Controllers\CourseCatalogueController;
+use Academy\Http\Controllers\CourseCurriculumController;
 use Academy\Http\Controllers\DashboardController;
 use Academy\Http\Controllers\DocumentController;
 use Academy\Http\Controllers\EmailVerificationController;
@@ -197,11 +203,13 @@ use Academy\Http\View\CurrentCsrfToken;
 use Academy\Infrastructure\Admissions\PdoApplicationRepository;
 use Academy\Infrastructure\Audit\PdoAuditWriter;
 use Academy\Infrastructure\Courses\PdoBatchRepository;
+use Academy\Infrastructure\Courses\PdoContentItemRepository;
 use Academy\Infrastructure\Courses\PdoCourseAdminScopeAssignmentRepository;
 use Academy\Infrastructure\Courses\PdoCourseDocumentRequirementRepository;
 use Academy\Infrastructure\Courses\PdoCourseRepository;
 use Academy\Infrastructure\Courses\PdoCourseVersionRepository;
 use Academy\Infrastructure\Courses\PdoEligibilityRuleRepository;
+use Academy\Infrastructure\Courses\PdoModuleRepository;
 use Academy\Infrastructure\Credentials\FakeMalwareScanner;
 use Academy\Infrastructure\Credentials\PdoDocumentSubmissionRepository;
 use Academy\Infrastructure\Credentials\PdoDocumentUploadAuthorizationRepository;
@@ -471,6 +479,30 @@ return static function (): ContainerInterface {
             $c->get(CourseAdminScopeAssignmentRepository::class),
             $c->get(CourseRepository::class),
             $c->get(RoleRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        ModuleRepository::class => static fn (ContainerInterface $c): ModuleRepository => new PdoModuleRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        ContentItemRepository::class => static fn (ContainerInterface $c): ContentItemRepository => new PdoContentItemRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        CurriculumQueryService::class => static fn (ContainerInterface $c): CurriculumQueryService => new CurriculumQueryService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
+        ),
+        ModuleCommandService::class => static fn (ContainerInterface $c): ModuleCommandService => new ModuleCommandService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        ContentItemCommandService::class => static fn (ContainerInterface $c): ContentItemCommandService => new ContentItemCommandService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
             $c->get(ConnectionFactory::class),
             $c->get(AuditService::class),
         ),
@@ -1493,6 +1525,34 @@ return static function (): ContainerInterface {
                 $router->post('/admin/course-admin-scopes', [CourseAdminController::class, 'assignScope']),
                 'course.admin.scope.assign',
             );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/versions/{versionId}/curriculum', [CourseCurriculumController::class, 'show']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules', [CourseCurriculumController::class, 'createModule']),
+                'module.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules/{moduleId}', [CourseCurriculumController::class, 'updateModule']),
+                'module.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules/{moduleId}/delete', [CourseCurriculumController::class, 'deleteModule']),
+                'module.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules/{moduleId}/content', [CourseCurriculumController::class, 'createContent']),
+                'content.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules/{moduleId}/content/{contentId}', [CourseCurriculumController::class, 'updateContent']),
+                'content.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules/{moduleId}/content/{contentId}/delete', [CourseCurriculumController::class, 'deleteContent']),
+                'content.manage',
+            );
 
             /** @var RouteAccess $applicationAccess */
             $applicationAccess = $c->get(RouteAccess::class);
@@ -1868,6 +1928,12 @@ return static function (): ContainerInterface {
             $c->get(CreateCourseService::class),
             $c->get(UpdateDraftCourseVersionService::class),
             $c->get(AssignCourseAdminScopeService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        CourseCurriculumController::class => static fn (ContainerInterface $c): CourseCurriculumController => new CourseCurriculumController(
+            $c->get(CurriculumQueryService::class),
+            $c->get(ModuleCommandService::class),
+            $c->get(ContentItemCommandService::class),
             $c->get(PhpRenderer::class),
         ),
         LoginController::class => static fn (ContainerInterface $c): LoginController => new LoginController(
