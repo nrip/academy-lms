@@ -9,6 +9,8 @@ use Academy\Application\Assessments\QuestionBankService;
 use Academy\Application\Assessments\SaveAssessmentResponsesService;
 use Academy\Application\Assessments\StartAssessmentAttemptService;
 use Academy\Application\Assessments\SubmitAssessmentAttemptService;
+use Academy\Application\Certificates\CertificateIssuanceService;
+use Academy\Application\Certificates\CertificateQueryService;
 use Academy\Application\Admissions\ApplicationDeclarationService;
 use Academy\Application\Admissions\ApplicationSubmitService;
 use Academy\Application\Admissions\ApplicationWorkspaceService;
@@ -105,6 +107,10 @@ use Academy\Domain\Assessments\AssessmentQuestionLinkRepository;
 use Academy\Domain\Assessments\AssessmentRepository;
 use Academy\Domain\Assessments\AssessmentResponseRepository;
 use Academy\Domain\Assessments\AttemptScoringService;
+use Academy\Domain\Certificates\CertificateEventRepository;
+use Academy\Domain\Certificates\CertificateLearnerNameResolver;
+use Academy\Domain\Certificates\CertificateRepository;
+use Academy\Domain\Certificates\CompletionEligibilityPolicy;
 use Academy\Domain\Assessments\QuestionBankRepository;
 use Academy\Domain\Assessments\QuestionOptionRepository;
 use Academy\Domain\Assessments\QuestionRepository;
@@ -188,6 +194,7 @@ use Academy\Domain\Storage\ObjectStorage;
 use Academy\Http\Controllers\AdminNotificationController;
 use Academy\Http\Controllers\ApplicationController;
 use Academy\Http\Controllers\AssessmentAttemptController;
+use Academy\Http\Controllers\CertificateController;
 use Academy\Http\Controllers\AssessmentConfigController;
 use Academy\Http\Controllers\BatchController;
 use Academy\Http\Controllers\CourseAdminController;
@@ -243,6 +250,9 @@ use Academy\Infrastructure\Assessments\PdoAssessmentAttemptStatusHistoryReposito
 use Academy\Infrastructure\Assessments\PdoAssessmentQuestionLinkRepository;
 use Academy\Infrastructure\Assessments\PdoAssessmentRepository;
 use Academy\Infrastructure\Assessments\PdoAssessmentResponseRepository;
+use Academy\Infrastructure\Certificates\PdoCertificateEventRepository;
+use Academy\Infrastructure\Certificates\PdoCertificateRepository;
+use Academy\Infrastructure\Certificates\SimpleCertificatePdfRenderer;
 use Academy\Infrastructure\Assessments\PdoQuestionBankRepository;
 use Academy\Infrastructure\Assessments\PdoQuestionOptionRepository;
 use Academy\Infrastructure\Assessments\PdoQuestionRepository;
@@ -676,6 +686,42 @@ return static function (): ContainerInterface {
             $c->get(ContentProgressRepository::class),
             $c->get(ConnectionFactory::class),
             $c->get(AuditService::class),
+            $c->get(CertificateIssuanceService::class),
+        ),
+        CertificateRepository::class => static fn (ContainerInterface $c): CertificateRepository => new PdoCertificateRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        CertificateEventRepository::class => static fn (ContainerInterface $c): CertificateEventRepository => new PdoCertificateEventRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        CompletionEligibilityPolicy::class => static fn (): CompletionEligibilityPolicy => new CompletionEligibilityPolicy(),
+        CertificateLearnerNameResolver::class => static fn (): CertificateLearnerNameResolver => new CertificateLearnerNameResolver(),
+        SimpleCertificatePdfRenderer::class => static fn (): SimpleCertificatePdfRenderer => new SimpleCertificatePdfRenderer(),
+        CertificateIssuanceService::class => static fn (ContainerInterface $c): CertificateIssuanceService => new CertificateIssuanceService(
+            $c->get(EnrolmentRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(CourseRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(LearnerProfileRepository::class),
+            $c->get(CertificateRepository::class),
+            $c->get(CertificateEventRepository::class),
+            $c->get(CompletionEligibilityPolicy::class),
+            $c->get(CertificateLearnerNameResolver::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        CertificateQueryService::class => static fn (ContainerInterface $c): CertificateQueryService => new CertificateQueryService(
+            $c->get(AuthorizationService::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(CertificateRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(LearnerProfileRepository::class),
+            $c->get(CompletionEligibilityPolicy::class),
+            $c->get(CertificateLearnerNameResolver::class),
+            $c->get(CertificateIssuanceService::class),
+            $c->get(PlayerAccessPolicy::class),
         ),
         AssessmentAttemptQueryService::class => static fn (ContainerInterface $c): AssessmentAttemptQueryService => new AssessmentAttemptQueryService(
             $c->get(AssessmentAttemptAccessGuard::class),
@@ -811,6 +857,7 @@ return static function (): ContainerInterface {
             $c->get(ModuleReleasePolicy::class),
             $c->get(ConnectionFactory::class),
             $c->get(AuditService::class),
+            $c->get(CertificateIssuanceService::class),
         ),
         EnrolmentStatusHistoryRepository::class => static fn (ContainerInterface $c): EnrolmentStatusHistoryRepository => new PdoEnrolmentStatusHistoryRepository(
             $c->get(ConnectionFactory::class),
@@ -1717,6 +1764,19 @@ return static function (): ContainerInterface {
                 $router->post('/learning/attempts/{attemptId}/submit', [AssessmentAttemptController::class, 'submit']),
                 'assessment.attempt.own',
             );
+            $learningAccess->requirePermission(
+                $router->get('/learning/enrolments/{enrolmentId}/certificates', [CertificateController::class, 'listForEnrolment']),
+                'certificate.view_own',
+            );
+            $learningAccess->requirePermission(
+                $router->get('/certificates/{certificateId}', [CertificateController::class, 'show']),
+                'certificate.view_own',
+            );
+            $learningAccess->requirePermission(
+                $router->get('/certificates/{certificateId}/pdf', [CertificateController::class, 'downloadPdf']),
+                'certificate.view_own',
+            );
+            $router->get('/verify/certificates/{certificateNumber}', [CertificateController::class, 'verifyPublic']);
 
             /** @var RouteAccess $notificationAccess */
             $notificationAccess = $c->get(RouteAccess::class);
@@ -2211,6 +2271,12 @@ return static function (): ContainerInterface {
             $c->get(SubmitAssessmentAttemptService::class),
             $c->get(AssessmentAttemptQueryService::class),
             $c->get(PhpRenderer::class),
+        ),
+        CertificateController::class => static fn (ContainerInterface $c): CertificateController => new CertificateController(
+            $c->get(CertificateQueryService::class),
+            $c->get(SimpleCertificatePdfRenderer::class),
+            $c->get(PhpRenderer::class),
+            $c->get(RateLimiter::class),
         ),
         AdminNotificationController::class => static fn (ContainerInterface $c): AdminNotificationController => new AdminNotificationController(
             $c->get(AdminNotificationQueryService::class),

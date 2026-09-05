@@ -43,7 +43,7 @@ Login always starts at: **`/login`**
 - [x] New course appears in admin list with a **Draft** version *(WP-L1)*
 - [x] Draft is **unlocked** (`locked_at` null — verified by ability to edit later steps) *(WP-L1)*
 
-> Remaining checklist step 7 unlocks in WP-L8.
+> Remaining checklist steps complete through WP-L8 (Phase 1 learning expansion).
 
 ---
 
@@ -64,7 +64,7 @@ Login always starts at: **`/login`**
 - [x] MCQ assessment content can be configured with title, question count, pass %, max attempts, and linked bank questions *(WP-L5)*
 - [x] Attempting the same edits on a **published/locked** version is blocked (**409** / clear message to clone Version N+1) *(WP-L3 curriculum + WP-L5 assessment)*
 
-> Step 3 unlocked in WP-L2. Step 5 unlocked in WP-L6. Step 6 unlocked in WP-L7. Step 7 unlocks in WP-L8.
+> Step 3 unlocked in WP-L2. Step 5 unlocked in WP-L6. Step 6 unlocked in WP-L7. Step 7 unlocked in WP-L8.
 
 ---
 
@@ -85,7 +85,7 @@ Login always starts at: **`/login`**
 
 **Facilitator note:** If live publish is slow, WP-L9 may seed an already-published curriculum version + open batch; facilitator must still show **either** live publish **or** that a Course Admin–built published version is what learners apply to.
 
-> Step 5 unlocked in WP-L6. Step 6 unlocked in WP-L7. Step 7 unlocks in WP-L8 (Mode A enrol already exists).
+> Step 5 unlocked in WP-L6. Step 6 unlocked in WP-L7. Step 7 unlocked in WP-L8 (Mode A enrol already exists).
 
 ---
 
@@ -135,7 +135,7 @@ Mode A admissions path is **unchanged**. Enrolment means Application **Admitted*
 - [x] Content is from enrolment’s `course_version_id` only *(WP-L6)*
 - [x] Dashboard links into player for the demo enrolment *(WP-L6)*
 
-> Step 6 unlocked in WP-L7. Step 7 unlocks in WP-L8 (certificates).
+> Step 6 unlocked in WP-L7. Step 7 unlocked in WP-L8 (certificates).
 
 ---
 
@@ -155,7 +155,7 @@ Mode A admissions path is **unchanged**. Enrolment means Application **Admitted*
 - [x] Failed attempt can retry up to `max_attempts` / cooldown rules configured in admin *(WP-L7)*
 - [x] On pass, assessment ContentItem progress = completed *(WP-L7)*
 
-> Step 7 unlocks in WP-L8 (certificates).
+> Step 7 unlocked in WP-L8 (certificates).
 
 ### 7. Learner receives certificate
 
@@ -168,10 +168,10 @@ Mode A admissions path is **unchanged**. Enrolment means Application **Admitted*
 
 **Pass criteria**
 
-- [ ] Certificate does **not** issue before mandatory content + MCQ pass
-- [ ] Re-triggering issuance does not create a second current certificate
-- [ ] Public verify works without login and without contact PII
-- [ ] Enrolment was still created only via Mode A Admit (no certificate-created enrolment)
+- [x] Certificate does **not** issue before mandatory content + MCQ pass *(WP-L8)*
+- [x] Re-triggering issuance does not create a second current certificate *(WP-L8)*
+- [x] Public verify works without login and without contact PII *(WP-L8)*
+- [x] Enrolment was still created only via Mode A Admit (no certificate-created enrolment) *(WP-L8)*
 
 ---
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Academy\Application\Learning;
 
 use Academy\Application\Audit\AuditService;
+use Academy\Application\Certificates\CertificateIssuanceService;
 use Academy\Application\RBAC\AuthorizationService;
 use Academy\Domain\Audit\LearningAuditPayload;
 use Academy\Domain\Courses\ContentCompletionRule;
@@ -40,6 +41,7 @@ final class MarkContentCompleteService
         private readonly ModuleReleasePolicy $releasePolicy,
         private readonly ConnectionFactory $connections,
         private readonly AuditService $audit,
+        private readonly CertificateIssuanceService $certificates,
     ) {
     }
 
@@ -127,6 +129,8 @@ final class MarkContentCompleteService
                 actorUserId: $userId,
                 source: 'learner_player',
             );
+
+            $this->certificates->issueCompletionIfEligible($enrolmentId, $userId);
 
             $pdo->commit();
         } catch (Throwable $exception) {

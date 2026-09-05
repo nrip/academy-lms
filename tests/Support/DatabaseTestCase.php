@@ -143,6 +143,8 @@ final class DatabaseTestCase
             'assessment_responses',
             'assessment_attempt_questions',
             'assessment_attempts',
+            'certificate_events',
+            'certificates',
             'content_progress',
             'enrolment_status_history',
             'enrolments',
@@ -338,6 +340,36 @@ SQL);
         ]);
 
         return (int) $pdo->lastInsertId();
+    }
+
+    /**
+     * Sets a usable certificate/full name on the learner profile (creates stub if needed).
+     */
+    public static function setLearnerCertificateName(
+        int $userId,
+        ?string $certificateName = 'Dr Synthetic Learner',
+        ?string $firstName = 'Synthetic',
+        ?string $lastName = 'Learner',
+    ): void {
+        $profileId = self::ensureLearnerProfileStub($userId);
+        $pdo = self::pdo();
+        $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $pdo->prepare(
+            'UPDATE learner_profiles SET
+                certificate_name = :certificate_name,
+                certificate_name_confirmed = :confirmed,
+                first_name = :first_name,
+                last_name = :last_name,
+                updated_at = :updated_at
+             WHERE learner_profile_id = :id',
+        )->execute([
+            'certificate_name' => $certificateName,
+            'confirmed' => $certificateName !== null && $certificateName !== '' ? 1 : 0,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'updated_at' => $now,
+            'id' => $profileId,
+        ]);
     }
 
     public static function roleId(string $roleKey): int

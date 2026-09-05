@@ -70,6 +70,10 @@ final class LearningAuditPayload implements AuditPayload
             'attempt_number',
             'score_percent',
             'passed_flag',
+            'certificate_id',
+            'certificate_type',
+            'certificate_number',
+            'status',
         ];
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Academy\Application\Assessments;
 
 use Academy\Application\Audit\AuditService;
+use Academy\Application\Certificates\CertificateIssuanceService;
 use Academy\Domain\Assessments\AssessmentAttempt;
 use Academy\Domain\Assessments\AssessmentAttemptQuestionRepository;
 use Academy\Domain\Assessments\AssessmentAttemptRepository;
@@ -38,6 +39,7 @@ final class SubmitAssessmentAttemptService
         private readonly ContentProgressRepository $progress,
         private readonly ConnectionFactory $connections,
         private readonly AuditService $audit,
+        private readonly CertificateIssuanceService $certificates,
     ) {
     }
 
@@ -131,6 +133,8 @@ final class SubmitAssessmentAttemptService
                 actorUserId: $userId,
                 source: 'learner_player',
             );
+
+            $this->certificates->issueCompletionIfEligible($attempt->enrolmentId, $userId);
 
             $pdo->commit();
         } catch (Throwable $exception) {

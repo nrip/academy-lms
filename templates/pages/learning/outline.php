@@ -16,6 +16,7 @@ ob_start();
 <div class="acad-learner-outline">
     <p class="mb-2">
         <a href="/dashboard"><?= $e->html('← Dashboard') ?></a>
+        · <a href="<?= $e->attr($base . '/certificates') ?>"><?= $e->html('Certificates') ?></a>
     </p>
     <h1 class="h3 mb-1"><?= $e->html($outline->courseTitle) ?></h1>
     <p class="text-muted mb-3">
