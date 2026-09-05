@@ -67,6 +67,60 @@ final class PdoCourseRepository implements CourseRepository
         return $courses;
     }
 
+    public function listByIds(array $courseIds): array
+    {
+        if ($courseIds === []) {
+            return [];
+        }
+
+        $unique = array_values(array_unique(array_map(static fn (int $id): int => $id, $courseIds)));
+        $placeholders = [];
+        $params = [];
+        foreach ($unique as $i => $id) {
+            $key = 'id' . $i;
+            $placeholders[] = ':' . $key;
+            $params[$key] = $id;
+        }
+
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'SELECT ' . self::COLUMNS . ' FROM courses
+             WHERE course_id IN (' . implode(', ', $placeholders) . ')
+             ORDER BY master_title ASC',
+        );
+        $stmt->execute($params);
+
+        $courses = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $courses[] = $this->mapRow($row);
+        }
+
+        return $courses;
+    }
+
+    public function insert(string $courseCode, string $slug, string $masterTitle, string $status): array
+    {
+        $pdo = $this->connections->connection();
+        $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $stmt = $pdo->prepare(
+            'INSERT INTO courses (
+                course_code, slug, master_title, status, current_published_version_id, created_at, updated_at
+             ) VALUES (
+                :course_code, :slug, :master_title, :status, NULL, :created_at, :updated_at
+             )',
+        );
+        $stmt->execute([
+            'course_code' => $courseCode,
+            'slug' => $slug,
+            'master_title' => $masterTitle,
+            'status' => $status,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return ['course_id' => (int) $pdo->lastInsertId()];
+    }
+
     public function setCurrentPublishedVersionId(int $courseId, int $versionId): void
     {
         $pdo = $this->connections->connection();

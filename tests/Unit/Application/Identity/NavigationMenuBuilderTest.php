@@ -42,6 +42,15 @@ final class NavigationMenuBuilderTest extends TestCase
         self::assertSame(['Reviewer Queue', 'Logout'], $labels);
     }
 
+    public function testCourseAdminNav(): void
+    {
+        $labels = array_column(
+            $this->builder(['course.view_assigned', 'course.create'])->build($this->auth()),
+            'label',
+        );
+        self::assertSame(['Course Admin', 'Logout'], $labels);
+    }
+
     /**
      * @param list<string> $keys
      */

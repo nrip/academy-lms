@@ -431,6 +431,15 @@ SQL);
         );
     }
 
+    public static function courseAdminFixture(): array
+    {
+        return self::createSyntheticUser(
+            'courseadmin.' . bin2hex(random_bytes(4)) . '@example.test',
+            '+91' . random_int(6000000000, 9999999999),
+            [RoleKeys::COURSE_ADMIN],
+        );
+    }
+
     /**
      * Inserts a fully published + locked Course/CourseVersion pair for tests
      * (mirrors Wp02DemoCatalogueSeeder's seed order without its idempotency

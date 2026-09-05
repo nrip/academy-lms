@@ -18,6 +18,7 @@ final class PostLoginDestinationResolver
     public const FINANCE_RECONCILIATION = '/finance/reconciliation';
     public const FINANCE_PAYMENTS = '/finance/payments';
     public const NOTIFICATION_OPS = '/admin/notifications';
+    public const COURSE_ADMIN = '/admin/courses';
     public const LEARNER_DASHBOARD = '/dashboard';
     public const PROFILE = '/profile';
     public const COURSES = '/courses';
@@ -33,6 +34,7 @@ final class PostLoginDestinationResolver
         self::FINANCE_RECONCILIATION => 'finance.payment.reconcile',
         self::FINANCE_PAYMENTS => 'finance.payment.view',
         self::NOTIFICATION_OPS => 'notification.view',
+        self::COURSE_ADMIN => 'course.view_assigned',
         self::LEARNER_DASHBOARD => 'dashboard.view_own',
         self::PROFILE => 'profile.personal.view_own',
         self::COURSES => null,
@@ -70,6 +72,9 @@ final class PostLoginDestinationResolver
         }
         if ($this->authorization->check($auth, 'notification.view')) {
             return self::NOTIFICATION_OPS;
+        }
+        if ($this->authorization->check($auth, 'course.view_assigned')) {
+            return self::COURSE_ADMIN;
         }
         if ($this->authorization->check($auth, 'dashboard.view_own')) {
             return self::LEARNER_DASHBOARD;

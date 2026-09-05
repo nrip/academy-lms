@@ -78,6 +78,7 @@ final class UatSeedService
             ['email' => 'learner@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000001', 'roles' => [RoleKeys::APPLICANT], 'label' => 'Learner', 'first_name' => 'Ananya', 'last_name' => 'Sharma'],
             ['email' => 'reviewer@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000002', 'roles' => [RoleKeys::CREDENTIAL_REVIEWER], 'label' => 'Reviewer'],
             ['email' => 'finance@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000003', 'roles' => [RoleKeys::FINANCE_ADMIN], 'label' => 'Finance'],
+            ['email' => 'course-admin@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000006', 'roles' => [RoleKeys::COURSE_ADMIN], 'label' => 'Course Admin'],
             ['email' => 'ops@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000004', 'roles' => [RoleKeys::SUPER_ADMIN], 'label' => 'Notification Operations'],
             ['email' => 'multi@' . self::EMAIL_DOMAIN, 'mobile' => '+919900000005', 'roles' => [RoleKeys::APPLICANT, RoleKeys::CREDENTIAL_REVIEWER], 'label' => 'Multi-permission', 'first_name' => 'Rohan', 'last_name' => 'Mehta'],
         ];
@@ -99,6 +100,9 @@ final class UatSeedService
             }
             if (in_array(RoleKeys::CREDENTIAL_REVIEWER, $persona['roles'], true)) {
                 $this->ensureReviewerBatchScope($pdo, $userId, $now);
+            }
+            if (in_array(RoleKeys::COURSE_ADMIN, $persona['roles'], true)) {
+                $this->ensureCourseAdminDemoCourseScope($pdo, $userId, $now);
             }
             $summary[] = 'persona:' . $persona['label'] . '=' . $persona['email'];
             ++$count;
@@ -480,6 +484,51 @@ final class UatSeedService
             'user_id' => $userId,
             'type' => 'batch',
             'batch_id' => (int) $batchId,
+            'effective_from' => $now,
+            'created_by' => $userId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    private function ensureCourseAdminDemoCourseScope(PDO $pdo, int $userId, string $now): void
+    {
+        $course = $pdo->prepare('SELECT course_id FROM courses WHERE course_code = :code LIMIT 1');
+        $course->execute(['code' => self::DEMO_COURSE_CODE]);
+        $courseId = $course->fetchColumn();
+        if ($courseId === false) {
+            return;
+        }
+
+        $check = $pdo->prepare(
+            'SELECT scope_assignment_id FROM course_admin_scope_assignments
+             WHERE admin_user_id = :user_id AND scope_type = :type AND course_id = :course_id
+               AND revoked_at IS NULL LIMIT 1',
+        );
+        $check->execute([
+            'user_id' => $userId,
+            'type' => 'course',
+            'course_id' => (int) $courseId,
+        ]);
+        if ($check->fetchColumn() !== false) {
+            return;
+        }
+
+        $insert = $pdo->prepare(
+            'INSERT INTO course_admin_scope_assignments (
+                admin_user_id, scope_type, course_id, course_version_id,
+                include_future_versions, effective_from, effective_to,
+                created_by_user_id, revoked_at, revoked_by_user_id, created_at, updated_at
+            ) VALUES (
+                :user_id, :type, :course_id, NULL,
+                1, :effective_from, NULL,
+                :created_by, NULL, NULL, :created_at, :updated_at
+            )',
+        );
+        $insert->execute([
+            'user_id' => $userId,
+            'type' => 'course',
+            'course_id' => (int) $courseId,
             'effective_from' => $now,
             'created_by' => $userId,
             'created_at' => $now,

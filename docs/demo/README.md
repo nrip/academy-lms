@@ -181,4 +181,5 @@ php bin/jobs.php demo:prepare --confirm             # reseed after reset
 - [`DEMO_SCRIPT.md`](./DEMO_SCRIPT.md) — presenter script
 - [`DEMO_READINESS_CHECKLIST.md`](./DEMO_READINESS_CHECKLIST.md) — pre-demo gate
 - [`USER_FEEDBACK_TEMPLATE.md`](./USER_FEEDBACK_TEMPLATE.md) — capture feedback
+- [`PHASE1_CUSTOMER_DEMO_ACCEPTANCE_CHECKLIST.md`](./PHASE1_CUSTOMER_DEMO_ACCEPTANCE_CHECKLIST.md) — LMS Expansion Phase 1 customer demo browser journey (48-hour DoD)
 - [`../uat/UAT_ACCOUNTS.md`](../uat/UAT_ACCOUNTS.md) — full persona notes

@@ -8,7 +8,12 @@ use Academy\Application\Admissions\ApplicationWorkspaceService;
 use Academy\Application\Admissions\DraftApplicationService;
 use Academy\Application\Audit\AuditRedactor;
 use Academy\Application\Audit\AuditService;
+use Academy\Application\Courses\AssignCourseAdminScopeService;
 use Academy\Application\Courses\CatalogueService;
+use Academy\Application\Courses\CourseAdminAccessGuard;
+use Academy\Application\Courses\CourseAdminQueryService;
+use Academy\Application\Courses\CreateCourseService;
+use Academy\Application\Courses\UpdateDraftCourseVersionService;
 use Academy\Application\Credentials\DocumentDownloadService;
 use Academy\Application\Credentials\DocumentScanWorker;
 use Academy\Application\Credentials\DocumentUploadService;
@@ -82,6 +87,8 @@ use Academy\Domain\Courses\BatchAvailabilityEvaluator;
 use Academy\Domain\Courses\BatchDateValidator;
 use Academy\Domain\Courses\BatchRepository;
 use Academy\Domain\Courses\CourseDocumentRequirementRepository;
+use Academy\Domain\Courses\CourseAdminScopeAssignmentRepository;
+use Academy\Domain\Courses\CourseAdminScopePolicy;
 use Academy\Domain\Courses\CourseRepository;
 use Academy\Domain\Courses\CourseVersionImmutabilityGuard;
 use Academy\Domain\Courses\CourseVersionRepository;
@@ -147,6 +154,7 @@ use Academy\Domain\Storage\ObjectStorage;
 use Academy\Http\Controllers\AdminNotificationController;
 use Academy\Http\Controllers\ApplicationController;
 use Academy\Http\Controllers\BatchController;
+use Academy\Http\Controllers\CourseAdminController;
 use Academy\Http\Controllers\CourseCatalogueController;
 use Academy\Http\Controllers\DashboardController;
 use Academy\Http\Controllers\DocumentController;
@@ -189,6 +197,7 @@ use Academy\Http\View\CurrentCsrfToken;
 use Academy\Infrastructure\Admissions\PdoApplicationRepository;
 use Academy\Infrastructure\Audit\PdoAuditWriter;
 use Academy\Infrastructure\Courses\PdoBatchRepository;
+use Academy\Infrastructure\Courses\PdoCourseAdminScopeAssignmentRepository;
 use Academy\Infrastructure\Courses\PdoCourseDocumentRequirementRepository;
 use Academy\Infrastructure\Courses\PdoCourseRepository;
 use Academy\Infrastructure\Courses\PdoCourseVersionRepository;
@@ -420,6 +429,50 @@ return static function (): ContainerInterface {
         ),
         CourseVersionRepository::class => static fn (ContainerInterface $c): CourseVersionRepository => new PdoCourseVersionRepository(
             $c->get(ConnectionFactory::class),
+        ),
+        CourseAdminScopeAssignmentRepository::class => static fn (ContainerInterface $c): CourseAdminScopeAssignmentRepository => new PdoCourseAdminScopeAssignmentRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        CourseAdminScopePolicy::class => static fn (ContainerInterface $c): CourseAdminScopePolicy => new CourseAdminScopePolicy(
+            $c->get(CourseAdminScopeAssignmentRepository::class),
+            $c->get(CourseVersionRepository::class),
+        ),
+        CourseVersionImmutabilityGuard::class => static fn (): CourseVersionImmutabilityGuard => new CourseVersionImmutabilityGuard(),
+        CourseAdminAccessGuard::class => static fn (ContainerInterface $c): CourseAdminAccessGuard => new CourseAdminAccessGuard(
+            $c->get(AuthorizationService::class),
+            $c->get(CourseAdminScopePolicy::class),
+            $c->get(CourseRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(CourseVersionImmutabilityGuard::class),
+        ),
+        CreateCourseService::class => static fn (ContainerInterface $c): CreateCourseService => new CreateCourseService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(CourseAdminScopeAssignmentRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        UpdateDraftCourseVersionService::class => static fn (ContainerInterface $c): UpdateDraftCourseVersionService => new UpdateDraftCourseVersionService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        CourseAdminQueryService::class => static fn (ContainerInterface $c): CourseAdminQueryService => new CourseAdminQueryService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseAdminScopeAssignmentRepository::class),
+            $c->get(CourseAdminScopePolicy::class),
+            $c->get(CourseRepository::class),
+            $c->get(CourseVersionRepository::class),
+        ),
+        AssignCourseAdminScopeService::class => static fn (ContainerInterface $c): AssignCourseAdminScopeService => new AssignCourseAdminScopeService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseAdminScopeAssignmentRepository::class),
+            $c->get(CourseRepository::class),
+            $c->get(RoleRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
         ),
         BatchRepository::class => static fn (ContainerInterface $c): BatchRepository => new PdoBatchRepository(
             $c->get(ConnectionFactory::class),
@@ -870,7 +923,6 @@ return static function (): ContainerInterface {
 
         BatchAvailabilityEvaluator::class => static fn (): BatchAvailabilityEvaluator => new BatchAvailabilityEvaluator(),
         BatchDateValidator::class => static fn (): BatchDateValidator => new BatchDateValidator(),
-        CourseVersionImmutabilityGuard::class => static fn (): CourseVersionImmutabilityGuard => new CourseVersionImmutabilityGuard(),
         ApplicationDraftFactory::class => static fn (): ApplicationDraftFactory => new ApplicationDraftFactory(),
         CatalogueService::class => static fn (ContainerInterface $c): CatalogueService => new CatalogueService(
             $c->get(CourseRepository::class),
@@ -1407,6 +1459,41 @@ return static function (): ContainerInterface {
                 'notification.retry',
             );
 
+            /** @var RouteAccess $courseAdminAccess */
+            $courseAdminAccess = $c->get(RouteAccess::class);
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses', [CourseAdminController::class, 'index']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/new', [CourseAdminController::class, 'newForm']),
+                'course.create',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses', [CourseAdminController::class, 'create']),
+                'course.create',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}', [CourseAdminController::class, 'showCourse']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/versions/{versionId}', [CourseAdminController::class, 'showVersion']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}', [CourseAdminController::class, 'updateVersion']),
+                'course.version.edit',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/course-admin-scopes', [CourseAdminController::class, 'scopeForm']),
+                'course.admin.scope.assign',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/course-admin-scopes', [CourseAdminController::class, 'assignScope']),
+                'course.admin.scope.assign',
+            );
+
             /** @var RouteAccess $applicationAccess */
             $applicationAccess = $c->get(RouteAccess::class);
             $applicationAccess->requirePermission(
@@ -1774,6 +1861,13 @@ return static function (): ContainerInterface {
         AdminNotificationController::class => static fn (ContainerInterface $c): AdminNotificationController => new AdminNotificationController(
             $c->get(AdminNotificationQueryService::class),
             $c->get(AdminNotificationRetryService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        CourseAdminController::class => static fn (ContainerInterface $c): CourseAdminController => new CourseAdminController(
+            $c->get(CourseAdminQueryService::class),
+            $c->get(CreateCourseService::class),
+            $c->get(UpdateDraftCourseVersionService::class),
+            $c->get(AssignCourseAdminScopeService::class),
             $c->get(PhpRenderer::class),
         ),
         LoginController::class => static fn (ContainerInterface $c): LoginController => new LoginController(

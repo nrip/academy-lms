@@ -50,6 +50,95 @@ final class PdoCourseVersionRepository implements CourseVersionRepository
         return $versions;
     }
 
+    public function insertDraft(array $fields): int
+    {
+        $pdo = $this->connections->connection();
+        $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $faqJson = null;
+        if ($fields['faq'] !== null) {
+            $faqJson = json_encode($fields['faq'], JSON_THROW_ON_ERROR);
+        }
+
+        $stmt = $pdo->prepare(
+            'INSERT INTO course_versions (
+                course_id, version_number, title, description, learning_objectives, intended_audience,
+                syllabus_summary, admission_mode, delivery_type, duration_text, validity_period_days,
+                standard_fee, gst_rate, currency, certificate_type, faq_json, status,
+                published_at, locked_at, locked_reason, created_at, updated_at
+             ) VALUES (
+                :course_id, :version_number, :title, :description, :learning_objectives, :intended_audience,
+                :syllabus_summary, :admission_mode, :delivery_type, :duration_text, :validity_period_days,
+                :standard_fee, :gst_rate, :currency, :certificate_type, :faq_json, :status,
+                NULL, NULL, NULL, :created_at, :updated_at
+             )',
+        );
+        $stmt->execute([
+            'course_id' => $fields['course_id'],
+            'version_number' => $fields['version_number'],
+            'title' => $fields['title'],
+            'description' => $fields['description'],
+            'learning_objectives' => $fields['learning_objectives'],
+            'intended_audience' => $fields['intended_audience'],
+            'syllabus_summary' => $fields['syllabus_summary'],
+            'admission_mode' => $fields['admission_mode'],
+            'delivery_type' => $fields['delivery_type'],
+            'duration_text' => $fields['duration_text'],
+            'validity_period_days' => $fields['validity_period_days'],
+            'standard_fee' => $fields['standard_fee'],
+            'gst_rate' => $fields['gst_rate'],
+            'currency' => $fields['currency'],
+            'certificate_type' => $fields['certificate_type'],
+            'faq_json' => $faqJson,
+            'status' => \Academy\Domain\Courses\CourseVersionStatus::DRAFT,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return (int) $pdo->lastInsertId();
+    }
+
+    public function updateDraftOverview(int $versionId, array $fields): bool
+    {
+        $pdo = $this->connections->connection();
+        $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $stmt = $pdo->prepare(
+            'UPDATE course_versions SET
+                title = :title,
+                description = :description,
+                learning_objectives = :learning_objectives,
+                intended_audience = :intended_audience,
+                syllabus_summary = :syllabus_summary,
+                delivery_type = :delivery_type,
+                duration_text = :duration_text,
+                validity_period_days = :validity_period_days,
+                standard_fee = :standard_fee,
+                gst_rate = :gst_rate,
+                currency = :currency,
+                certificate_type = :certificate_type,
+                updated_at = :updated_at
+             WHERE version_id = :version_id AND locked_at IS NULL AND status = :draft_status',
+        );
+        $stmt->execute([
+            'title' => $fields['title'],
+            'description' => $fields['description'],
+            'learning_objectives' => $fields['learning_objectives'],
+            'intended_audience' => $fields['intended_audience'],
+            'syllabus_summary' => $fields['syllabus_summary'],
+            'delivery_type' => $fields['delivery_type'],
+            'duration_text' => $fields['duration_text'],
+            'validity_period_days' => $fields['validity_period_days'],
+            'standard_fee' => $fields['standard_fee'],
+            'gst_rate' => $fields['gst_rate'],
+            'currency' => $fields['currency'],
+            'certificate_type' => $fields['certificate_type'],
+            'updated_at' => $now,
+            'version_id' => $versionId,
+            'draft_status' => \Academy\Domain\Courses\CourseVersionStatus::DRAFT,
+        ]);
+
+        return $stmt->rowCount() > 0;
+    }
+
     public function lock(int $versionId, string $lockedReason, DateTimeImmutable $lockedAt): void
     {
         $pdo = $this->connections->connection();

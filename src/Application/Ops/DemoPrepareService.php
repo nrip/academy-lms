@@ -98,6 +98,7 @@ final class DemoPrepareService
                 ['persona' => 'Learner', 'email' => 'learner@' . UatSeedService::EMAIL_DOMAIN, 'landing' => '/dashboard'],
                 ['persona' => 'Reviewer', 'email' => 'reviewer@' . UatSeedService::EMAIL_DOMAIN, 'landing' => '/reviewer/applications'],
                 ['persona' => 'Finance', 'email' => 'finance@' . UatSeedService::EMAIL_DOMAIN, 'landing' => '/finance/reconciliation'],
+                ['persona' => 'Course Admin', 'email' => 'course-admin@' . UatSeedService::EMAIL_DOMAIN, 'landing' => '/admin/courses'],
                 // Super Admin includes reviewer permission; resolver precedence lands on reviewer queue.
                 // Demo work screen remains /admin/notifications (open from nav).
                 ['persona' => 'Notification Operations', 'email' => 'ops@' . UatSeedService::EMAIL_DOMAIN, 'landing' => '/reviewer/applications (then Notifications in nav → /admin/notifications)'],

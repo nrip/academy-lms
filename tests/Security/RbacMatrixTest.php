@@ -43,5 +43,15 @@ final class RbacMatrixTest extends TestCase
         self::assertContains('document.signed_url.generate', $super);
         self::assertContains('finance.refund.approve', $super);
         self::assertContains('audit.view', $super);
+        self::assertContains('course.create', $super);
+        self::assertContains('course.admin.scope.assign', $super);
+
+        $courseAdmin = $repo->permissionKeysForRoleKey(RoleKeys::COURSE_ADMIN);
+        self::assertContains('course.create', $courseAdmin);
+        self::assertContains('course.view_assigned', $courseAdmin);
+        self::assertContains('course.version.edit', $courseAdmin);
+        self::assertNotContains('document.metadata.view', $courseAdmin);
+        self::assertNotContains('finance.refund.approve', $courseAdmin);
+        self::assertNotContains('course.admin.scope.assign', $courseAdmin);
     }
 }

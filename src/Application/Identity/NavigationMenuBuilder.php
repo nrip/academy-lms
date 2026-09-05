@@ -56,6 +56,12 @@ final class NavigationMenuBuilder
             if ($this->authorization->check($auth, 'notification.view')) {
                 $items[] = ['label' => 'Notifications', 'href' => PostLoginDestinationResolver::NOTIFICATION_OPS];
             }
+            if ($this->authorization->check($auth, 'course.view_assigned')) {
+                $items[] = ['label' => 'Course Admin', 'href' => PostLoginDestinationResolver::COURSE_ADMIN];
+            }
+            if ($this->authorization->check($auth, 'course.admin.scope.assign')) {
+                $items[] = ['label' => 'Course Admin scope', 'href' => '/admin/course-admin-scopes'];
+            }
         }
 
         $items[] = ['label' => 'Logout', 'href' => '/logout', 'method' => 'post'];
