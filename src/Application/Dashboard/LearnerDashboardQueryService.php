@@ -115,6 +115,8 @@ final class LearnerDashboardQueryService
                 $paymentPresentation,
                 $retryAllowed,
                 $enrolmentId !== null,
+                $enrolmentId,
+                $enrolmentStatus,
             );
 
             if ($primaryAction !== null) {
@@ -178,7 +180,18 @@ final class LearnerDashboardQueryService
         ?LearnerStatusView $payment,
         bool $retryAllowed,
         bool $hasEnrolment,
+        ?int $enrolmentId,
+        ?string $enrolmentLifecycleStatus,
     ): ?array {
+        if ($hasEnrolment && $enrolmentId !== null
+            && $enrolmentLifecycleStatus === \Academy\Domain\Learning\EnrolmentLifecycleStatus::ACTIVE
+        ) {
+            return [
+                'label' => 'Continue learning',
+                'href' => '/learning/enrolments/' . $enrolmentId,
+            ];
+        }
+
         if ($hasEnrolment) {
             return null;
         }

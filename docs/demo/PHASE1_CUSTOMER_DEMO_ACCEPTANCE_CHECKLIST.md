@@ -43,7 +43,7 @@ Login always starts at: **`/login`**
 - [x] New course appears in admin list with a **Draft** version *(WP-L1)*
 - [x] Draft is **unlocked** (`locked_at` null — verified by ability to edit later steps) *(WP-L1)*
 
-> Remaining checklist steps 4–7 unlock in WP-L6…WP-L8 (Mode A enrol already exists; learner player / assessments / certificates later).
+> Remaining checklist steps 6–7 unlock in WP-L7…WP-L8.
 
 ---
 
@@ -64,7 +64,7 @@ Login always starts at: **`/login`**
 - [x] MCQ assessment content can be configured with title, question count, pass %, max attempts, and linked bank questions *(WP-L5)*
 - [x] Attempting the same edits on a **published/locked** version is blocked (**409** / clear message to clone Version N+1) *(WP-L3 curriculum + WP-L5 assessment)*
 
-> Step 3 unlocked in WP-L2. Steps 4–7 unlock in WP-L6…WP-L8.
+> Step 3 unlocked in WP-L2. Step 5 unlocked in WP-L6. Steps 6–7 unlock in WP-L7…WP-L8.
 
 ---
 
@@ -85,7 +85,7 @@ Login always starts at: **`/login`**
 
 **Facilitator note:** If live publish is slow, WP-L9 may seed an already-published curriculum version + open batch; facilitator must still show **either** live publish **or** that a Course Admin–built published version is what learners apply to.
 
-> Remaining checklist steps 4–7 unlock in WP-L6…WP-L8 (Mode A enrol already exists; learner player / assessments / certificates later).
+> Step 5 unlocked in WP-L6. Steps 6–7 unlock in WP-L7…WP-L8 (Mode A enrol already exists).
 
 ---
 
@@ -130,10 +130,12 @@ Mode A admissions path is **unchanged**. Enrolment means Application **Admitted*
 
 **Pass criteria**
 
-- [ ] Only **Active** enrolment can open player (Scheduled without activation: no content, or clear message)
-- [ ] Learner cannot open another user’s `/learning/enrolments/{id}` (403)
-- [ ] Content is from enrolment’s `course_version_id` only
-- [ ] Dashboard links into player for the demo enrolment
+- [x] Only **Active** enrolment can open player (Scheduled without activation: no content, or clear message) *(WP-L6)*
+- [x] Learner cannot open another user’s `/learning/enrolments/{id}` (403) *(WP-L6)*
+- [x] Content is from enrolment’s `course_version_id` only *(WP-L6)*
+- [x] Dashboard links into player for the demo enrolment *(WP-L6)*
+
+> Steps 6–7 unlock in WP-L7 / WP-L8 (assessment runtime + certificates).
 
 ---
 

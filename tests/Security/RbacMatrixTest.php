@@ -26,6 +26,7 @@ final class RbacMatrixTest extends TestCase
         $applicant = $repo->permissionKeysForRoleKey(RoleKeys::APPLICANT);
         self::assertContains('application.create', $applicant);
         self::assertContains('identity.session.view_own', $applicant);
+        self::assertContains('learning.content.access', $applicant);
         self::assertNotContains('rbac.role.assign', $applicant);
         self::assertNotContains('document.metadata.view', $applicant);
 

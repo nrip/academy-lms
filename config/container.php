@@ -27,6 +27,8 @@ use Academy\Application\Credentials\DocumentScanWorker;
 use Academy\Application\Credentials\DocumentUploadService;
 use Academy\Application\Credentials\StuckScanWatchService;
 use Academy\Application\Dashboard\LearnerDashboardQueryService;
+use Academy\Application\Learning\LearnerPlayerQueryService;
+use Academy\Application\Learning\MarkContentCompleteService;
 use Academy\Application\Dashboard\LearnerStatusPresenter;
 use Academy\Application\Identity\CompositeTokenConsumedHandler;
 use Academy\Application\Identity\EmailVerificationResendService;
@@ -135,11 +137,14 @@ use Academy\Domain\Identity\UserWriteRepository;
 use Academy\Domain\Identity\VerificationChallengeRepository;
 use Academy\Domain\Identity\VerificationTokenRepository;
 use Academy\Domain\Learning\BatchCapacityPolicy;
+use Academy\Domain\Learning\ContentProgressRepository;
 use Academy\Domain\Learning\EnrolmentFactory;
 use Academy\Domain\Learning\EnrolmentPublicReferenceGenerator;
 use Academy\Domain\Learning\EnrolmentRepository;
 use Academy\Domain\Learning\EnrolmentStateMachine;
 use Academy\Domain\Learning\EnrolmentStatusHistoryRepository;
+use Academy\Domain\Learning\ModuleReleasePolicy;
+use Academy\Domain\Learning\PlayerAccessPolicy;
 use Academy\Domain\Notifications\EmailDeliveryPort;
 use Academy\Domain\Notifications\NotificationDeliveryRepository;
 use Academy\Domain\Notifications\NotificationRetryPolicy;
@@ -178,6 +183,7 @@ use Academy\Http\Controllers\CourseCatalogueController;
 use Academy\Http\Controllers\CourseCurriculumController;
 use Academy\Http\Controllers\CourseVersionLifecycleController;
 use Academy\Http\Controllers\DashboardController;
+use Academy\Http\Controllers\LearnerPlayerController;
 use Academy\Http\Controllers\DocumentController;
 use Academy\Http\Controllers\EmailVerificationController;
 use Academy\Http\Controllers\FinancePaymentController;
@@ -248,6 +254,7 @@ use Academy\Infrastructure\Identity\PdoUserWriteRepository;
 use Academy\Infrastructure\Identity\PdoVerificationChallengeRepository;
 use Academy\Infrastructure\Identity\PdoVerificationTokenRepository;
 use Academy\Infrastructure\Identity\RecordingTokenConsumedHandler;
+use Academy\Infrastructure\Learning\PdoContentProgressRepository;
 use Academy\Infrastructure\Learning\PdoEnrolmentRepository;
 use Academy\Infrastructure\Learning\PdoEnrolmentStatusHistoryRepository;
 use Academy\Infrastructure\Logging\LoggerFactory;
@@ -699,6 +706,33 @@ return static function (): ContainerInterface {
         ),
         EnrolmentRepository::class => static fn (ContainerInterface $c): EnrolmentRepository => new PdoEnrolmentRepository(
             $c->get(ConnectionFactory::class),
+        ),
+        ContentProgressRepository::class => static fn (ContainerInterface $c): ContentProgressRepository => new PdoContentProgressRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        PlayerAccessPolicy::class => static fn (): PlayerAccessPolicy => new PlayerAccessPolicy(),
+        ModuleReleasePolicy::class => static fn (): ModuleReleasePolicy => new ModuleReleasePolicy(),
+        LearnerPlayerQueryService::class => static fn (ContainerInterface $c): LearnerPlayerQueryService => new LearnerPlayerQueryService(
+            $c->get(AuthorizationService::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(CourseRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(PlayerAccessPolicy::class),
+            $c->get(ModuleReleasePolicy::class),
+        ),
+        MarkContentCompleteService::class => static fn (ContainerInterface $c): MarkContentCompleteService => new MarkContentCompleteService(
+            $c->get(AuthorizationService::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(PlayerAccessPolicy::class),
+            $c->get(ModuleReleasePolicy::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
         ),
         EnrolmentStatusHistoryRepository::class => static fn (ContainerInterface $c): EnrolmentStatusHistoryRepository => new PdoEnrolmentStatusHistoryRepository(
             $c->get(ConnectionFactory::class),
@@ -1571,6 +1605,21 @@ return static function (): ContainerInterface {
                 'dashboard.view_own',
             );
 
+            /** @var RouteAccess $learningAccess */
+            $learningAccess = $c->get(RouteAccess::class);
+            $learningAccess->requirePermission(
+                $router->get('/learning/enrolments/{enrolmentId}', [LearnerPlayerController::class, 'outline']),
+                'learning.content.access',
+            );
+            $learningAccess->requirePermission(
+                $router->get('/learning/enrolments/{enrolmentId}/items/{contentId}', [LearnerPlayerController::class, 'item']),
+                'learning.content.access',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/complete', [LearnerPlayerController::class, 'complete']),
+                'learning.content.access',
+            );
+
             /** @var RouteAccess $notificationAccess */
             $notificationAccess = $c->get(RouteAccess::class);
             $notificationAccess->requirePermission(
@@ -2051,6 +2100,11 @@ return static function (): ContainerInterface {
         ),
         DashboardController::class => static fn (ContainerInterface $c): DashboardController => new DashboardController(
             $c->get(LearnerDashboardQueryService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        LearnerPlayerController::class => static fn (ContainerInterface $c): LearnerPlayerController => new LearnerPlayerController(
+            $c->get(LearnerPlayerQueryService::class),
+            $c->get(MarkContentCompleteService::class),
             $c->get(PhpRenderer::class),
         ),
         AdminNotificationController::class => static fn (ContainerInterface $c): AdminNotificationController => new AdminNotificationController(
