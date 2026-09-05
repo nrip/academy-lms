@@ -69,6 +69,12 @@ final class AssessmentsAuditPayload implements AuditPayload
             'status',
             'option_count',
             'correct_option_count',
+            'assessment_id',
+            'content_id',
+            'questions_per_attempt',
+            'pass_threshold_percent',
+            'max_attempts',
+            'linked_question_count',
         ];
     }
 

@@ -237,6 +237,10 @@ final class ContentItemCommandService
         if ($type === ContentItemType::PDF) {
             $bodyText = null;
         }
+        if ($type === ContentItemType::MCQ_ASSESSMENT) {
+            $bodyText = null;
+            $objectKeyValue = null;
+        }
 
         $mandatory = !array_key_exists('mandatory_flag', $input)
             ? true

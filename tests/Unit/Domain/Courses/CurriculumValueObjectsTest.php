@@ -11,10 +11,12 @@ use PHPUnit\Framework\TestCase;
 
 final class CurriculumValueObjectsTest extends TestCase
 {
-    public function testContentTypeRejectsMcqInBuilder(): void
+    public function testMcqAssessmentIsCreatable(): void
     {
-        $this->expectException(ValidationException::class);
-        ContentItemType::assertCreatable(ContentItemType::MCQ_ASSESSMENT);
+        self::assertSame(
+            ContentItemType::MCQ_ASSESSMENT,
+            ContentItemType::assertCreatable(ContentItemType::MCQ_ASSESSMENT),
+        );
     }
 
     public function testReleaseRuleRejectsUnknown(): void

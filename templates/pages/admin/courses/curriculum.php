@@ -169,6 +169,14 @@ ob_start();
                         <?php if ($item->contentType === 'pdf' && $item->objectKey !== null): ?>
                             <div class="small text-muted mt-1"><?= $e->html('Object key: ' . $item->objectKey) ?></div>
                         <?php endif; ?>
+                        <?php if ($item->contentType === 'mcq_assessment'): ?>
+                            <div class="mt-1">
+                                <a class="btn btn-outline-secondary btn-sm"
+                                   href="/admin/content-items/<?= $e->attr((string) $item->contentId) ?>/assessment">
+                                    <?= $e->html('Configure assessment') ?>
+                                </a>
+                            </div>
+                        <?php endif; ?>
 
                         <?php if ($editable): ?>
                             <form method="post"
@@ -186,11 +194,16 @@ ob_start();
                                         <label class="form-label"><?= $e->html('Lesson body') ?></label>
                                         <textarea class="form-control form-control-sm" name="body_text" rows="4" required><?= $e->html((string) $item->bodyText) ?></textarea>
                                     </div>
-                                <?php else: ?>
+                                <?php elseif ($item->contentType === 'pdf'): ?>
                                     <div class="col-md-6">
                                         <label class="form-label"><?= $e->html('Object key') ?></label>
                                         <input class="form-control form-control-sm" name="object_key" required
                                                value="<?= $e->attr((string) $item->objectKey) ?>">
+                                    </div>
+                                <?php else: ?>
+                                    <input type="hidden" name="completion_rule" value="assessment_passed">
+                                    <div class="col-12 small text-muted">
+                                        <?= $e->html('MCQ assessment settings are managed on the assessment configuration screen.') ?>
                                     </div>
                                 <?php endif; ?>
                                 <div class="col-12 d-flex gap-2">
@@ -218,6 +231,7 @@ ob_start();
                         <select class="form-select form-select-sm" id="ctype_<?= $e->attr((string) $module->moduleId) ?>" name="content_type">
                             <option value="text_lesson" selected><?= $e->html('Text lesson') ?></option>
                             <option value="pdf"><?= $e->html('PDF') ?></option>
+                            <option value="mcq_assessment"><?= $e->html('MCQ assessment') ?></option>
                         </select>
                     </div>
                     <div class="col-md-5">

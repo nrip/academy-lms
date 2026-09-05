@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Academy\Application\Assessments\AssessmentConfigService;
 use Academy\Application\Assessments\QuestionBankService;
 use Academy\Application\Admissions\ApplicationDeclarationService;
 use Academy\Application\Admissions\ApplicationSubmitService;
@@ -86,6 +87,8 @@ use Academy\Domain\Admissions\ApplicationDraftFactory;
 use Academy\Domain\Admissions\ApplicationRepository;
 use Academy\Domain\Admissions\ApplicationStateMachine;
 use Academy\Domain\Admissions\ApplicationSubmissionPreconditions;
+use Academy\Domain\Assessments\AssessmentQuestionLinkRepository;
+use Academy\Domain\Assessments\AssessmentRepository;
 use Academy\Domain\Assessments\QuestionBankRepository;
 use Academy\Domain\Assessments\QuestionOptionRepository;
 use Academy\Domain\Assessments\QuestionRepository;
@@ -162,6 +165,7 @@ use Academy\Domain\Security\SessionRepository;
 use Academy\Domain\Storage\ObjectStorage;
 use Academy\Http\Controllers\AdminNotificationController;
 use Academy\Http\Controllers\ApplicationController;
+use Academy\Http\Controllers\AssessmentConfigController;
 use Academy\Http\Controllers\BatchController;
 use Academy\Http\Controllers\CourseAdminController;
 use Academy\Http\Controllers\CourseCatalogueController;
@@ -208,6 +212,8 @@ use Academy\Http\View\CurrentAuth;
 use Academy\Http\View\CurrentCsrfToken;
 use Academy\Infrastructure\Admissions\PdoApplicationRepository;
 use Academy\Infrastructure\Audit\PdoAuditWriter;
+use Academy\Infrastructure\Assessments\PdoAssessmentQuestionLinkRepository;
+use Academy\Infrastructure\Assessments\PdoAssessmentRepository;
 use Academy\Infrastructure\Assessments\PdoQuestionBankRepository;
 use Academy\Infrastructure\Assessments\PdoQuestionOptionRepository;
 use Academy\Infrastructure\Assessments\PdoQuestionRepository;
@@ -530,6 +536,22 @@ return static function (): ContainerInterface {
             $c->get(QuestionBankRepository::class),
             $c->get(QuestionRepository::class),
             $c->get(QuestionOptionRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        AssessmentRepository::class => static fn (ContainerInterface $c): AssessmentRepository => new PdoAssessmentRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentQuestionLinkRepository::class => static fn (ContainerInterface $c): AssessmentQuestionLinkRepository => new PdoAssessmentQuestionLinkRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentConfigService::class => static fn (ContainerInterface $c): AssessmentConfigService => new AssessmentConfigService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(AssessmentRepository::class),
+            $c->get(AssessmentQuestionLinkRepository::class),
+            $c->get(QuestionBankRepository::class),
+            $c->get(QuestionRepository::class),
             $c->get(ConnectionFactory::class),
             $c->get(AuditService::class),
         ),
@@ -1596,6 +1618,14 @@ return static function (): ContainerInterface {
                 $router->post('/admin/courses/{courseId}/question-bank/questions/{questionId}/delete', [QuestionBankController::class, 'delete']),
                 'question_bank.manage',
             );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/content-items/{contentId}/assessment', [AssessmentConfigController::class, 'show']),
+                'assessment.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/content-items/{contentId}/assessment', [AssessmentConfigController::class, 'save']),
+                'assessment.manage',
+            );
 
             /** @var RouteAccess $applicationAccess */
             $applicationAccess = $c->get(RouteAccess::class);
@@ -1981,6 +2011,10 @@ return static function (): ContainerInterface {
         ),
         QuestionBankController::class => static fn (ContainerInterface $c): QuestionBankController => new QuestionBankController(
             $c->get(QuestionBankService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        AssessmentConfigController::class => static fn (ContainerInterface $c): AssessmentConfigController => new AssessmentConfigController(
+            $c->get(AssessmentConfigService::class),
             $c->get(PhpRenderer::class),
         ),
         LoginController::class => static fn (ContainerInterface $c): LoginController => new LoginController(

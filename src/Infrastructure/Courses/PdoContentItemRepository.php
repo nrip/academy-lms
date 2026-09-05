@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Academy\Infrastructure\Courses;
 
 use Academy\Domain\Courses\ContentItem;
+use Academy\Domain\Courses\ContentItemContext;
 use Academy\Domain\Courses\ContentItemRepository;
 use Academy\Infrastructure\Database\ConnectionFactory;
 use DateTimeImmutable;
@@ -29,6 +30,33 @@ final class PdoContentItemRepository implements ContentItemRepository
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $row === false ? null : $this->mapRow($row);
+    }
+
+    public function findContextById(int $contentId): ?ContentItemContext
+    {
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'SELECT ci.content_id, ci.module_id, ci.sequence, ci.content_type, ci.title, ci.body_text,
+                    ci.object_key, ci.mandatory_flag, ci.completion_rule, ci.created_at, ci.updated_at,
+                    m.course_version_id, cv.course_id, cv.locked_at
+             FROM content_items ci
+             INNER JOIN modules m ON m.module_id = ci.module_id
+             INNER JOIN course_versions cv ON cv.version_id = m.course_version_id
+             WHERE ci.content_id = :id
+             LIMIT 1',
+        );
+        $stmt->execute(['id' => $contentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return null;
+        }
+
+        return new ContentItemContext(
+            contentItem: $this->mapRow($row),
+            courseId: (int) $row['course_id'],
+            courseVersionId: (int) $row['course_version_id'],
+            versionLocked: $row['locked_at'] !== null,
+        );
     }
 
     public function listByModuleId(int $moduleId): array

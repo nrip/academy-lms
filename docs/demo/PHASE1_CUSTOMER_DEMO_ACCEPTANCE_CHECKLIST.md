@@ -43,7 +43,7 @@ Login always starts at: **`/login`**
 - [x] New course appears in admin list with a **Draft** version *(WP-L1)*
 - [x] Draft is **unlocked** (`locked_at` null — verified by ability to edit later steps) *(WP-L1)*
 
-> Remaining checklist steps 3–7 unlock in WP-L2 / WP-L5…WP-L8. Assessment linking unlocks with WP-L5.
+> Remaining checklist steps 3–7 unlock in WP-L2 / WP-L6…WP-L8.
 
 ---
 
@@ -58,12 +58,13 @@ Login always starts at: **`/login`**
 
 **Pass criteria**
 
-- [x] Modules and content visible in curriculum outline *(WP-L3 — text lessons; MCQ assessment content deferred to WP-L4/L5)*
+- [x] Modules and content visible in curriculum outline *(WP-L3 — text lessons + mcq_assessment content type via WP-L5)*
 - [x] Text lesson body editable and saved *(WP-L3)*
-- [x] MCQ questions saved in course question bank; correct answers shown only on Course Admin bank UI *(WP-L4)*. Learner-facing assessment URLs still deferred to WP-L5/L7 (no learner quiz route yet — correct keys cannot leak there).
-- [x] Attempting the same edits on a **published/locked** version is blocked (**409** / clear message to clone Version N+1) *(WP-L3 curriculum)*. Question bank is course-scoped (not version-locked) per approved plan.
+- [x] MCQ questions saved in course question bank; correct answers shown only on Course Admin bank UI *(WP-L4)*. Learner-facing assessment URLs still deferred to WP-L7.
+- [x] MCQ assessment content can be configured with title, question count, pass %, max attempts, and linked bank questions *(WP-L5)*
+- [x] Attempting the same edits on a **published/locked** version is blocked (**409** / clear message to clone Version N+1) *(WP-L3 curriculum + WP-L5 assessment)*
 
-> Remaining checklist steps 3–7 unlock in WP-L2 / WP-L5…WP-L8. Assessment linking / pass threshold unlock with WP-L5.
+> Remaining checklist steps 3–7 unlock in WP-L2 / WP-L6…WP-L8.
 
 ---
 

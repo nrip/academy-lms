@@ -8,6 +8,8 @@ interface ContentItemRepository
 {
     public function findById(int $contentId): ?ContentItem;
 
+    public function findContextById(int $contentId): ?ContentItemContext;
+
     /** @return list<ContentItem> */
     public function listByModuleId(int $moduleId): array;
 

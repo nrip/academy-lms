@@ -18,11 +18,11 @@ final class ContentItemType
         return [self::TEXT_LESSON, self::PDF, self::MCQ_ASSESSMENT];
     }
 
-    /** Types Course Admins may create in WP-L3 (assessment runtime deferred). */
+    /** Types Course Admins may create in the curriculum builder. */
     /** @return list<string> */
     public static function creatableInBuilder(): array
     {
-        return [self::TEXT_LESSON, self::PDF];
+        return [self::TEXT_LESSON, self::PDF, self::MCQ_ASSESSMENT];
     }
 
     public static function assertValid(string $type): string
@@ -38,9 +38,7 @@ final class ContentItemType
     {
         self::assertValid($type);
         if (!in_array($type, self::creatableInBuilder(), true)) {
-            throw new ValidationException(
-                'MCQ assessment content items arrive in a later work package. Create a text lesson or PDF for now.',
-            );
+            throw new ValidationException('Content type cannot be created in the curriculum builder.');
         }
 
         return $type;
