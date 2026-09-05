@@ -38,6 +38,34 @@ final class PdoEligibilityRuleRepository implements EligibilityRuleRepository
         return $rules;
     }
 
+    public function insert(array $data): int
+    {
+        $pdo = $this->connections->connection();
+        $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $stmt = $pdo->prepare(
+            'INSERT INTO eligibility_rules (
+                course_version_id, field, operator, value, logic_group, display_label, sort_order,
+                created_at, updated_at
+             ) VALUES (
+                :course_version_id, :field, :operator, :value, :logic_group, :display_label, :sort_order,
+                :created_at, :updated_at
+             )',
+        );
+        $stmt->execute([
+            'course_version_id' => $data['course_version_id'],
+            'field' => $data['field'],
+            'operator' => $data['operator'],
+            'value' => $data['value'],
+            'logic_group' => $data['logic_group'],
+            'display_label' => $data['display_label'],
+            'sort_order' => $data['sort_order'],
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return (int) $pdo->lastInsertId();
+    }
+
     /**
      * @param array<string, mixed> $row
      */

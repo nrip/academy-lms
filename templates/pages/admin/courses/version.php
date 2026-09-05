@@ -7,11 +7,13 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var \Academy\Domain\Courses\Course $course */
 /** @var \Academy\Domain\Courses\CourseVersion $version */
+/** @var list<\Academy\Domain\Courses\Batch> $batches */
 /** @var ?string $error */
 /** @var ?string $flash */
 /** @var array<string, mixed>|null $posted */
 
 $posted = $posted ?? null;
+$batches = $batches ?? [];
 $val = static function (string $key, string $fallback) use ($posted, $version): string {
     if (is_array($posted) && array_key_exists($key, $posted)) {
         return (string) $posted[$key];
@@ -34,6 +36,8 @@ $val = static function (string $key, string $fallback) use ($posted, $version): 
     };
 };
 
+$versionBase = '/admin/courses/' . $course->courseId . '/versions/' . $version->versionId;
+
 ob_start();
 ?>
 <div class="acad-admin-course-version">
@@ -47,12 +51,35 @@ ob_start();
         <?= $e->html('Status: ' . $version->status) ?>
         · <?= $e->html($version->isLocked() ? 'Locked (immutable)' : 'Draft (editable)') ?>
         · <?= $e->html('Admission mode: ' . $version->admissionMode) ?>
+        <?php if ($version->clonedFromVersionId !== null): ?>
+            · <?= $e->html('Cloned from version id ' . (string) $version->clonedFromVersionId) ?>
+        <?php endif; ?>
     </p>
-    <p class="mb-3">
+    <p class="mb-3 d-flex flex-wrap gap-2">
         <a class="btn btn-outline-primary btn-sm"
-           href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/versions/<?= $e->attr((string) $version->versionId) ?>/curriculum">
+           href="<?= $e->attr($versionBase) ?>/curriculum">
             <?= $e->html('Open curriculum') ?>
         </a>
+        <?php if (!$version->isLocked()): ?>
+            <form method="post" action="<?= $e->attr($versionBase) ?>/publish" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+                <button class="btn btn-success btn-sm" type="submit"><?= $e->html('Publish version') ?></button>
+            </form>
+        <?php else: ?>
+            <a class="btn btn-outline-success btn-sm"
+               href="<?= $e->attr($versionBase) ?>/batches/new">
+                <?= $e->html('Create batch') ?>
+            </a>
+        <?php endif; ?>
+        <form method="post" action="<?= $e->attr($versionBase) ?>/clone" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+            <button class="btn btn-outline-secondary btn-sm" type="submit"><?= $e->html('Clone to Version N+1') ?></button>
+        </form>
+        <?php if ($course->slug !== '' && $version->isPublished()): ?>
+            <a class="btn btn-link btn-sm" href="/courses/<?= $e->attr($course->slug) ?>" target="_blank" rel="noopener">
+                <?= $e->html('View catalogue page') ?>
+            </a>
+        <?php endif; ?>
     </p>
     <?php if ($flash !== null): ?>
         <div class="alert alert-success"><?= $e->html($flash) ?></div>
@@ -61,9 +88,25 @@ ob_start();
         <div class="alert alert-danger"><?= $e->html($error) ?></div>
     <?php endif; ?>
 
+    <?php if ($batches !== []): ?>
+        <div class="mb-4">
+            <h2 class="h5"><?= $e->html('Batches') ?></h2>
+            <ul class="list-group">
+                <?php foreach ($batches as $batch): ?>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>
+                            <?= $e->html($batch->batchCode . ' — ' . $batch->name) ?>
+                            <span class="text-muted small"><?= $e->html('(' . $batch->status . ')') ?></span>
+                        </span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    <?php endif; ?>
+
     <?php if ($version->isLocked()): ?>
         <div class="alert alert-warning">
-            <?= $e->html('This CourseVersion is locked. Create Version N+1 to make changes (clone arrives in a later work package).') ?>
+            <?= $e->html('This CourseVersion is locked. Use Clone to Version N+1 to make curriculum or fee changes.') ?>
         </div>
         <dl class="row">
             <dt class="col-sm-3"><?= $e->html('Title') ?></dt><dd class="col-sm-9"><?= $e->html($version->title) ?></dd>
@@ -73,7 +116,7 @@ ob_start();
         </dl>
     <?php else: ?>
         <form method="post"
-              action="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/versions/<?= $e->attr((string) $version->versionId) ?>"
+              action="<?= $e->attr($versionBase) ?>"
               class="row g-3">
             <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
             <div class="col-12">

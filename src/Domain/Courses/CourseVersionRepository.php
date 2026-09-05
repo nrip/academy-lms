@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Academy\Domain\Courses;
 
+use DateTimeImmutable;
+
 interface CourseVersionRepository
 {
     public function findById(int $versionId): ?CourseVersion;
@@ -12,6 +14,8 @@ interface CourseVersionRepository
      * @return list<CourseVersion>
      */
     public function listByCourseId(int $courseId): array;
+
+    public function nextVersionNumber(int $courseId): int;
 
     /**
      * Inserts a Draft CourseVersion (unlocked). Returns version_id.
@@ -32,7 +36,8 @@ interface CourseVersionRepository
      *   gst_rate: string,
      *   currency: string,
      *   certificate_type: string,
-     *   faq: ?array<string, mixed>
+     *   faq: ?array<string, mixed>,
+     *   cloned_from_version_id?: ?int
      * } $fields
      */
     public function insertDraft(array $fields): int;
@@ -62,5 +67,10 @@ interface CourseVersionRepository
      * Marks a currently-unlocked version as locked. No-op guard against
      * re-locking is the caller's responsibility (idempotency at the service layer).
      */
-    public function lock(int $versionId, string $lockedReason, \DateTimeImmutable $lockedAt): void;
+    public function lock(int $versionId, string $lockedReason, DateTimeImmutable $lockedAt): void;
+
+    /**
+     * Draft → Published + lock in one update. Returns false when no row matched.
+     */
+    public function publishAndLock(int $versionId, DateTimeImmutable $at): bool;
 }

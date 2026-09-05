@@ -54,6 +54,9 @@ final class RbacMatrixTest extends TestCase
         self::assertContains('content.manage', $courseAdmin);
         self::assertContains('question_bank.manage', $courseAdmin);
         self::assertContains('assessment.manage', $courseAdmin);
+        self::assertContains('course.version.publish', $courseAdmin);
+        self::assertContains('course.version.clone', $courseAdmin);
+        self::assertContains('batch.create', $courseAdmin);
         self::assertNotContains('document.metadata.view', $courseAdmin);
         self::assertNotContains('finance.refund.approve', $courseAdmin);
         self::assertNotContains('course.admin.scope.assign', $courseAdmin);
@@ -62,5 +65,8 @@ final class RbacMatrixTest extends TestCase
         self::assertContains('content.manage', $super);
         self::assertContains('question_bank.manage', $super);
         self::assertContains('assessment.manage', $super);
+        self::assertContains('course.version.publish', $super);
+        self::assertContains('course.version.clone', $super);
+        self::assertContains('batch.create', $super);
     }
 }

@@ -12,12 +12,15 @@ use Academy\Application\Audit\AuditRedactor;
 use Academy\Application\Audit\AuditService;
 use Academy\Application\Courses\AssignCourseAdminScopeService;
 use Academy\Application\Courses\CatalogueService;
+use Academy\Application\Courses\CloneCourseVersionService;
 use Academy\Application\Courses\ContentItemCommandService;
 use Academy\Application\Courses\CourseAdminAccessGuard;
 use Academy\Application\Courses\CourseAdminQueryService;
+use Academy\Application\Courses\CreateBatchForPublishedVersionService;
 use Academy\Application\Courses\CreateCourseService;
 use Academy\Application\Courses\CurriculumQueryService;
 use Academy\Application\Courses\ModuleCommandService;
+use Academy\Application\Courses\PublishCourseVersionService;
 use Academy\Application\Courses\UpdateDraftCourseVersionService;
 use Academy\Application\Credentials\DocumentDownloadService;
 use Academy\Application\Credentials\DocumentScanWorker;
@@ -102,7 +105,10 @@ use Academy\Domain\Courses\CourseAdminScopeAssignmentRepository;
 use Academy\Domain\Courses\CourseAdminScopePolicy;
 use Academy\Domain\Courses\CourseRepository;
 use Academy\Domain\Courses\CourseVersionImmutabilityGuard;
+use Academy\Domain\Courses\CourseVersionPublishValidator;
 use Academy\Domain\Courses\CourseVersionRepository;
+use Academy\Domain\Courses\CourseVersionStateMachine;
+use Academy\Domain\Courses\CourseVersionStatusHistoryRepository;
 use Academy\Domain\Courses\EligibilityRuleRepository;
 use Academy\Domain\Courses\ModuleRepository;
 use Academy\Domain\Credentials\DocumentFileValidator;
@@ -170,6 +176,7 @@ use Academy\Http\Controllers\BatchController;
 use Academy\Http\Controllers\CourseAdminController;
 use Academy\Http\Controllers\CourseCatalogueController;
 use Academy\Http\Controllers\CourseCurriculumController;
+use Academy\Http\Controllers\CourseVersionLifecycleController;
 use Academy\Http\Controllers\DashboardController;
 use Academy\Http\Controllers\DocumentController;
 use Academy\Http\Controllers\EmailVerificationController;
@@ -223,6 +230,7 @@ use Academy\Infrastructure\Courses\PdoCourseAdminScopeAssignmentRepository;
 use Academy\Infrastructure\Courses\PdoCourseDocumentRequirementRepository;
 use Academy\Infrastructure\Courses\PdoCourseRepository;
 use Academy\Infrastructure\Courses\PdoCourseVersionRepository;
+use Academy\Infrastructure\Courses\PdoCourseVersionStatusHistoryRepository;
 use Academy\Infrastructure\Courses\PdoEligibilityRuleRepository;
 use Academy\Infrastructure\Courses\PdoModuleRepository;
 use Academy\Infrastructure\Credentials\FakeMalwareScanner;
@@ -495,6 +503,44 @@ return static function (): ContainerInterface {
             $c->get(CourseAdminScopeAssignmentRepository::class),
             $c->get(CourseRepository::class),
             $c->get(RoleRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        CourseVersionStateMachine::class => static fn (): CourseVersionStateMachine => new CourseVersionStateMachine(),
+        CourseVersionPublishValidator::class => static fn (): CourseVersionPublishValidator => new CourseVersionPublishValidator(),
+        CourseVersionStatusHistoryRepository::class => static fn (ContainerInterface $c): CourseVersionStatusHistoryRepository => new PdoCourseVersionStatusHistoryRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        PublishCourseVersionService::class => static fn (ContainerInterface $c): PublishCourseVersionService => new PublishCourseVersionService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(CourseRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(AssessmentRepository::class),
+            $c->get(AssessmentQuestionLinkRepository::class),
+            $c->get(CourseVersionPublishValidator::class),
+            $c->get(CourseVersionStateMachine::class),
+            $c->get(CourseVersionStatusHistoryRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        CloneCourseVersionService::class => static fn (ContainerInterface $c): CloneCourseVersionService => new CloneCourseVersionService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(EligibilityRuleRepository::class),
+            $c->get(CourseDocumentRequirementRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(AssessmentRepository::class),
+            $c->get(AssessmentQuestionLinkRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        CreateBatchForPublishedVersionService::class => static fn (ContainerInterface $c): CreateBatchForPublishedVersionService => new CreateBatchForPublishedVersionService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(BatchRepository::class),
+            $c->get(BatchDateValidator::class),
             $c->get(ConnectionFactory::class),
             $c->get(AuditService::class),
         ),
@@ -1567,6 +1613,22 @@ return static function (): ContainerInterface {
                 'course.version.edit',
             );
             $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/publish', [CourseVersionLifecycleController::class, 'publish']),
+                'course.version.publish',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/clone', [CourseVersionLifecycleController::class, 'cloneVersion']),
+                'course.version.clone',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/versions/{versionId}/batches/new', [CourseVersionLifecycleController::class, 'batchNewForm']),
+                'batch.create',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/batches', [CourseVersionLifecycleController::class, 'batchCreate']),
+                'batch.create',
+            );
+            $courseAdminAccess->requirePermission(
                 $router->get('/admin/course-admin-scopes', [CourseAdminController::class, 'scopeForm']),
                 'course.admin.scope.assign',
             );
@@ -2001,6 +2063,15 @@ return static function (): ContainerInterface {
             $c->get(CreateCourseService::class),
             $c->get(UpdateDraftCourseVersionService::class),
             $c->get(AssignCourseAdminScopeService::class),
+            $c->get(BatchRepository::class),
+            $c->get(PhpRenderer::class),
+        ),
+        CourseVersionLifecycleController::class => static fn (ContainerInterface $c): CourseVersionLifecycleController => new CourseVersionLifecycleController(
+            $c->get(CourseAdminQueryService::class),
+            $c->get(PublishCourseVersionService::class),
+            $c->get(CloneCourseVersionService::class),
+            $c->get(CreateBatchForPublishedVersionService::class),
+            $c->get(BatchRepository::class),
             $c->get(PhpRenderer::class),
         ),
         CourseCurriculumController::class => static fn (ContainerInterface $c): CourseCurriculumController => new CourseCurriculumController(

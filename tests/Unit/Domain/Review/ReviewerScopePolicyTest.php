@@ -213,6 +213,11 @@ final class FakeCourseVersionRepository implements CourseVersionRepository
         throw new \RuntimeException('Not implemented in test double.');
     }
 
+    public function nextVersionNumber(int $courseId): int
+    {
+        return 1;
+    }
+
     public function updateDraftOverview(int $versionId, array $fields): bool
     {
         return false;
@@ -220,5 +225,10 @@ final class FakeCourseVersionRepository implements CourseVersionRepository
 
     public function lock(int $versionId, string $lockedReason, DateTimeImmutable $lockedAt): void
     {
+    }
+
+    public function publishAndLock(int $versionId, DateTimeImmutable $at): bool
+    {
+        return false;
     }
 }

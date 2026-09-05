@@ -39,6 +39,39 @@ final class PdoCourseDocumentRequirementRepository implements CourseDocumentRequ
         return $requirements;
     }
 
+    public function insert(array $data): int
+    {
+        $pdo = $this->connections->connection();
+        $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $stmt = $pdo->prepare(
+            'INSERT INTO course_document_requirements (
+                course_version_id, document_name, description, mandatory_flag, accepted_file_types,
+                max_size_bytes, single_or_multiple, reuse_allowed, reviewer_instructions, sort_order,
+                created_at, updated_at
+             ) VALUES (
+                :course_version_id, :document_name, :description, :mandatory_flag, :accepted_file_types,
+                :max_size_bytes, :single_or_multiple, :reuse_allowed, :reviewer_instructions, :sort_order,
+                :created_at, :updated_at
+             )',
+        );
+        $stmt->execute([
+            'course_version_id' => $data['course_version_id'],
+            'document_name' => $data['document_name'],
+            'description' => $data['description'],
+            'mandatory_flag' => $data['mandatory_flag'] ? 1 : 0,
+            'accepted_file_types' => $data['accepted_file_types'],
+            'max_size_bytes' => $data['max_size_bytes'],
+            'single_or_multiple' => $data['single_or_multiple'],
+            'reuse_allowed' => $data['reuse_allowed'] ? 1 : 0,
+            'reviewer_instructions' => $data['reviewer_instructions'],
+            'sort_order' => $data['sort_order'],
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return (int) $pdo->lastInsertId();
+    }
+
     /**
      * @param array<string, mixed> $row
      */

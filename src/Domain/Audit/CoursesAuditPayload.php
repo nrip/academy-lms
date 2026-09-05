@@ -85,6 +85,15 @@ final class CoursesAuditPayload implements AuditPayload
             'completion_rule',
             'body_text_length',
             'object_key_present',
+            'cloned_from_version_id',
+            'published_at',
+            'locked_reason',
+            'batch_id',
+            'batch_code',
+            'name',
+            'delivery_mode',
+            'min_capacity',
+            'max_capacity',
         ];
     }
 

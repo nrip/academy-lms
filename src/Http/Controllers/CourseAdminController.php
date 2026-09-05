@@ -8,6 +8,7 @@ use Academy\Application\Courses\AssignCourseAdminScopeService;
 use Academy\Application\Courses\CourseAdminQueryService;
 use Academy\Application\Courses\CreateCourseService;
 use Academy\Application\Courses\UpdateDraftCourseVersionService;
+use Academy\Domain\Courses\BatchRepository;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\AuthorizationException;
 use Academy\Domain\Exception\ConflictException;
@@ -29,6 +30,7 @@ final class CourseAdminController
         private readonly CreateCourseService $createCourse,
         private readonly UpdateDraftCourseVersionService $updateDraft,
         private readonly AssignCourseAdminScopeService $assignScope,
+        private readonly BatchRepository $batches,
         private readonly PhpRenderer $renderer,
     ) {
     }
@@ -137,6 +139,7 @@ final class CourseAdminController
             'csrf' => $this->csrf($request),
             'course' => $detail->course,
             'version' => $version,
+            'batches' => $this->batches->listByCourseVersionId($versionId),
             'error' => null,
             'flash' => $this->flash($request),
         ]);
@@ -174,6 +177,7 @@ final class CourseAdminController
                 'csrf' => $this->csrf($request),
                 'course' => $detail->course,
                 'version' => $version,
+                'batches' => $this->batches->listByCourseVersionId($versionId),
                 'error' => $exception->getMessage(),
                 'flash' => null,
                 'posted' => $body,
@@ -260,6 +264,15 @@ final class CourseAdminController
         }
         if (isset($params['assigned'])) {
             return 'Course Admin scope assigned.';
+        }
+        if (isset($params['published'])) {
+            return 'Course version published. It is now locked and listed in the catalogue.';
+        }
+        if (isset($params['cloned'])) {
+            return 'New Draft CourseVersion created from the selected version.';
+        }
+        if (isset($params['batch_created'])) {
+            return 'Batch created and open for applications.';
         }
 
         return null;

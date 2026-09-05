@@ -7,7 +7,7 @@ namespace Academy\Domain\Assessments;
 use Academy\Domain\Exception\ValidationException;
 
 /**
- * Publish readiness for mcq_assessment content (wired when WP-L2 publish lands).
+ * Publish readiness for mcq_assessment content (used by CourseVersionPublishValidator / WP-L2).
  */
 final class AssessmentPublishCompletenessValidator
 {

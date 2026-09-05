@@ -43,7 +43,7 @@ Login always starts at: **`/login`**
 - [x] New course appears in admin list with a **Draft** version *(WP-L1)*
 - [x] Draft is **unlocked** (`locked_at` null — verified by ability to edit later steps) *(WP-L1)*
 
-> Remaining checklist steps 3–7 unlock in WP-L2 / WP-L6…WP-L8.
+> Remaining checklist steps 4–7 unlock in WP-L6…WP-L8 (Mode A enrol already exists; learner player / assessments / certificates later).
 
 ---
 
@@ -64,7 +64,7 @@ Login always starts at: **`/login`**
 - [x] MCQ assessment content can be configured with title, question count, pass %, max attempts, and linked bank questions *(WP-L5)*
 - [x] Attempting the same edits on a **published/locked** version is blocked (**409** / clear message to clone Version N+1) *(WP-L3 curriculum + WP-L5 assessment)*
 
-> Remaining checklist steps 3–7 unlock in WP-L2 / WP-L6…WP-L8.
+> Step 3 unlocked in WP-L2. Steps 4–7 unlock in WP-L6…WP-L8.
 
 ---
 
@@ -79,11 +79,13 @@ Login always starts at: **`/login`**
 
 **Pass criteria**
 
-- [ ] After publish, curriculum/fee fields cannot be edited (409 / UI disabled + server enforce)
-- [ ] Public `GET /courses` lists the course; `GET /courses/{slug}` shows fee, eligibility (cloned/seeded), open batch
-- [ ] `GET /courses/{slug}/batches` shows the new batch as selectable
+- [x] After publish, curriculum/fee fields cannot be edited (409 / UI disabled + server enforce) *(WP-L2)*
+- [x] Public `GET /courses` lists the course; `GET /courses/{slug}` shows fee, eligibility (cloned/seeded), open batch *(WP-L2 HTTP — catalogue detail + batches)*
+- [x] `GET /courses/{slug}/batches` shows the new batch as selectable *(WP-L2)*
 
 **Facilitator note:** If live publish is slow, WP-L9 may seed an already-published curriculum version + open batch; facilitator must still show **either** live publish **or** that a Course Admin–built published version is what learners apply to.
+
+> Remaining checklist steps 4–7 unlock in WP-L6…WP-L8 (Mode A enrol already exists; learner player / assessments / certificates later).
 
 ---
 

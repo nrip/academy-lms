@@ -93,6 +93,32 @@ final class CourseAdminAccessGuard
         return $version;
     }
 
+    /**
+     * Permission + course/version scope without mutability (clone, batch on published versions).
+     */
+    public function requireVersionWithPermission(
+        AuthContext $auth,
+        int $courseId,
+        int $versionId,
+        string $permissionKey,
+        DateTimeImmutable $at,
+    ): CourseVersion {
+        $adminUserId = $this->requireUserId($auth);
+        $this->requirePermission($auth, $permissionKey);
+        $this->requireCourseInScope($auth, $courseId, $at);
+
+        $version = $this->courseVersions->findById($versionId);
+        if ($version === null || $version->courseId !== $courseId) {
+            throw new NotFoundException('Course version not found.');
+        }
+
+        if (!$this->scopePolicy->isVersionInScope($adminUserId, $courseId, $versionId, $at)) {
+            throw new AuthorizationException('Course version is outside Course Admin scope.');
+        }
+
+        return $version;
+    }
+
     public function requireVersionViewable(AuthContext $auth, int $courseId, int $versionId, DateTimeImmutable $at): CourseVersion
     {
         $adminUserId = $this->requireUserId($auth);
