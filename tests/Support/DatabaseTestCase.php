@@ -139,6 +139,13 @@ final class DatabaseTestCase
             'reviewer_scope_assignments',
             'document_upload_authorizations',
             'document_submissions',
+            'assessment_attempt_status_history',
+            'assessment_responses',
+            'assessment_attempt_questions',
+            'assessment_attempts',
+            'certificate_events',
+            'certificates',
+            'content_progress',
             'enrolment_status_history',
             'enrolments',
             'notification_deliveries',
@@ -157,6 +164,13 @@ final class DatabaseTestCase
         // allowed by the update trigger (it does not guard that column).
         $pdo->exec('UPDATE `course_versions` SET `locked_at` = NULL');
         foreach ([
+            'assessment_question_links',
+            'assessments',
+            'question_options',
+            'questions',
+            'question_banks',
+            'content_items',
+            'modules',
             'course_document_requirements',
             'eligibility_rules',
         ] as $table) {
@@ -328,6 +342,36 @@ SQL);
         return (int) $pdo->lastInsertId();
     }
 
+    /**
+     * Sets a usable certificate/full name on the learner profile (creates stub if needed).
+     */
+    public static function setLearnerCertificateName(
+        int $userId,
+        ?string $certificateName = 'Dr Synthetic Learner',
+        ?string $firstName = 'Synthetic',
+        ?string $lastName = 'Learner',
+    ): void {
+        $profileId = self::ensureLearnerProfileStub($userId);
+        $pdo = self::pdo();
+        $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $pdo->prepare(
+            'UPDATE learner_profiles SET
+                certificate_name = :certificate_name,
+                certificate_name_confirmed = :confirmed,
+                first_name = :first_name,
+                last_name = :last_name,
+                updated_at = :updated_at
+             WHERE learner_profile_id = :id',
+        )->execute([
+            'certificate_name' => $certificateName,
+            'confirmed' => $certificateName !== null && $certificateName !== '' ? 1 : 0,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'updated_at' => $now,
+            'id' => $profileId,
+        ]);
+    }
+
     public static function roleId(string $roleKey): int
     {
         $pdo = self::pdo();
@@ -428,6 +472,15 @@ SQL);
             'super.' . bin2hex(random_bytes(4)) . '@example.test',
             '+91' . random_int(6000000000, 9999999999),
             [RoleKeys::SUPER_ADMIN],
+        );
+    }
+
+    public static function courseAdminFixture(): array
+    {
+        return self::createSyntheticUser(
+            'courseadmin.' . bin2hex(random_bytes(4)) . '@example.test',
+            '+91' . random_int(6000000000, 9999999999),
+            [RoleKeys::COURSE_ADMIN],
         );
     }
 
@@ -570,6 +623,410 @@ SQL);
         ]);
 
         return (int) $pdo->lastInsertId();
+    }
+
+    /**
+     * Published + locked CourseVersion with one immediate module and text lessons.
+     *
+     * @param list<string> $lessonTitles
+     * @param array<string, mixed> $courseOverrides
+     * @return array{course_id: int, version_id: int, module_id: int, content_ids: list<int>}
+     */
+    public static function seedPublishedCourseWithCurriculum(
+        array $lessonTitles = ['Lesson 1', 'Lesson 2'],
+        array $courseOverrides = [],
+    ): array {
+        $ids = self::seedPublishedCourse(array_merge($courseOverrides, [
+            'locked' => false,
+            'version_status' => \Academy\Domain\Courses\CourseVersionStatus::DRAFT,
+            'set_current_published_version' => false,
+        ]));
+        $pdo = self::pdo();
+        $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+
+        $moduleStmt = $pdo->prepare(
+            'INSERT INTO modules (
+                course_version_id, sequence, title, description, mandatory_flag, release_rule,
+                prerequisite_module_id, created_at, updated_at
+             ) VALUES (
+                :version_id, 1, :title, :description, 1, :release_rule, NULL, :created_at, :updated_at
+             )',
+        );
+        $moduleStmt->execute([
+            'version_id' => $ids['version_id'],
+            'title' => 'Module 1',
+            'description' => 'Foundations',
+            'release_rule' => \Academy\Domain\Courses\ModuleReleaseRule::IMMEDIATE,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $moduleId = (int) $pdo->lastInsertId();
+
+        $contentIds = [];
+        $contentStmt = $pdo->prepare(
+            'INSERT INTO content_items (
+                module_id, sequence, content_type, title, body_text, object_key,
+                mandatory_flag, completion_rule, created_at, updated_at
+             ) VALUES (
+                :module_id, :sequence, :content_type, :title, :body_text, NULL,
+                1, :completion_rule, :created_at, :updated_at
+             )',
+        );
+        foreach (array_values($lessonTitles) as $index => $title) {
+            $contentStmt->execute([
+                'module_id' => $moduleId,
+                'sequence' => $index + 1,
+                'content_type' => \Academy\Domain\Courses\ContentItemType::TEXT_LESSON,
+                'title' => $title,
+                'body_text' => 'Body for ' . $title,
+                'completion_rule' => \Academy\Domain\Courses\ContentCompletionRule::MARK_COMPLETE,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $contentIds[] = (int) $pdo->lastInsertId();
+        }
+
+        $pdo->prepare(
+            'UPDATE course_versions
+             SET status = :status, published_at = :published_at, locked_at = :locked_at,
+                 locked_reason = :locked_reason, updated_at = :updated_at
+             WHERE version_id = :id',
+        )->execute([
+            'status' => \Academy\Domain\Courses\CourseVersionStatus::PUBLISHED,
+            'published_at' => $now,
+            'locked_at' => $now,
+            'locked_reason' => 'published',
+            'updated_at' => $now,
+            'id' => $ids['version_id'],
+        ]);
+        $pdo->prepare('UPDATE courses SET current_published_version_id = :version_id WHERE course_id = :course_id')
+            ->execute(['version_id' => $ids['version_id'], 'course_id' => $ids['course_id']]);
+
+        return [
+            'course_id' => $ids['course_id'],
+            'version_id' => $ids['version_id'],
+            'module_id' => $moduleId,
+            'content_ids' => $contentIds,
+        ];
+    }
+
+    /**
+     * Published CourseVersion with one MCQ assessment (snapshot-ready linked questions).
+     *
+     * @param array{
+     *   question_count?: int,
+     *   questions_per_attempt?: int,
+     *   pass_threshold_percent?: string,
+     *   max_attempts?: int,
+     *   cooldown_seconds?: ?int
+     * } $overrides
+     * @return array{
+     *   course_id: int,
+     *   version_id: int,
+     *   module_id: int,
+     *   content_id: int,
+     *   assessment_id: int,
+     *   bank_id: int,
+     *   question_ids: list<int>,
+     *   correct_option_ids_by_question: array<int, int>
+     * }
+     */
+    public static function seedPublishedCourseWithMcqAssessment(array $overrides = []): array
+    {
+        $questionCount = (int) ($overrides['question_count'] ?? 2);
+        $questionsPerAttempt = (int) ($overrides['questions_per_attempt'] ?? $questionCount);
+        $passThreshold = (string) ($overrides['pass_threshold_percent'] ?? '50.00');
+        $maxAttempts = (int) ($overrides['max_attempts'] ?? 3);
+        $cooldown = array_key_exists('cooldown_seconds', $overrides)
+            ? $overrides['cooldown_seconds']
+            : null;
+
+        $ids = self::seedPublishedCourse([
+            'locked' => false,
+            'version_status' => \Academy\Domain\Courses\CourseVersionStatus::DRAFT,
+            'set_current_published_version' => false,
+        ]);
+        $pdo = self::pdo();
+        $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+
+        $pdo->prepare(
+            'INSERT INTO modules (
+                course_version_id, sequence, title, description, mandatory_flag, release_rule,
+                prerequisite_module_id, created_at, updated_at
+             ) VALUES (
+                :version_id, 1, :title, :description, 1, :release_rule, NULL, :created_at, :updated_at
+             )',
+        )->execute([
+            'version_id' => $ids['version_id'],
+            'title' => 'Assessment module',
+            'description' => 'MCQ runtime fixture',
+            'release_rule' => \Academy\Domain\Courses\ModuleReleaseRule::IMMEDIATE,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $moduleId = (int) $pdo->lastInsertId();
+
+        $pdo->prepare(
+            'INSERT INTO content_items (
+                module_id, sequence, content_type, title, body_text, object_key,
+                mandatory_flag, completion_rule, created_at, updated_at
+             ) VALUES (
+                :module_id, 1, :content_type, :title, NULL, NULL,
+                1, :completion_rule, :created_at, :updated_at
+             )',
+        )->execute([
+            'module_id' => $moduleId,
+            'content_type' => \Academy\Domain\Courses\ContentItemType::MCQ_ASSESSMENT,
+            'title' => 'Module assessment',
+            'completion_rule' => \Academy\Domain\Courses\ContentCompletionRule::ASSESSMENT_PASSED,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $contentId = (int) $pdo->lastInsertId();
+
+        $existingBank = $pdo->prepare('SELECT bank_id FROM question_banks WHERE course_id = :course_id');
+        $existingBank->execute(['course_id' => $ids['course_id']]);
+        $bankRow = $existingBank->fetch(PDO::FETCH_ASSOC);
+        if ($bankRow === false) {
+            $pdo->prepare(
+                'INSERT INTO question_banks (course_id, title, created_at, updated_at)
+                 VALUES (:course_id, :title, :created_at, :updated_at)',
+            )->execute([
+                'course_id' => $ids['course_id'],
+                'title' => 'Course question bank',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $bankId = (int) $pdo->lastInsertId();
+        } else {
+            $bankId = (int) $bankRow['bank_id'];
+        }
+
+        $questionIds = [];
+        $correctByQuestion = [];
+        for ($i = 1; $i <= $questionCount; ++$i) {
+            $pdo->prepare(
+                'INSERT INTO questions (
+                    bank_id, question_type, stem, marks, status, version, created_at, updated_at
+                 ) VALUES (
+                    :bank_id, :question_type, :stem, :marks, :status, 1, :created_at, :updated_at
+                 )',
+            )->execute([
+                'bank_id' => $bankId,
+                'question_type' => 'mcq_single',
+                'stem' => 'Fixture question ' . $i . '?',
+                'marks' => '1.00',
+                'status' => 'active',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $questionId = (int) $pdo->lastInsertId();
+            $questionIds[] = $questionId;
+
+            $pdo->prepare(
+                'INSERT INTO question_options (
+                    question_id, sequence, option_text, is_correct, created_at, updated_at
+                 ) VALUES
+                    (:qid, 1, :correct_text, 1, :created_at, :updated_at),
+                    (:qid2, 2, :wrong_text, 0, :created_at2, :updated_at2)',
+            )->execute([
+                'qid' => $questionId,
+                'correct_text' => 'Correct ' . $i,
+                'created_at' => $now,
+                'updated_at' => $now,
+                'qid2' => $questionId,
+                'wrong_text' => 'Wrong ' . $i,
+                'created_at2' => $now,
+                'updated_at2' => $now,
+            ]);
+            $correctOptionId = (int) $pdo->query(
+                'SELECT option_id FROM question_options WHERE question_id = ' . $questionId
+                . ' AND is_correct = 1 LIMIT 1',
+            )->fetchColumn();
+            $correctByQuestion[$questionId] = $correctOptionId;
+        }
+
+        $pdo->prepare(
+            'INSERT INTO assessments (
+                content_id, title, questions_per_attempt, pass_threshold_percent, time_limit_seconds,
+                max_attempts, cooldown_seconds, randomise_questions, randomise_options,
+                created_at, updated_at
+             ) VALUES (
+                :content_id, :title, :questions_per_attempt, :pass_threshold_percent, NULL,
+                :max_attempts, :cooldown_seconds, 0, 0, :created_at, :updated_at
+             )',
+        )->execute([
+            'content_id' => $contentId,
+            'title' => 'Demo MCQ',
+            'questions_per_attempt' => $questionsPerAttempt,
+            'pass_threshold_percent' => $passThreshold,
+            'max_attempts' => $maxAttempts,
+            'cooldown_seconds' => $cooldown,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $assessmentId = (int) $pdo->lastInsertId();
+
+        $linkStmt = $pdo->prepare(
+            'INSERT INTO assessment_question_links (
+                assessment_id, question_id, sequence, created_at, updated_at
+             ) VALUES (
+                :assessment_id, :question_id, :sequence, :created_at, :updated_at
+             )',
+        );
+        foreach ($questionIds as $index => $questionId) {
+            $linkStmt->execute([
+                'assessment_id' => $assessmentId,
+                'question_id' => $questionId,
+                'sequence' => $index + 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        $pdo->prepare(
+            'UPDATE course_versions
+             SET status = :status, published_at = :published_at, locked_at = :locked_at,
+                 locked_reason = :locked_reason, updated_at = :updated_at
+             WHERE version_id = :id',
+        )->execute([
+            'status' => \Academy\Domain\Courses\CourseVersionStatus::PUBLISHED,
+            'published_at' => $now,
+            'locked_at' => $now,
+            'locked_reason' => 'published',
+            'updated_at' => $now,
+            'id' => $ids['version_id'],
+        ]);
+        $pdo->prepare('UPDATE courses SET current_published_version_id = :version_id WHERE course_id = :course_id')
+            ->execute(['version_id' => $ids['version_id'], 'course_id' => $ids['course_id']]);
+
+        return [
+            'course_id' => $ids['course_id'],
+            'version_id' => $ids['version_id'],
+            'module_id' => $moduleId,
+            'content_id' => $contentId,
+            'assessment_id' => $assessmentId,
+            'bank_id' => $bankId,
+            'question_ids' => $questionIds,
+            'correct_option_ids_by_question' => $correctByQuestion,
+        ];
+    }
+
+    /**
+     * Synthetic admitted Active enrolment (bypasses Mode A HTTP for player tests).
+     *
+     * @return array{enrolment_id: int, application_id: int, payment_id: int, batch_id: int}
+     */
+    public static function seedActiveEnrolment(
+        int $userId,
+        int $courseId,
+        int $versionId,
+        array $batchOverrides = [],
+    ): array {
+        $batchId = self::seedBatch($versionId, array_merge([
+            'starts_at' => (new \DateTimeImmutable('-7 days', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u'),
+            'ends_at' => (new \DateTimeImmutable('+60 days', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u'),
+            'applications_open_at' => (new \DateTimeImmutable('-30 days', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u'),
+            'applications_close_at' => (new \DateTimeImmutable('+14 days', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u'),
+        ], $batchOverrides));
+
+        $pdo = self::pdo();
+        $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $suffix = bin2hex(random_bytes(4));
+
+        $pdo->prepare(
+            'INSERT INTO applications (
+                application_number, user_id, course_version_id, batch_id, status, state_version,
+                submitted_at, created_at, updated_at
+             ) VALUES (
+                :application_number, :user_id, :course_version_id, :batch_id, :status, 1,
+                :submitted_at, :created_at, :updated_at
+             )',
+        )->execute([
+            'application_number' => 'APP-PLAY-' . strtoupper($suffix),
+            'user_id' => $userId,
+            'course_version_id' => $versionId,
+            'batch_id' => $batchId,
+            'status' => \Academy\Domain\Admissions\ApplicationStatus::ADMITTED,
+            'submitted_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $applicationId = (int) $pdo->lastInsertId();
+
+        $pdo->prepare(
+            'INSERT INTO payments (
+                public_reference, application_id, user_id, provider, provider_order_id, provider_payment_id,
+                base_fee_minor, gst_minor, amount_minor, currency, gst_rate_percent,
+                course_version_id, batch_id, fee_override_applied, status, failure_code, failure_category,
+                attempt_number, idempotency_key, row_version, successful_marker,
+                initiated_at, provider_order_bound_at, authorized_at, captured_at,
+                failed_at, expired_at, reconciled_at, created_at, updated_at
+             ) VALUES (
+                :public_reference, :application_id, :user_id, :provider, :provider_order_id, :provider_payment_id,
+                100000, 18000, 118000, :currency, 18.00,
+                :course_version_id, :batch_id, NULL, :status, NULL, NULL,
+                1, :idempotency_key, 1, 1,
+                :initiated_at, :bound_at, :authorized_at, :captured_at,
+                NULL, NULL, NULL, :created_at, :updated_at
+             )',
+        )->execute([
+            'public_reference' => 'PAY-PLAY-' . strtoupper($suffix),
+            'application_id' => $applicationId,
+            'user_id' => $userId,
+            'provider' => 'razorpay',
+            'provider_order_id' => 'order_play_' . $suffix,
+            'provider_payment_id' => 'pay_play_' . $suffix,
+            'currency' => 'INR',
+            'course_version_id' => $versionId,
+            'batch_id' => $batchId,
+            'status' => \Academy\Domain\Payments\PaymentStatus::SUCCESSFUL,
+            'idempotency_key' => 'play-' . $suffix,
+            'initiated_at' => $now,
+            'bound_at' => $now,
+            'authorized_at' => $now,
+            'captured_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $paymentId = (int) $pdo->lastInsertId();
+
+        $pdo->prepare(
+            'INSERT INTO enrolments (
+                public_reference, application_id, user_id, course_id, course_version_id, batch_id, payment_id,
+                lifecycle_status, academic_status, admitted_at, activated_at, access_expires_at,
+                row_version, created_at, updated_at
+             ) VALUES (
+                :public_reference, :application_id, :user_id, :course_id, :course_version_id, :batch_id, :payment_id,
+                :lifecycle_status, :academic_status, :admitted_at, :activated_at, NULL,
+                1, :created_at, :updated_at
+             )',
+        )->execute([
+            'public_reference' => 'ENR-PLAY-' . strtoupper($suffix),
+            'application_id' => $applicationId,
+            'user_id' => $userId,
+            'course_id' => $courseId,
+            'course_version_id' => $versionId,
+            'batch_id' => $batchId,
+            'payment_id' => $paymentId,
+            'lifecycle_status' => \Academy\Domain\Learning\EnrolmentLifecycleStatus::ACTIVE,
+            'academic_status' => \Academy\Domain\Learning\EnrolmentAcademicStatus::IN_PROGRESS,
+            'admitted_at' => $now,
+            'activated_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $enrolmentId = (int) $pdo->lastInsertId();
+
+        $pdo->prepare('UPDATE payments SET enrolment_id = :enrolment_id WHERE payment_id = :payment_id')
+            ->execute(['enrolment_id' => $enrolmentId, 'payment_id' => $paymentId]);
+
+        return [
+            'enrolment_id' => $enrolmentId,
+            'application_id' => $applicationId,
+            'payment_id' => $paymentId,
+            'batch_id' => $batchId,
+        ];
     }
 
     /**

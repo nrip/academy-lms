@@ -35,6 +35,10 @@ storage/sessions/*
 !storage/sessions/.gitkeep
 storage/tmp/*
 !storage/tmp/.gitkeep
+storage/backups/*
+!storage/backups/.gitkeep
+storage/mail/*
+!storage/mail/.gitkeep
 
 # Database
 *.sqlite

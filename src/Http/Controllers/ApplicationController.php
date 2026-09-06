@@ -103,11 +103,23 @@ final class ApplicationController
     {
         $applicationId = (int) ($args['id'] ?? 0);
         $view = $this->workspace->getOwn($this->auth($request), $applicationId);
+        $query = $request->getQueryParams();
+        $uploadError = isset($query['error']) && is_string($query['error']) ? $query['error'] : null;
+        $uploadSuccess = isset($query['uploaded']) && (string) $query['uploaded'] === '1'
+            ? 'Document uploaded. Scan status will update after processing.'
+            : null;
+        $focusRequirementId = isset($query['requirement_id']) && is_string($query['requirement_id'])
+            && preg_match('/^\d+$/', $query['requirement_id']) === 1
+            ? (int) $query['requirement_id']
+            : null;
 
         $html = $this->renderer->render('pages/applications/documents', [
             'title' => 'Application documents',
             'csrf' => $this->csrf($request),
             'view' => $view,
+            'uploadError' => $uploadError,
+            'uploadSuccess' => $uploadSuccess,
+            'focusRequirementId' => $focusRequirementId,
         ]);
 
         return new HtmlResponse($html);

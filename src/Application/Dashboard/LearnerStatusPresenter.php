@@ -194,8 +194,8 @@ final class LearnerStatusPresenter
                 'active',
                 'Active',
                 'You are enrolled and the batch is active.',
-                'none',
-                null,
+                'continue_learning',
+                'Continue learning',
                 'success',
             ),
             EnrolmentLifecycleStatus::SUSPENDED => new LearnerStatusView(

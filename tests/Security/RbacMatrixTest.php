@@ -26,6 +26,9 @@ final class RbacMatrixTest extends TestCase
         $applicant = $repo->permissionKeysForRoleKey(RoleKeys::APPLICANT);
         self::assertContains('application.create', $applicant);
         self::assertContains('identity.session.view_own', $applicant);
+        self::assertContains('learning.content.access', $applicant);
+        self::assertContains('assessment.attempt.own', $applicant);
+        self::assertContains('certificate.view_own', $applicant);
         self::assertNotContains('rbac.role.assign', $applicant);
         self::assertNotContains('document.metadata.view', $applicant);
 
@@ -43,5 +46,30 @@ final class RbacMatrixTest extends TestCase
         self::assertContains('document.signed_url.generate', $super);
         self::assertContains('finance.refund.approve', $super);
         self::assertContains('audit.view', $super);
+        self::assertContains('course.create', $super);
+        self::assertContains('course.admin.scope.assign', $super);
+
+        $courseAdmin = $repo->permissionKeysForRoleKey(RoleKeys::COURSE_ADMIN);
+        self::assertContains('course.create', $courseAdmin);
+        self::assertContains('course.view_assigned', $courseAdmin);
+        self::assertContains('course.version.edit', $courseAdmin);
+        self::assertContains('module.manage', $courseAdmin);
+        self::assertContains('content.manage', $courseAdmin);
+        self::assertContains('question_bank.manage', $courseAdmin);
+        self::assertContains('assessment.manage', $courseAdmin);
+        self::assertContains('course.version.publish', $courseAdmin);
+        self::assertContains('course.version.clone', $courseAdmin);
+        self::assertContains('batch.create', $courseAdmin);
+        self::assertNotContains('document.metadata.view', $courseAdmin);
+        self::assertNotContains('finance.refund.approve', $courseAdmin);
+        self::assertNotContains('course.admin.scope.assign', $courseAdmin);
+
+        self::assertContains('module.manage', $super);
+        self::assertContains('content.manage', $super);
+        self::assertContains('question_bank.manage', $super);
+        self::assertContains('assessment.manage', $super);
+        self::assertContains('course.version.publish', $super);
+        self::assertContains('course.version.clone', $super);
+        self::assertContains('batch.create', $super);
     }
 }

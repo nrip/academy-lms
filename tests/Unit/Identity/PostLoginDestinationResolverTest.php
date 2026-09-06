@@ -57,6 +57,15 @@ final class PostLoginDestinationResolverTest extends TestCase
         );
     }
 
+    public function testCourseAdminGoesToAdminCourses(): void
+    {
+        $resolver = $this->resolver(['course.view_assigned', 'course.create']);
+        self::assertSame(
+            PostLoginDestinationResolver::COURSE_ADMIN,
+            $resolver->resolve($this->activeAuth(hasPrivilegedRole: true)),
+        );
+    }
+
     public function testMultiPermissionFollowsDeterministicPrecedence(): void
     {
         $resolver = $this->resolver([

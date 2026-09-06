@@ -169,6 +169,7 @@ ob_start();
                         <th><?= $e->html('Version / batch') ?></th>
                         <th><?= $e->html('Status') ?></th>
                         <th><?= $e->html('Dates') ?></th>
+                        <th><?= $e->html('Action') ?></th>
                     </tr>
                     </thead>
                     <tbody>
@@ -187,8 +188,7 @@ ob_start();
                             <td>
                                 <?php if ($card->enrolmentPresentation !== null): ?>
                                     <span class="badge text-bg-<?= $e->attr($badge($card->enrolmentPresentation->severity)) ?>">
-                                        <?= $e->html($card->enrolmentPresentation->label) ?>
-                                    </span>
+                                        <?= $e->html($card->enrolmentPresentation->label) ?></span>
                                     <div class="small text-muted"><?= $e->html($card->enrolmentPresentation->explanation) ?></div>
                                 <?php endif; ?>
                             </td>
@@ -202,6 +202,18 @@ ob_start();
                                             <?= $e->html(' – ' . $card->batchEndsAt) ?>
                                         <?php endif; ?>
                                     </div>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($card->enrolmentLifecycleStatus === 'active' && $card->enrolmentId !== null): ?>
+                                    <a class="btn btn-sm btn-primary"
+                                       href="/learning/enrolments/<?= $e->attr((string) $card->enrolmentId) ?>">
+                                        <?= $e->html('Continue learning') ?>
+                                    </a>
+                                <?php elseif ($card->enrolmentLifecycleStatus === 'scheduled'): ?>
+                                    <span class="small text-muted"><?= $e->html('Opens when batch starts') ?></span>
+                                <?php else: ?>
+                                    <span class="small text-muted">—</span>
                                 <?php endif; ?>
                             </td>
                         </tr>

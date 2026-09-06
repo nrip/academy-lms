@@ -35,6 +35,7 @@ final class CourseVersion
         public readonly ?string $lockedReason,
         public readonly DateTimeImmutable $createdAt,
         public readonly DateTimeImmutable $updatedAt,
+        public readonly ?int $clonedFromVersionId = null,
     ) {
     }
 

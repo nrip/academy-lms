@@ -18,6 +18,7 @@ use Academy\Http\Middleware\AuthenticationMiddleware;
 use Academy\Http\Middleware\RequirePermissionMiddleware;
 use Academy\Http\Middleware\SessionMiddleware;
 use Academy\Http\Security\SessionCookieSettings;
+use Academy\Http\View\CurrentAuth;
 use Laminas\Diactoros\Response\JsonResponse;
 use Laminas\Diactoros\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -108,6 +109,7 @@ final class Wp01bFailureSemanticsTest extends TestCase
             $snapshots,
             $sessions,
             new SessionCookieSettings('acad_session', 'acad_csrf', false),
+            new CurrentAuth(),
         );
 
         $this->expectException(ServiceUnavailableException::class);

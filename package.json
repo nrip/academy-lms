@@ -3,7 +3,7 @@
   "private": true,
   "description": "Frontend asset dependencies for Academy LMS (Phase 0: Bootstrap + jQuery only)",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "bootstrap": "5.3.3",

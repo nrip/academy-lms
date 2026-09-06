@@ -17,5 +17,16 @@ interface CourseRepository
      */
     public function listActive(): array;
 
+    /**
+     * @param list<int> $courseIds
+     * @return list<Course>
+     */
+    public function listByIds(array $courseIds): array;
+
+    /**
+     * @return array{course_id: int}
+     */
+    public function insert(string $courseCode, string $slug, string $masterTitle, string $status): array;
+
     public function setCurrentPublishedVersionId(int $courseId, int $versionId): void;
 }

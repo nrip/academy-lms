@@ -12,6 +12,7 @@ use Academy\Domain\Security\AuthContext;
 use Academy\Domain\Security\SessionRecord;
 use Academy\Http\Security\SessionCookieClearance;
 use Academy\Http\Security\SessionCookieSettings;
+use Academy\Http\View\CurrentAuth;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -32,6 +33,7 @@ final class AuthenticationMiddleware implements MiddlewareInterface
         private readonly UserSecuritySnapshotRepository $snapshots,
         private readonly SessionService $sessions,
         private readonly SessionCookieSettings $cookies,
+        private readonly CurrentAuth $currentAuth,
     ) {
     }
 
@@ -43,11 +45,16 @@ final class AuthenticationMiddleware implements MiddlewareInterface
         $session = $request->getAttribute(SessionMiddleware::ATTR_SESSION);
 
         if (!$session instanceof SessionRecord) {
+            $this->currentAuth->set(null);
+
             return $handler->handle($request->withAttribute(self::ATTR_AUTH, null));
         }
 
         if ($session->userId === null) {
-            return $handler->handle($request->withAttribute(self::ATTR_AUTH, AuthContext::guest($session->sessionId)));
+            $guest = AuthContext::guest($session->sessionId);
+            $this->currentAuth->set($guest);
+
+            return $handler->handle($request->withAttribute(self::ATTR_AUTH, $guest));
         }
 
         try {
@@ -78,10 +85,13 @@ final class AuthenticationMiddleware implements MiddlewareInterface
                 $clearance->requestClear();
             }
 
+            $guest = AuthContext::guest($session->sessionId);
+            $this->currentAuth->set($guest);
+
             $response = $handler->handle(
                 $request
                     ->withAttribute(SessionMiddleware::ATTR_SESSION, null)
-                    ->withAttribute(self::ATTR_AUTH, AuthContext::guest($session->sessionId))
+                    ->withAttribute(self::ATTR_AUTH, $guest)
                     ->withAttribute(self::ATTR_CLEAR_SESSION_COOKIES, true),
             );
 
@@ -103,7 +113,26 @@ final class AuthenticationMiddleware implements MiddlewareInterface
             accountStatus: $snapshot->accountStatus,
         );
 
-        return $handler->handle($request->withAttribute(self::ATTR_AUTH, $context));
+        $this->currentAuth->set($context);
+
+        return $this->withoutHistoryCaching(
+            $handler->handle($request->withAttribute(self::ATTR_AUTH, $context)),
+        );
+    }
+
+    /**
+     * Authenticated responses must not be replayable from the browser history cache,
+     * otherwise Back appears to restore access after logout.
+     */
+    private function withoutHistoryCaching(ResponseInterface $response): ResponseInterface
+    {
+        if ($response->hasHeader('Cache-Control')) {
+            return $response;
+        }
+
+        return $response
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('Pragma', 'no-cache');
     }
 
     private function clearCookies(ResponseInterface $response): ResponseInterface

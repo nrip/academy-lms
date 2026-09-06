@@ -30,6 +30,7 @@
 | WP-05 Payment Checkout | One PR | `slice/wp05-payment-checkout` |
 | WP-06 Webhook, Admission and Enrolment | One PR | `slice/wp06-webhook-admit-enrolment` |
 | WP-07 Learner Dashboard and UAT Hardening | One PR | `slice/wp07-learner-dashboard-uat` |
+| **RC-01** UAT Release and Deployment Hardening | Post-slice ops package (not a feature WP) | `hardening/rc01-uat-deployment` |
 
 ```text
 WP-01A ──► WP-01B ──► WP-02 ──► WP-03 ──► WP-04 ──► WP-05 ──► WP-06 ──► WP-07

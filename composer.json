@@ -39,10 +39,18 @@
         "allow-plugins": {}
     },
     "scripts": {
-        "test": "phpunit",
+        "test": "php -d upload_max_filesize=10M -d post_max_size=16M vendor/bin/phpunit",
         "phpstan": "phpstan analyse",
         "cs-check": "php-cs-fixer fix --dry-run --diff",
         "cs-fix": "php-cs-fixer fix",
-        "assets:install": "node bin/install-frontend-assets.mjs"
+        "assets:install": "node bin/install-frontend-assets.mjs",
+        "setup": "php bin/setup.php",
+        "setup-uat": "php bin/setup.php --seed-uat",
+        "migrate": "php vendor/bin/phinx migrate -c phinx.php",
+        "uat-seed": "php bin/jobs.php uat:seed",
+        "uat-reset": "php bin/jobs.php uat:reset --confirm",
+        "demo-prepare": "php -d upload_max_filesize=10M -d post_max_size=16M bin/jobs.php demo:prepare --confirm",
+        "demo-process": "php -d upload_max_filesize=10M -d post_max_size=16M bin/jobs.php demo:process",
+        "demo-serve": "bash bin/demo-server.sh"
     }
 }

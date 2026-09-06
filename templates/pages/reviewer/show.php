@@ -49,6 +49,10 @@ ob_start();
         <?= $e->html($application->applicationNumber) ?>
         <span class="badge bg-secondary text-uppercase"><?= $e->html($application->status) ?></span>
     </h1>
+    <p class="mb-1">
+        <strong><?= $e->html('Learner:') ?></strong>
+        <?= $e->html($displayName !== '' ? $displayName : '—') ?>
+    </p>
     <p class="text-muted mb-4"><?= $e->html($view->courseTitle) ?> &mdash; <?= $e->html($view->batchLabel) ?></p>
 
     <?php if ($flashOk !== null && isset($flashMessages[$flashOk])): ?>

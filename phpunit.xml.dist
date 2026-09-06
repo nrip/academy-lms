@@ -37,5 +37,10 @@
         <env name="DB_USER" value="root"/>
         <env name="DB_PASSWORD" value=""/>
         <env name="OUTBOX_TRANSPORT" value="unconfigured"/>
+        <!--
+          upload_max_filesize / post_max_size are PHP_INI_PERDIR and cannot be raised via
+          PHPUnit <ini> / ini_set(). Use: composer test
+          (php -d upload_max_filesize=10M -d post_max_size=16M vendor/bin/phpunit)
+        -->
     </php>
 </phpunit>

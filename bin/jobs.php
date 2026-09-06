@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * CLI entry for WP-01A / WP-01B-2a operational jobs.
+ * CLI entry for operational jobs (WP-01A … RC-01).
  *
  * Usage:
  *   php bin/jobs.php session:cleanup
@@ -15,6 +15,8 @@ declare(strict_types=1);
  *   php bin/jobs.php document:stuck-scan
  *   php bin/jobs.php payment:webhook-process
  *   php bin/jobs.php payment:reconcile
+ *   php bin/jobs.php uat:seed
+ *   php bin/jobs.php uat:reset --confirm
  */
 
 use Academy\Application\Credentials\DocumentScanWorker;
@@ -22,7 +24,12 @@ use Academy\Application\Credentials\StuckScanWatchService;
 use Academy\Application\Identity\TokenConfirmationCleanupService;
 use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
 use Academy\Application\Notifications\TransactionalNotificationDeliveryWorker;
+use Academy\Application\Ops\DemoPrepareService;
+use Academy\Application\Ops\DemoProcessService;
+use Academy\Application\Ops\UatResetService;
+use Academy\Application\Ops\UatSeedService;
 use Academy\Application\Outbox\OutboxRelayService;
+use Academy\Application\Payments\DemoPaymentSimulationService;
 use Academy\Application\Payments\PaymentReconciliationService;
 use Academy\Application\Payments\PaymentWebhookProcessor;
 use Academy\Domain\Security\RateLimitStore;
@@ -36,6 +43,8 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 $container = require dirname(__DIR__) . '/config/bootstrap.php';
 
 $command = $argv[1] ?? '';
+$confirm = in_array('--confirm', $argv, true);
+$migrate = in_array('--migrate', $argv, true);
 $workerId = gethostname() . ':' . getmypid();
 
 $lock = $container->get(PdoSchedulerLock::class);
@@ -142,9 +151,109 @@ $exit = match ($command) {
 
         return 0;
     })(),
+    'uat:seed' => (static function () use ($container): int {
+        try {
+            $result = $container->get(UatSeedService::class)->seed();
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'uat:seed failed: ' . $e->getMessage() . "\n");
+
+            return 1;
+        }
+        fwrite(STDOUT, 'uat:seed personas=' . $result['personas']
+            . ' catalogue=' . ($result['catalogue'] ? 'yes' : 'no')
+            . ' applications=' . $result['applications']
+            . ' notifications=' . $result['notifications'] . "\n");
+        foreach ($result['summary'] as $line) {
+            fwrite(STDOUT, '  ' . $line . "\n");
+        }
+
+        return $result['catalogue'] ? 0 : 2;
+    })(),
+    'uat:reset' => (static function () use ($container, $confirm): int {
+        try {
+            $result = $container->get(UatResetService::class)->reset($confirm);
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'uat:reset failed: ' . $e->getMessage() . "\n");
+
+            return 1;
+        }
+        fwrite(STDOUT, 'uat:reset deleted_users=' . $result['deleted_users']
+            . ' deleted_applications=' . $result['deleted_applications']
+            . ' deleted_notifications=' . $result['deleted_notifications'] . "\n");
+        foreach ($result['summary'] as $line) {
+            fwrite(STDOUT, '  ' . $line . "\n");
+        }
+
+        return 0;
+    })(),
+    'demo:prepare' => (static function () use ($container, $confirm, $migrate): int {
+        try {
+            $result = $container->get(DemoPrepareService::class)->prepare($confirm, $migrate);
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'demo:prepare failed: ' . $e->getMessage() . "\n");
+
+            return 1;
+        }
+
+        fwrite(STDOUT, "demo:prepare ok\n");
+        fwrite(STDOUT, '  app_url=' . $result['app_url'] . "\n");
+        fwrite(STDOUT, '  personas=' . $result['personas']
+            . ' applications=' . $result['applications']
+            . ' notifications=' . $result['notifications'] . "\n");
+        fwrite(STDOUT, '  password_source=' . $result['password_source'] . "\n");
+        fwrite(STDOUT, '  demo_password=' . $result['password'] . "\n");
+        foreach ($result['credentials'] as $cred) {
+            fwrite(STDOUT, '  login ' . $cred['persona'] . ': ' . $cred['email']
+                . ' → ' . $result['app_url'] . $cred['landing'] . "\n");
+        }
+        fwrite(STDOUT, "  next: php -S 127.0.0.1:8080 -t public\n");
+        fwrite(STDOUT, "  then: php bin/jobs.php demo:process  (after demo payment / uploads)\n");
+        foreach ($result['summary'] as $line) {
+            fwrite(STDOUT, '  ' . $line . "\n");
+        }
+
+        return 0;
+    })(),
+    'demo:process' => (static function () use ($container, $workerId): int {
+        try {
+            $result = $container->get(DemoProcessService::class)->process($workerId);
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'demo:process failed: ' . $e->getMessage() . "\n");
+
+            return 1;
+        }
+        fwrite(STDOUT, "demo:process ok worker={$result['worker_id']}\n");
+        foreach ($result['steps'] as $step) {
+            fwrite(STDOUT, '  ' . $step['step'] . '=' . $step['processed'] . "\n");
+        }
+
+        return 0;
+    })(),
+    'demo:payment-capture' => (static function () use ($container, $argv): int {
+        $paymentId = (int) ($argv[2] ?? 0);
+        if ($paymentId < 1) {
+            fwrite(STDERR, "Usage: php bin/jobs.php demo:payment-capture {paymentId}\n");
+
+            return 1;
+        }
+        try {
+            $result = $container->get(DemoPaymentSimulationService::class)
+                ->simulateCliCapture($paymentId, true, 'demo-cli:' . getmypid());
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'demo:payment-capture failed: ' . $e->getMessage() . "\n");
+
+            return 1;
+        }
+        fwrite(STDOUT, 'demo:payment-capture payment_id=' . $result['payment_id']
+            . ' webhook_event_id=' . $result['webhook_event_id']
+            . ' duplicate=' . ($result['duplicate'] ? 'yes' : 'no')
+            . ' processed=' . $result['processed'] . "\n");
+
+        return 0;
+    })(),
     default => (static function () use ($command): int {
         fwrite(STDERR, "Unknown command: {$command}\n");
-        fwrite(STDERR, "Commands: session:cleanup | rate-limit:cleanup | outbox:relay | notification:deliver | token-confirmation:cleanup | document:scan | document:stuck-scan | payment:webhook-process | payment:reconcile\n");
+        fwrite(STDERR, "Commands: session:cleanup | rate-limit:cleanup | outbox:relay | notification:deliver | token-confirmation:cleanup | document:scan | document:stuck-scan | payment:webhook-process | payment:reconcile | uat:seed | uat:reset --confirm | demo:prepare --confirm [--migrate] | demo:process | demo:payment-capture {paymentId}\n");
 
         return 1;
     })(),

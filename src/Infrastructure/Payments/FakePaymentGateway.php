@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Academy\Infrastructure\Payments;
 
+use Academy\Application\Ops\EnvironmentCapability;
 use Academy\Domain\Exception\ExternalServiceException;
 use Academy\Domain\Payments\GatewayOrderResult;
 use Academy\Domain\Payments\GatewayPaymentResult;
@@ -12,8 +13,8 @@ use Academy\Domain\Payments\PaymentProvider;
 use InvalidArgumentException;
 
 /**
- * Deterministic fake gateway. Construct only when env is local|testing|ci
- * and the payments fake-gateway flag is enabled.
+ * Deterministic fake gateway. Construct only when EnvironmentCapability allows
+ * fake adapters and the payments fake-gateway flag is enabled.
  */
 final class FakePaymentGateway implements PaymentGateway
 {
@@ -28,7 +29,8 @@ final class FakePaymentGateway implements PaymentGateway
 
     public function __construct(string $env, bool $enabled)
     {
-        if (!$enabled || !in_array($env, ['local', 'testing', 'ci'], true)) {
+        $capability = EnvironmentCapability::fromEnvName($env);
+        if (!$enabled || !$capability->allowsFakeOrLocalAdapters()) {
             throw new InvalidArgumentException('FakePaymentGateway is not permitted in this environment.');
         }
     }
@@ -96,6 +98,25 @@ final class FakePaymentGateway implements PaymentGateway
     public function publicKeyId(): string
     {
         return 'rzp_test_fake_public_key';
+    }
+
+    /**
+     * Rehydrate an order known from durable Payment.provider_order_id so
+     * cross-request demo capture can call simulateCapture (PHP memory is
+     * per-request; FakePaymentGateway does not share state across requests).
+     */
+    public function rememberOrder(string $providerOrderId, int $amountMinor, string $currency): void
+    {
+        if (isset($this->ordersById[$providerOrderId])) {
+            return;
+        }
+
+        $this->ordersById[$providerOrderId] = new GatewayOrderResult(
+            providerOrderId: $providerOrderId,
+            amountMinor: $amountMinor,
+            currency: strtoupper($currency),
+            providerStatus: 'created',
+        );
     }
 
     public function simulateCapture(

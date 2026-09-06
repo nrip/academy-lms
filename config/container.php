@@ -2,18 +2,40 @@
 
 declare(strict_types=1);
 
+use Academy\Application\Assessments\AssessmentAttemptAccessGuard;
+use Academy\Application\Assessments\AssessmentAttemptQueryService;
+use Academy\Application\Assessments\AssessmentConfigService;
+use Academy\Application\Assessments\QuestionBankService;
+use Academy\Application\Assessments\SaveAssessmentResponsesService;
+use Academy\Application\Assessments\StartAssessmentAttemptService;
+use Academy\Application\Assessments\SubmitAssessmentAttemptService;
+use Academy\Application\Certificates\CertificateIssuanceService;
+use Academy\Application\Certificates\CertificateQueryService;
 use Academy\Application\Admissions\ApplicationDeclarationService;
 use Academy\Application\Admissions\ApplicationSubmitService;
 use Academy\Application\Admissions\ApplicationWorkspaceService;
 use Academy\Application\Admissions\DraftApplicationService;
 use Academy\Application\Audit\AuditRedactor;
 use Academy\Application\Audit\AuditService;
+use Academy\Application\Courses\AssignCourseAdminScopeService;
 use Academy\Application\Courses\CatalogueService;
+use Academy\Application\Courses\CloneCourseVersionService;
+use Academy\Application\Courses\ContentItemCommandService;
+use Academy\Application\Courses\CourseAdminAccessGuard;
+use Academy\Application\Courses\CourseAdminQueryService;
+use Academy\Application\Courses\CreateBatchForPublishedVersionService;
+use Academy\Application\Courses\CreateCourseService;
+use Academy\Application\Courses\CurriculumQueryService;
+use Academy\Application\Courses\ModuleCommandService;
+use Academy\Application\Courses\PublishCourseVersionService;
+use Academy\Application\Courses\UpdateDraftCourseVersionService;
 use Academy\Application\Credentials\DocumentDownloadService;
 use Academy\Application\Credentials\DocumentScanWorker;
 use Academy\Application\Credentials\DocumentUploadService;
 use Academy\Application\Credentials\StuckScanWatchService;
 use Academy\Application\Dashboard\LearnerDashboardQueryService;
+use Academy\Application\Learning\LearnerPlayerQueryService;
+use Academy\Application\Learning\MarkContentCompleteService;
 use Academy\Application\Dashboard\LearnerStatusPresenter;
 use Academy\Application\Identity\CompositeTokenConsumedHandler;
 use Academy\Application\Identity\EmailVerificationResendService;
@@ -25,6 +47,7 @@ use Academy\Application\Identity\LoginService;
 use Academy\Application\Identity\LogoutService;
 use Academy\Application\Identity\MobileOtpResendService;
 use Academy\Application\Identity\MobileOtpVerificationService;
+use Academy\Application\Identity\NavigationMenuBuilder;
 use Academy\Application\Identity\PasswordHasher;
 use Academy\Application\Identity\PasswordResetService;
 use Academy\Application\Identity\PostLoginDestinationResolver;
@@ -44,6 +67,13 @@ use Academy\Application\Notifications\NotificationRecipientResolver;
 use Academy\Application\Notifications\NotificationTemplateRenderer;
 use Academy\Application\Notifications\TransactionalNotificationDeliveryWorker;
 use Academy\Application\Notifications\TransactionalNotificationTemplateRegistry;
+use Academy\Application\Ops\DemoPrepareService;
+use Academy\Application\Ops\DemoProcessService;
+use Academy\Application\Ops\EnvironmentCapability;
+use Academy\Application\Ops\ReadinessProbe;
+use Academy\Application\Ops\UatResetService;
+use Academy\Application\Ops\UatSeedService;
+use Academy\Application\Payments\DemoPaymentSimulationService;
 use Academy\Application\Outbox\OutboxRelayService;
 use Academy\Application\Payments\FinancePaymentQueryService;
 use Academy\Application\Payments\FinanceReconciliationQueryService;
@@ -69,15 +99,37 @@ use Academy\Domain\Admissions\ApplicationDraftFactory;
 use Academy\Domain\Admissions\ApplicationRepository;
 use Academy\Domain\Admissions\ApplicationStateMachine;
 use Academy\Domain\Admissions\ApplicationSubmissionPreconditions;
+use Academy\Domain\Assessments\AssessmentAttemptQuestionRepository;
+use Academy\Domain\Assessments\AssessmentAttemptRepository;
+use Academy\Domain\Assessments\AssessmentAttemptStateMachine;
+use Academy\Domain\Assessments\AssessmentAttemptStatusHistoryRepository;
+use Academy\Domain\Assessments\AssessmentQuestionLinkRepository;
+use Academy\Domain\Assessments\AssessmentRepository;
+use Academy\Domain\Assessments\AssessmentResponseRepository;
+use Academy\Domain\Assessments\AttemptScoringService;
+use Academy\Domain\Certificates\CertificateEventRepository;
+use Academy\Domain\Certificates\CertificateLearnerNameResolver;
+use Academy\Domain\Certificates\CertificateRepository;
+use Academy\Domain\Certificates\CompletionEligibilityPolicy;
+use Academy\Domain\Assessments\QuestionBankRepository;
+use Academy\Domain\Assessments\QuestionOptionRepository;
+use Academy\Domain\Assessments\QuestionRepository;
 use Academy\Domain\Audit\AuditWriter;
 use Academy\Domain\Courses\BatchAvailabilityEvaluator;
 use Academy\Domain\Courses\BatchDateValidator;
 use Academy\Domain\Courses\BatchRepository;
+use Academy\Domain\Courses\ContentItemRepository;
 use Academy\Domain\Courses\CourseDocumentRequirementRepository;
+use Academy\Domain\Courses\CourseAdminScopeAssignmentRepository;
+use Academy\Domain\Courses\CourseAdminScopePolicy;
 use Academy\Domain\Courses\CourseRepository;
 use Academy\Domain\Courses\CourseVersionImmutabilityGuard;
+use Academy\Domain\Courses\CourseVersionPublishValidator;
 use Academy\Domain\Courses\CourseVersionRepository;
+use Academy\Domain\Courses\CourseVersionStateMachine;
+use Academy\Domain\Courses\CourseVersionStatusHistoryRepository;
 use Academy\Domain\Courses\EligibilityRuleRepository;
+use Academy\Domain\Courses\ModuleRepository;
 use Academy\Domain\Credentials\DocumentFileValidator;
 use Academy\Domain\Credentials\DocumentObjectKeyGenerator;
 use Academy\Domain\Credentials\DocumentSubmissionRepository;
@@ -102,11 +154,14 @@ use Academy\Domain\Identity\UserWriteRepository;
 use Academy\Domain\Identity\VerificationChallengeRepository;
 use Academy\Domain\Identity\VerificationTokenRepository;
 use Academy\Domain\Learning\BatchCapacityPolicy;
+use Academy\Domain\Learning\ContentProgressRepository;
 use Academy\Domain\Learning\EnrolmentFactory;
 use Academy\Domain\Learning\EnrolmentPublicReferenceGenerator;
 use Academy\Domain\Learning\EnrolmentRepository;
 use Academy\Domain\Learning\EnrolmentStateMachine;
 use Academy\Domain\Learning\EnrolmentStatusHistoryRepository;
+use Academy\Domain\Learning\ModuleReleasePolicy;
+use Academy\Domain\Learning\PlayerAccessPolicy;
 use Academy\Domain\Notifications\EmailDeliveryPort;
 use Academy\Domain\Notifications\NotificationDeliveryRepository;
 use Academy\Domain\Notifications\NotificationRetryPolicy;
@@ -138,14 +193,22 @@ use Academy\Domain\Security\SessionRepository;
 use Academy\Domain\Storage\ObjectStorage;
 use Academy\Http\Controllers\AdminNotificationController;
 use Academy\Http\Controllers\ApplicationController;
+use Academy\Http\Controllers\AssessmentAttemptController;
+use Academy\Http\Controllers\CertificateController;
+use Academy\Http\Controllers\AssessmentConfigController;
 use Academy\Http\Controllers\BatchController;
+use Academy\Http\Controllers\CourseAdminController;
 use Academy\Http\Controllers\CourseCatalogueController;
+use Academy\Http\Controllers\CourseCurriculumController;
+use Academy\Http\Controllers\CourseVersionLifecycleController;
 use Academy\Http\Controllers\DashboardController;
+use Academy\Http\Controllers\LearnerPlayerController;
 use Academy\Http\Controllers\DocumentController;
 use Academy\Http\Controllers\EmailVerificationController;
 use Academy\Http\Controllers\FinancePaymentController;
 use Academy\Http\Controllers\ForgotPasswordController;
 use Academy\Http\Controllers\HealthController;
+use Academy\Http\Controllers\HomeController;
 use Academy\Http\Controllers\LocalStorageDownloadController;
 use Academy\Http\Controllers\LocalUploadController;
 use Academy\Http\Controllers\LoginController;
@@ -154,6 +217,7 @@ use Academy\Http\Controllers\PasswordResetController;
 use Academy\Http\Controllers\PaymentController;
 use Academy\Http\Controllers\ProfileController;
 use Academy\Http\Controllers\QualificationController;
+use Academy\Http\Controllers\QuestionBankController;
 use Academy\Http\Controllers\RazorpayWebhookController;
 use Academy\Http\Controllers\RegistrationController;
 use Academy\Http\Controllers\ReviewerApplicationController;
@@ -176,13 +240,31 @@ use Academy\Http\Security\ConfirmationCookieSettings;
 use Academy\Http\Security\SecurityHeaderPolicy;
 use Academy\Http\Security\SessionCookieSettings;
 use Academy\Http\Security\TokenPageHeaderPolicy;
+use Academy\Http\View\CurrentAuth;
+use Academy\Http\View\CurrentCsrfToken;
 use Academy\Infrastructure\Admissions\PdoApplicationRepository;
 use Academy\Infrastructure\Audit\PdoAuditWriter;
+use Academy\Infrastructure\Assessments\PdoAssessmentAttemptQuestionRepository;
+use Academy\Infrastructure\Assessments\PdoAssessmentAttemptRepository;
+use Academy\Infrastructure\Assessments\PdoAssessmentAttemptStatusHistoryRepository;
+use Academy\Infrastructure\Assessments\PdoAssessmentQuestionLinkRepository;
+use Academy\Infrastructure\Assessments\PdoAssessmentRepository;
+use Academy\Infrastructure\Assessments\PdoAssessmentResponseRepository;
+use Academy\Infrastructure\Certificates\PdoCertificateEventRepository;
+use Academy\Infrastructure\Certificates\PdoCertificateRepository;
+use Academy\Infrastructure\Certificates\SimpleCertificatePdfRenderer;
+use Academy\Infrastructure\Assessments\PdoQuestionBankRepository;
+use Academy\Infrastructure\Assessments\PdoQuestionOptionRepository;
+use Academy\Infrastructure\Assessments\PdoQuestionRepository;
 use Academy\Infrastructure\Courses\PdoBatchRepository;
+use Academy\Infrastructure\Courses\PdoContentItemRepository;
+use Academy\Infrastructure\Courses\PdoCourseAdminScopeAssignmentRepository;
 use Academy\Infrastructure\Courses\PdoCourseDocumentRequirementRepository;
 use Academy\Infrastructure\Courses\PdoCourseRepository;
 use Academy\Infrastructure\Courses\PdoCourseVersionRepository;
+use Academy\Infrastructure\Courses\PdoCourseVersionStatusHistoryRepository;
 use Academy\Infrastructure\Courses\PdoEligibilityRuleRepository;
+use Academy\Infrastructure\Courses\PdoModuleRepository;
 use Academy\Infrastructure\Credentials\FakeMalwareScanner;
 use Academy\Infrastructure\Credentials\PdoDocumentSubmissionRepository;
 use Academy\Infrastructure\Credentials\PdoDocumentUploadAuthorizationRepository;
@@ -198,6 +280,7 @@ use Academy\Infrastructure\Identity\PdoUserWriteRepository;
 use Academy\Infrastructure\Identity\PdoVerificationChallengeRepository;
 use Academy\Infrastructure\Identity\PdoVerificationTokenRepository;
 use Academy\Infrastructure\Identity\RecordingTokenConsumedHandler;
+use Academy\Infrastructure\Learning\PdoContentProgressRepository;
 use Academy\Infrastructure\Learning\PdoEnrolmentRepository;
 use Academy\Infrastructure\Learning\PdoEnrolmentStatusHistoryRepository;
 use Academy\Infrastructure\Logging\LoggerFactory;
@@ -286,11 +369,25 @@ return static function (): ContainerInterface {
 
         Escaper::class => static fn (): Escaper => new Escaper(),
 
+        CurrentAuth::class => static fn (): CurrentAuth => new CurrentAuth(),
+
+        CurrentCsrfToken::class => static fn (): CurrentCsrfToken => new CurrentCsrfToken(),
+
+        NavigationMenuBuilder::class => static fn (ContainerInterface $c): NavigationMenuBuilder => new NavigationMenuBuilder(
+            $c->get(AuthorizationService::class),
+        ),
+
         PhpRenderer::class => static function (ContainerInterface $c): PhpRenderer {
             /** @var array{templates: string} $paths */
             $paths = $c->get('config.paths');
 
-            return new PhpRenderer($paths['templates'], $c->get(Escaper::class));
+            return new PhpRenderer(
+                $paths['templates'],
+                $c->get(Escaper::class),
+                $c->get(CurrentAuth::class),
+                $c->get(NavigationMenuBuilder::class),
+                $c->get(CurrentCsrfToken::class),
+            );
         },
 
         SecurityHeaderPolicy::class => static function (ContainerInterface $c): SecurityHeaderPolicy {
@@ -397,6 +494,242 @@ return static function (): ContainerInterface {
         CourseVersionRepository::class => static fn (ContainerInterface $c): CourseVersionRepository => new PdoCourseVersionRepository(
             $c->get(ConnectionFactory::class),
         ),
+        CourseAdminScopeAssignmentRepository::class => static fn (ContainerInterface $c): CourseAdminScopeAssignmentRepository => new PdoCourseAdminScopeAssignmentRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        CourseAdminScopePolicy::class => static fn (ContainerInterface $c): CourseAdminScopePolicy => new CourseAdminScopePolicy(
+            $c->get(CourseAdminScopeAssignmentRepository::class),
+            $c->get(CourseVersionRepository::class),
+        ),
+        CourseVersionImmutabilityGuard::class => static fn (): CourseVersionImmutabilityGuard => new CourseVersionImmutabilityGuard(),
+        CourseAdminAccessGuard::class => static fn (ContainerInterface $c): CourseAdminAccessGuard => new CourseAdminAccessGuard(
+            $c->get(AuthorizationService::class),
+            $c->get(CourseAdminScopePolicy::class),
+            $c->get(CourseRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(CourseVersionImmutabilityGuard::class),
+        ),
+        CreateCourseService::class => static fn (ContainerInterface $c): CreateCourseService => new CreateCourseService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(CourseAdminScopeAssignmentRepository::class),
+            $c->get(QuestionBankService::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        UpdateDraftCourseVersionService::class => static fn (ContainerInterface $c): UpdateDraftCourseVersionService => new UpdateDraftCourseVersionService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        CourseAdminQueryService::class => static fn (ContainerInterface $c): CourseAdminQueryService => new CourseAdminQueryService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseAdminScopeAssignmentRepository::class),
+            $c->get(CourseAdminScopePolicy::class),
+            $c->get(CourseRepository::class),
+            $c->get(CourseVersionRepository::class),
+        ),
+        AssignCourseAdminScopeService::class => static fn (ContainerInterface $c): AssignCourseAdminScopeService => new AssignCourseAdminScopeService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseAdminScopeAssignmentRepository::class),
+            $c->get(CourseRepository::class),
+            $c->get(RoleRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        CourseVersionStateMachine::class => static fn (): CourseVersionStateMachine => new CourseVersionStateMachine(),
+        CourseVersionPublishValidator::class => static fn (): CourseVersionPublishValidator => new CourseVersionPublishValidator(),
+        CourseVersionStatusHistoryRepository::class => static fn (ContainerInterface $c): CourseVersionStatusHistoryRepository => new PdoCourseVersionStatusHistoryRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        PublishCourseVersionService::class => static fn (ContainerInterface $c): PublishCourseVersionService => new PublishCourseVersionService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(CourseRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(AssessmentRepository::class),
+            $c->get(AssessmentQuestionLinkRepository::class),
+            $c->get(CourseVersionPublishValidator::class),
+            $c->get(CourseVersionStateMachine::class),
+            $c->get(CourseVersionStatusHistoryRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        CloneCourseVersionService::class => static fn (ContainerInterface $c): CloneCourseVersionService => new CloneCourseVersionService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(EligibilityRuleRepository::class),
+            $c->get(CourseDocumentRequirementRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(AssessmentRepository::class),
+            $c->get(AssessmentQuestionLinkRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        CreateBatchForPublishedVersionService::class => static fn (ContainerInterface $c): CreateBatchForPublishedVersionService => new CreateBatchForPublishedVersionService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(BatchRepository::class),
+            $c->get(BatchDateValidator::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        ModuleRepository::class => static fn (ContainerInterface $c): ModuleRepository => new PdoModuleRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        ContentItemRepository::class => static fn (ContainerInterface $c): ContentItemRepository => new PdoContentItemRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        CurriculumQueryService::class => static fn (ContainerInterface $c): CurriculumQueryService => new CurriculumQueryService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
+        ),
+        ModuleCommandService::class => static fn (ContainerInterface $c): ModuleCommandService => new ModuleCommandService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        ContentItemCommandService::class => static fn (ContainerInterface $c): ContentItemCommandService => new ContentItemCommandService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        QuestionBankRepository::class => static fn (ContainerInterface $c): QuestionBankRepository => new PdoQuestionBankRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        QuestionRepository::class => static fn (ContainerInterface $c): QuestionRepository => new PdoQuestionRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        QuestionOptionRepository::class => static fn (ContainerInterface $c): QuestionOptionRepository => new PdoQuestionOptionRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        QuestionBankService::class => static fn (ContainerInterface $c): QuestionBankService => new QuestionBankService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(QuestionBankRepository::class),
+            $c->get(QuestionRepository::class),
+            $c->get(QuestionOptionRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        AssessmentRepository::class => static fn (ContainerInterface $c): AssessmentRepository => new PdoAssessmentRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentQuestionLinkRepository::class => static fn (ContainerInterface $c): AssessmentQuestionLinkRepository => new PdoAssessmentQuestionLinkRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentConfigService::class => static fn (ContainerInterface $c): AssessmentConfigService => new AssessmentConfigService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(AssessmentRepository::class),
+            $c->get(AssessmentQuestionLinkRepository::class),
+            $c->get(QuestionBankRepository::class),
+            $c->get(QuestionRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        AssessmentAttemptRepository::class => static fn (ContainerInterface $c): AssessmentAttemptRepository => new PdoAssessmentAttemptRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentAttemptQuestionRepository::class => static fn (ContainerInterface $c): AssessmentAttemptQuestionRepository => new PdoAssessmentAttemptQuestionRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentResponseRepository::class => static fn (ContainerInterface $c): AssessmentResponseRepository => new PdoAssessmentResponseRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentAttemptStatusHistoryRepository::class => static fn (ContainerInterface $c): AssessmentAttemptStatusHistoryRepository => new PdoAssessmentAttemptStatusHistoryRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        AssessmentAttemptStateMachine::class => static fn (): AssessmentAttemptStateMachine => new AssessmentAttemptStateMachine(),
+        AttemptScoringService::class => static fn (): AttemptScoringService => new AttemptScoringService(),
+        AssessmentAttemptAccessGuard::class => static fn (ContainerInterface $c): AssessmentAttemptAccessGuard => new AssessmentAttemptAccessGuard(
+            $c->get(AuthorizationService::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(AssessmentRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(PlayerAccessPolicy::class),
+            $c->get(ModuleReleasePolicy::class),
+        ),
+        StartAssessmentAttemptService::class => static fn (ContainerInterface $c): StartAssessmentAttemptService => new StartAssessmentAttemptService(
+            $c->get(AssessmentAttemptAccessGuard::class),
+            $c->get(AssessmentAttemptRepository::class),
+            $c->get(AssessmentAttemptQuestionRepository::class),
+            $c->get(AssessmentQuestionLinkRepository::class),
+            $c->get(QuestionRepository::class),
+            $c->get(QuestionOptionRepository::class),
+            $c->get(AssessmentAttemptStatusHistoryRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        SaveAssessmentResponsesService::class => static fn (ContainerInterface $c): SaveAssessmentResponsesService => new SaveAssessmentResponsesService(
+            $c->get(AssessmentAttemptAccessGuard::class),
+            $c->get(AssessmentAttemptRepository::class),
+            $c->get(AssessmentAttemptQuestionRepository::class),
+            $c->get(AssessmentResponseRepository::class),
+        ),
+        SubmitAssessmentAttemptService::class => static fn (ContainerInterface $c): SubmitAssessmentAttemptService => new SubmitAssessmentAttemptService(
+            $c->get(AssessmentAttemptAccessGuard::class),
+            $c->get(AssessmentAttemptRepository::class),
+            $c->get(AssessmentAttemptQuestionRepository::class),
+            $c->get(AssessmentResponseRepository::class),
+            $c->get(AssessmentAttemptStateMachine::class),
+            $c->get(AttemptScoringService::class),
+            $c->get(AssessmentAttemptStatusHistoryRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+            $c->get(CertificateIssuanceService::class),
+        ),
+        CertificateRepository::class => static fn (ContainerInterface $c): CertificateRepository => new PdoCertificateRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        CertificateEventRepository::class => static fn (ContainerInterface $c): CertificateEventRepository => new PdoCertificateEventRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        CompletionEligibilityPolicy::class => static fn (): CompletionEligibilityPolicy => new CompletionEligibilityPolicy(),
+        CertificateLearnerNameResolver::class => static fn (): CertificateLearnerNameResolver => new CertificateLearnerNameResolver(),
+        SimpleCertificatePdfRenderer::class => static fn (): SimpleCertificatePdfRenderer => new SimpleCertificatePdfRenderer(),
+        CertificateIssuanceService::class => static fn (ContainerInterface $c): CertificateIssuanceService => new CertificateIssuanceService(
+            $c->get(EnrolmentRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(CourseRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(LearnerProfileRepository::class),
+            $c->get(CertificateRepository::class),
+            $c->get(CertificateEventRepository::class),
+            $c->get(CompletionEligibilityPolicy::class),
+            $c->get(CertificateLearnerNameResolver::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        CertificateQueryService::class => static fn (ContainerInterface $c): CertificateQueryService => new CertificateQueryService(
+            $c->get(AuthorizationService::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(CertificateRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(LearnerProfileRepository::class),
+            $c->get(CompletionEligibilityPolicy::class),
+            $c->get(CertificateLearnerNameResolver::class),
+            $c->get(CertificateIssuanceService::class),
+            $c->get(PlayerAccessPolicy::class),
+        ),
+        AssessmentAttemptQueryService::class => static fn (ContainerInterface $c): AssessmentAttemptQueryService => new AssessmentAttemptQueryService(
+            $c->get(AssessmentAttemptAccessGuard::class),
+            $c->get(AssessmentAttemptRepository::class),
+            $c->get(AssessmentAttemptQuestionRepository::class),
+            $c->get(AssessmentResponseRepository::class),
+            $c->get(AssessmentRepository::class),
+        ),
         BatchRepository::class => static fn (ContainerInterface $c): BatchRepository => new PdoBatchRepository(
             $c->get(ConnectionFactory::class),
         ),
@@ -441,7 +774,7 @@ return static function (): ContainerInterface {
             $payments = $security['payments'];
             $env = $app['env'];
 
-            if ($payments['fake_gateway_enabled'] && in_array($env, ['local', 'testing', 'ci'], true)) {
+            if ($payments['fake_gateway_enabled'] && EnvironmentCapability::fromEnvName($env)->allowsFakeOrLocalAdapters()) {
                 return new FakePaymentGateway($env, true);
             }
 
@@ -471,6 +804,23 @@ return static function (): ContainerInterface {
             $c->get(EnrolmentRepository::class),
             $c->get(LearnerStatusPresenter::class),
         ),
+        DemoPaymentSimulationService::class => static function (ContainerInterface $c): DemoPaymentSimulationService {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{payments: array{fake_gateway_enabled: bool}} $security */
+            $security = $c->get('config.security');
+
+            return new DemoPaymentSimulationService(
+                EnvironmentCapability::fromEnvName($app['env']),
+                $security['payments']['fake_gateway_enabled'],
+                $c->get(PaymentCheckoutService::class),
+                $c->get(PaymentRepository::class),
+                $c->get(PaymentGateway::class),
+                $c->get(FakeWebhookSigner::class),
+                $c->get(RazorpayWebhookIngressService::class),
+                $c->get(PaymentWebhookProcessor::class),
+            );
+        },
         FinancePaymentQueryService::class => static fn (ContainerInterface $c): FinancePaymentQueryService => new FinancePaymentQueryService(
             $c->get(AuthorizationService::class),
             $c->get(PaymentRepository::class),
@@ -478,6 +828,36 @@ return static function (): ContainerInterface {
         ),
         EnrolmentRepository::class => static fn (ContainerInterface $c): EnrolmentRepository => new PdoEnrolmentRepository(
             $c->get(ConnectionFactory::class),
+        ),
+        ContentProgressRepository::class => static fn (ContainerInterface $c): ContentProgressRepository => new PdoContentProgressRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        PlayerAccessPolicy::class => static fn (): PlayerAccessPolicy => new PlayerAccessPolicy(),
+        ModuleReleasePolicy::class => static fn (): ModuleReleasePolicy => new ModuleReleasePolicy(),
+        LearnerPlayerQueryService::class => static fn (ContainerInterface $c): LearnerPlayerQueryService => new LearnerPlayerQueryService(
+            $c->get(AuthorizationService::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(CourseRepository::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(PlayerAccessPolicy::class),
+            $c->get(ModuleReleasePolicy::class),
+            $c->get(AssessmentRepository::class),
+            $c->get(AssessmentAttemptRepository::class),
+        ),
+        MarkContentCompleteService::class => static fn (ContainerInterface $c): MarkContentCompleteService => new MarkContentCompleteService(
+            $c->get(AuthorizationService::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(PlayerAccessPolicy::class),
+            $c->get(ModuleReleasePolicy::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+            $c->get(CertificateIssuanceService::class),
         ),
         EnrolmentStatusHistoryRepository::class => static fn (ContainerInterface $c): EnrolmentStatusHistoryRepository => new PdoEnrolmentStatusHistoryRepository(
             $c->get(ConnectionFactory::class),
@@ -639,7 +1019,7 @@ return static function (): ContainerInterface {
             $security = $c->get('config.security');
             $documents = $security['documents'];
 
-            if ($documents['storage_driver'] === 'local' && in_array($app['env'], ['local', 'testing', 'ci'], true)) {
+            if ($documents['storage_driver'] === 'local' && EnvironmentCapability::fromEnvName($app['env'])->allowsFakeOrLocalAdapters()) {
                 return $c->get(LocalObjectStorage::class);
             }
 
@@ -652,7 +1032,7 @@ return static function (): ContainerInterface {
             $security = $c->get('config.security');
             $documents = $security['documents'];
 
-            if ($documents['fake_scanner_enabled'] && in_array($app['env'], ['local', 'testing', 'ci'], true)) {
+            if ($documents['fake_scanner_enabled'] && EnvironmentCapability::fromEnvName($app['env'])->allowsFakeOrLocalAdapters()) {
                 return new FakeMalwareScanner($app['env'], $documents['fake_scanner_enabled']);
             }
 
@@ -708,7 +1088,8 @@ return static function (): ContainerInterface {
             /** @var array{documents: array{upload_ttl_seconds: int, storage_driver: string}} $security */
             $security = $c->get('config.security');
             $documents = $security['documents'];
-            $localUploadUrlOverride = $documents['storage_driver'] === 'local' && in_array($app['env'], ['local', 'testing', 'ci'], true);
+            $localUploadUrlOverride = $documents['storage_driver'] === 'local'
+                && EnvironmentCapability::fromEnvName($app['env'])->allowsFakeOrLocalAdapters();
 
             return new DocumentUploadService(
                 $c->get(TransactionManager::class),
@@ -828,7 +1209,6 @@ return static function (): ContainerInterface {
 
         BatchAvailabilityEvaluator::class => static fn (): BatchAvailabilityEvaluator => new BatchAvailabilityEvaluator(),
         BatchDateValidator::class => static fn (): BatchDateValidator => new BatchDateValidator(),
-        CourseVersionImmutabilityGuard::class => static fn (): CourseVersionImmutabilityGuard => new CourseVersionImmutabilityGuard(),
         ApplicationDraftFactory::class => static fn (): ApplicationDraftFactory => new ApplicationDraftFactory(),
         CatalogueService::class => static fn (ContainerInterface $c): CatalogueService => new CatalogueService(
             $c->get(CourseRepository::class),
@@ -1263,6 +1643,8 @@ return static function (): ContainerInterface {
             $router->setStrategy($strategy);
 
             $router->get('/health', [HealthController::class, 'handle']);
+            $router->get('/health/live', [HealthController::class, 'live']);
+            $router->get('/health/ready', [HealthController::class, 'ready']);
             $router->get('/smoke', [SmokeController::class, 'handle']);
 
             $router->get('/register', [RegistrationController::class, 'showForm']);
@@ -1348,6 +1730,54 @@ return static function (): ContainerInterface {
                 'dashboard.view_own',
             );
 
+            /** @var RouteAccess $learningAccess */
+            $learningAccess = $c->get(RouteAccess::class);
+            $learningAccess->requirePermission(
+                $router->get('/learning/enrolments/{enrolmentId}', [LearnerPlayerController::class, 'outline']),
+                'learning.content.access',
+            );
+            $learningAccess->requirePermission(
+                $router->get('/learning/enrolments/{enrolmentId}/items/{contentId}', [LearnerPlayerController::class, 'item']),
+                'learning.content.access',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/complete', [LearnerPlayerController::class, 'complete']),
+                'learning.content.access',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/assessments/{assessmentId}/attempts', [AssessmentAttemptController::class, 'start']),
+                'assessment.attempt.own',
+            );
+            $learningAccess->requirePermission(
+                $router->get('/learning/attempts/{attemptId}', [AssessmentAttemptController::class, 'show']),
+                'assessment.attempt.own',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/attempts/{attemptId}/responses', [AssessmentAttemptController::class, 'saveResponses']),
+                'assessment.attempt.own',
+            );
+            $learningAccess->requirePermission(
+                $router->put('/learning/attempts/{attemptId}/responses', [AssessmentAttemptController::class, 'saveResponses']),
+                'assessment.attempt.own',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/attempts/{attemptId}/submit', [AssessmentAttemptController::class, 'submit']),
+                'assessment.attempt.own',
+            );
+            $learningAccess->requirePermission(
+                $router->get('/learning/enrolments/{enrolmentId}/certificates', [CertificateController::class, 'listForEnrolment']),
+                'certificate.view_own',
+            );
+            $learningAccess->requirePermission(
+                $router->get('/certificates/{certificateId}', [CertificateController::class, 'show']),
+                'certificate.view_own',
+            );
+            $learningAccess->requirePermission(
+                $router->get('/certificates/{certificateId}/pdf', [CertificateController::class, 'downloadPdf']),
+                'certificate.view_own',
+            );
+            $router->get('/verify/certificates/{certificateNumber}', [CertificateController::class, 'verifyPublic']);
+
             /** @var RouteAccess $notificationAccess */
             $notificationAccess = $c->get(RouteAccess::class);
             $notificationAccess->requirePermission(
@@ -1361,6 +1791,109 @@ return static function (): ContainerInterface {
             $notificationAccess->requirePermission(
                 $router->post('/admin/notifications/{id}/retry', [AdminNotificationController::class, 'retry']),
                 'notification.retry',
+            );
+
+            /** @var RouteAccess $courseAdminAccess */
+            $courseAdminAccess = $c->get(RouteAccess::class);
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses', [CourseAdminController::class, 'index']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/new', [CourseAdminController::class, 'newForm']),
+                'course.create',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses', [CourseAdminController::class, 'create']),
+                'course.create',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}', [CourseAdminController::class, 'showCourse']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/versions/{versionId}', [CourseAdminController::class, 'showVersion']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}', [CourseAdminController::class, 'updateVersion']),
+                'course.version.edit',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/publish', [CourseVersionLifecycleController::class, 'publish']),
+                'course.version.publish',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/clone', [CourseVersionLifecycleController::class, 'cloneVersion']),
+                'course.version.clone',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/versions/{versionId}/batches/new', [CourseVersionLifecycleController::class, 'batchNewForm']),
+                'batch.create',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/batches', [CourseVersionLifecycleController::class, 'batchCreate']),
+                'batch.create',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/course-admin-scopes', [CourseAdminController::class, 'scopeForm']),
+                'course.admin.scope.assign',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/course-admin-scopes', [CourseAdminController::class, 'assignScope']),
+                'course.admin.scope.assign',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/versions/{versionId}/curriculum', [CourseCurriculumController::class, 'show']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules', [CourseCurriculumController::class, 'createModule']),
+                'module.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules/{moduleId}', [CourseCurriculumController::class, 'updateModule']),
+                'module.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules/{moduleId}/delete', [CourseCurriculumController::class, 'deleteModule']),
+                'module.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules/{moduleId}/content', [CourseCurriculumController::class, 'createContent']),
+                'content.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules/{moduleId}/content/{contentId}', [CourseCurriculumController::class, 'updateContent']),
+                'content.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/modules/{moduleId}/content/{contentId}/delete', [CourseCurriculumController::class, 'deleteContent']),
+                'content.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/question-bank', [QuestionBankController::class, 'index']),
+                'question_bank.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/question-bank/questions', [QuestionBankController::class, 'create']),
+                'question_bank.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/question-bank/questions/{questionId}', [QuestionBankController::class, 'update']),
+                'question_bank.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/question-bank/questions/{questionId}/delete', [QuestionBankController::class, 'delete']),
+                'question_bank.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/content-items/{contentId}/assessment', [AssessmentConfigController::class, 'show']),
+                'assessment.manage',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/content-items/{contentId}/assessment', [AssessmentConfigController::class, 'save']),
+                'assessment.manage',
             );
 
             /** @var RouteAccess $applicationAccess */
@@ -1417,6 +1950,10 @@ return static function (): ContainerInterface {
             $applicationAccess->requirePermission(
                 $router->post('/applications/{id}/payments/{paymentId}/checkout-return', [PaymentController::class, 'checkoutReturn']),
                 'payment.view_own',
+            );
+            $applicationAccess->requirePermission(
+                $router->post('/applications/{id}/payments/{paymentId}/demo-capture', [PaymentController::class, 'demoCapture']),
+                'payment.initiate_own',
             );
             $applicationAccess->requirePermission(
                 $router->get('/applications/{id}/payment-result', [PaymentController::class, 'result']),
@@ -1493,6 +2030,10 @@ return static function (): ContainerInterface {
             );
 
             $applicationAccess->requirePermission(
+                $router->post('/applications/{id}/documents/upload', [DocumentController::class, 'uploadForm']),
+                'document.upload_own',
+            );
+            $applicationAccess->requirePermission(
                 $router->post('/applications/{id}/documents/upload-authorizations', [DocumentController::class, 'authorizeUpload']),
                 'document.upload_own',
             );
@@ -1514,7 +2055,9 @@ return static function (): ContainerInterface {
 
             /** @var array{documents: array{storage_driver: string}} $security */
             $security = $c->get('config.security');
-            if ($security['documents']['storage_driver'] === 'local' && in_array($app['env'], ['local', 'testing', 'ci'], true)) {
+            if ($security['documents']['storage_driver'] === 'local'
+                && EnvironmentCapability::fromEnvName($app['env'])->allowsFakeOrLocalAdapters()
+            ) {
                 // Emulates the client "upload to S3" / "signed GET" steps for local
                 // development only — never registered when a real object storage
                 // driver is configured (WP03_IMPLEMENTATION_NOTE.md "Storage / scanner").
@@ -1569,7 +2112,68 @@ return static function (): ContainerInterface {
             $c->get(Router::class),
         ),
 
-        HealthController::class => static fn (): HealthController => new HealthController(),
+        HealthController::class => static fn (ContainerInterface $c): HealthController => new HealthController(
+            $c->get('config'),
+            $c->get(ConnectionFactory::class),
+            $c->get(ReadinessProbe::class),
+        ),
+        ReadinessProbe::class => static fn (): ReadinessProbe => new ReadinessProbe(),
+        UatSeedService::class => static function (ContainerInterface $c): UatSeedService {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+
+            return new UatSeedService(
+                $c->get(ConnectionFactory::class),
+                EnvironmentCapability::fromEnvName($app['env']),
+            );
+        },
+        UatResetService::class => static function (ContainerInterface $c): UatResetService {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+
+            return new UatResetService(
+                $c->get(ConnectionFactory::class),
+                EnvironmentCapability::fromEnvName($app['env']),
+            );
+        },
+        DemoPrepareService::class => static function (ContainerInterface $c): DemoPrepareService {
+            /** @var array{env: string, url: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{
+             *   payments: array{fake_gateway_enabled: bool},
+             *   documents: array{fake_scanner_enabled: bool, storage_driver: string},
+             *   notifications: array{email_adapter: string}
+             * } $security
+             */
+            $security = $c->get('config.security');
+            /** @var array{root: string} $paths */
+            $paths = $c->get('config.paths');
+
+            return new DemoPrepareService(
+                EnvironmentCapability::fromEnvName($app['env']),
+                $c->get(UatSeedService::class),
+                $paths['root'],
+                $app['url'] !== '' ? $app['url'] : 'http://127.0.0.1:8080',
+                $security['payments']['fake_gateway_enabled'],
+                $security['documents']['fake_scanner_enabled'],
+                $security['documents']['storage_driver'],
+                $security['notifications']['email_adapter'],
+            );
+        },
+        DemoProcessService::class => static function (ContainerInterface $c): DemoProcessService {
+            /** @var array{env: string} $app */
+            $app = $c->get('config.app');
+
+            return new DemoProcessService(
+                EnvironmentCapability::fromEnvName($app['env']),
+                $c->get(DocumentScanWorker::class),
+                $c->get(OutboxRelayService::class),
+                $c->get(PaymentWebhookProcessor::class),
+                $c->get(PaymentReconciliationService::class),
+                $c->get(IdentityNotificationDeliveryWorker::class),
+                $c->get(TransactionalNotificationDeliveryWorker::class),
+            );
+        },
         SmokeController::class => static fn (ContainerInterface $c): SmokeController => new SmokeController(
             $c->get(PhpRenderer::class),
         ),
@@ -1620,6 +2224,8 @@ return static function (): ContainerInterface {
         ),
         PaymentController::class => static fn (ContainerInterface $c): PaymentController => new PaymentController(
             $c->get(PaymentCheckoutService::class),
+            $c->get(DemoPaymentSimulationService::class),
+            $c->get(LearnerStatusPresenter::class),
             $c->get(PhpRenderer::class),
         ),
         FinancePaymentController::class => static fn (ContainerInterface $c): FinancePaymentController => new FinancePaymentController(
@@ -1654,9 +2260,57 @@ return static function (): ContainerInterface {
             $c->get(LearnerDashboardQueryService::class),
             $c->get(PhpRenderer::class),
         ),
+        LearnerPlayerController::class => static fn (ContainerInterface $c): LearnerPlayerController => new LearnerPlayerController(
+            $c->get(LearnerPlayerQueryService::class),
+            $c->get(MarkContentCompleteService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        AssessmentAttemptController::class => static fn (ContainerInterface $c): AssessmentAttemptController => new AssessmentAttemptController(
+            $c->get(StartAssessmentAttemptService::class),
+            $c->get(SaveAssessmentResponsesService::class),
+            $c->get(SubmitAssessmentAttemptService::class),
+            $c->get(AssessmentAttemptQueryService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        CertificateController::class => static fn (ContainerInterface $c): CertificateController => new CertificateController(
+            $c->get(CertificateQueryService::class),
+            $c->get(SimpleCertificatePdfRenderer::class),
+            $c->get(PhpRenderer::class),
+            $c->get(RateLimiter::class),
+        ),
         AdminNotificationController::class => static fn (ContainerInterface $c): AdminNotificationController => new AdminNotificationController(
             $c->get(AdminNotificationQueryService::class),
             $c->get(AdminNotificationRetryService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        CourseAdminController::class => static fn (ContainerInterface $c): CourseAdminController => new CourseAdminController(
+            $c->get(CourseAdminQueryService::class),
+            $c->get(CreateCourseService::class),
+            $c->get(UpdateDraftCourseVersionService::class),
+            $c->get(AssignCourseAdminScopeService::class),
+            $c->get(BatchRepository::class),
+            $c->get(PhpRenderer::class),
+        ),
+        CourseVersionLifecycleController::class => static fn (ContainerInterface $c): CourseVersionLifecycleController => new CourseVersionLifecycleController(
+            $c->get(CourseAdminQueryService::class),
+            $c->get(PublishCourseVersionService::class),
+            $c->get(CloneCourseVersionService::class),
+            $c->get(CreateBatchForPublishedVersionService::class),
+            $c->get(BatchRepository::class),
+            $c->get(PhpRenderer::class),
+        ),
+        CourseCurriculumController::class => static fn (ContainerInterface $c): CourseCurriculumController => new CourseCurriculumController(
+            $c->get(CurriculumQueryService::class),
+            $c->get(ModuleCommandService::class),
+            $c->get(ContentItemCommandService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        QuestionBankController::class => static fn (ContainerInterface $c): QuestionBankController => new QuestionBankController(
+            $c->get(QuestionBankService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        AssessmentConfigController::class => static fn (ContainerInterface $c): AssessmentConfigController => new AssessmentConfigController(
+            $c->get(AssessmentConfigService::class),
             $c->get(PhpRenderer::class),
         ),
         LoginController::class => static fn (ContainerInterface $c): LoginController => new LoginController(
@@ -1754,6 +2408,7 @@ return static function (): ContainerInterface {
                 $c->get(SessionService::class),
                 SessionCookieSettings::fromSessionConfig($security['session']),
                 $security['session']['required_path_prefixes'],
+                $c->get(CurrentCsrfToken::class),
             );
         },
 
@@ -1771,6 +2426,7 @@ return static function (): ContainerInterface {
                 $c->get(UserSecuritySnapshotRepository::class),
                 $c->get(SessionService::class),
                 SessionCookieSettings::fromSessionConfig($security['session']),
+                $c->get(CurrentAuth::class),
             );
         },
 

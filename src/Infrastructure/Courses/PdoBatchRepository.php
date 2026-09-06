@@ -75,6 +75,50 @@ final class PdoBatchRepository implements BatchRepository
         return $batches;
     }
 
+    public function insert(array $data): int
+    {
+        $pdo = $this->connections->connection();
+        $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $fmt = static fn (DateTimeImmutable $dt): string => $dt
+            ->setTimezone(new DateTimeZone('UTC'))
+            ->format('Y-m-d H:i:s.u');
+
+        $stmt = $pdo->prepare(
+            'INSERT INTO batches (
+                course_version_id, batch_code, name, starts_at, ends_at, applications_open_at,
+                applications_close_at, min_capacity, max_capacity, delivery_mode, venue_or_online_details,
+                timezone, fee_override, currency, status, access_expires_at, created_at, updated_at
+             ) VALUES (
+                :course_version_id, :batch_code, :name, :starts_at, :ends_at, :applications_open_at,
+                :applications_close_at, :min_capacity, :max_capacity, :delivery_mode, :venue_or_online_details,
+                :timezone, :fee_override, :currency, :status, :access_expires_at, :created_at, :updated_at
+             )',
+        );
+        $accessExpires = $data['access_expires_at'];
+        $stmt->execute([
+            'course_version_id' => $data['course_version_id'],
+            'batch_code' => $data['batch_code'],
+            'name' => $data['name'],
+            'starts_at' => $fmt($data['starts_at']),
+            'ends_at' => $fmt($data['ends_at']),
+            'applications_open_at' => $fmt($data['applications_open_at']),
+            'applications_close_at' => $fmt($data['applications_close_at']),
+            'min_capacity' => $data['min_capacity'],
+            'max_capacity' => $data['max_capacity'],
+            'delivery_mode' => $data['delivery_mode'],
+            'venue_or_online_details' => $data['venue_or_online_details'],
+            'timezone' => $data['timezone'],
+            'fee_override' => $data['fee_override'],
+            'currency' => $data['currency'],
+            'status' => $data['status'],
+            'access_expires_at' => $accessExpires === null ? null : $fmt($accessExpires),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return (int) $pdo->lastInsertId();
+    }
+
     /**
      * @param array<string, mixed> $row
      */

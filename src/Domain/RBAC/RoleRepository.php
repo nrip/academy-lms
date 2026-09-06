@@ -9,4 +9,6 @@ interface RoleRepository
     public function findByKey(string $roleKey): ?Role;
 
     public function findById(int $roleId): ?Role;
+
+    public function userHasActiveRole(int $userId, string $roleKey): bool;
 }

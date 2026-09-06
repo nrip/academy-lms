@@ -78,6 +78,11 @@ SQL;
 SELECT
     a.application_id,
     a.application_number,
+    COALESCE(
+        NULLIF(TRIM(lp.preferred_display_name), ''),
+        NULLIF(TRIM(CONCAT_WS(' ', lp.first_name, lp.last_name)), ''),
+        ''
+    ) AS learner_display_name,
     cv.title AS course_title,
     b.name AS batch_label,
     a.submitted_at,
@@ -101,6 +106,7 @@ SELECT
 FROM applications a
 INNER JOIN course_versions cv ON cv.version_id = a.course_version_id
 INNER JOIN batches b ON b.batch_id = a.batch_id
+LEFT JOIN learner_profiles lp ON lp.user_id = a.user_id
 LEFT JOIN application_review_assignments ara
     ON ara.application_id = a.application_id
    AND ara.active_marker = 1
@@ -134,6 +140,7 @@ SQL;
             $items[] = new ReviewerQueueItem(
                 applicationId: (int) $row['application_id'],
                 applicationNumber: (string) $row['application_number'],
+                learnerDisplayName: (string) ($row['learner_display_name'] ?? ''),
                 courseTitle: (string) $row['course_title'],
                 batchLabel: (string) $row['batch_label'],
                 submittedAt: $submittedAt,
@@ -162,7 +169,7 @@ AND NOT EXISTS (
        AND ds.requirement_id = cdr.requirement_id
        AND ds.current_marker = 1
     WHERE cdr.course_version_id = a.course_version_id
-      AND cdr.mandatory = 1
+      AND cdr.mandatory_flag = 1
       AND (
           ds.document_submission_id IS NULL
           OR ds.status <> 'approved'

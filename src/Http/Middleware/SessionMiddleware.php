@@ -8,6 +8,7 @@ use Academy\Application\Security\SessionService;
 use Academy\Domain\Exception\ServiceUnavailableException;
 use Academy\Http\Security\SessionCookieClearance;
 use Academy\Http\Security\SessionCookieSettings;
+use Academy\Http\View\CurrentCsrfToken;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -29,12 +30,14 @@ final class SessionMiddleware implements MiddlewareInterface
         private readonly SessionService $sessions,
         private readonly SessionCookieSettings $cookies,
         private readonly array $requiredPathPrefixes = [],
+        private readonly ?CurrentCsrfToken $currentCsrf = null,
     ) {
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $request = $this->trace($request, 'Session');
+        $this->currentCsrf?->clear();
 
         $cookies = $request->getCookieParams();
         $rawToken = isset($cookies[$this->cookies->sessionCookieName])
@@ -77,6 +80,8 @@ final class SessionMiddleware implements MiddlewareInterface
             ->withAttribute(self::ATTR_SESSION, $loaded['record'])
             ->withAttribute(self::ATTR_RAW_TOKEN, $loaded['raw_token'])
             ->withAttribute(self::ATTR_RAW_CSRF, $rawCsrf);
+
+        $this->currentCsrf?->set($rawCsrf);
 
         $response = $handler->handle($request);
 

@@ -40,6 +40,27 @@ final class PdoRoleRepository implements RoleRepository
         return $row === false ? null : $this->map($row);
     }
 
+    public function userHasActiveRole(int $userId, string $roleKey): bool
+    {
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'SELECT 1
+             FROM user_roles ur
+             INNER JOIN roles r ON r.role_id = ur.role_id
+             WHERE ur.user_id = :user_id
+               AND r.role_key = :role_key
+               AND ur.current_marker = 1
+               AND ur.revoked_at IS NULL
+             LIMIT 1',
+        );
+        $stmt->execute([
+            'user_id' => $userId,
+            'role_key' => $roleKey,
+        ]);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
     /**
      * @param array<string, mixed> $row
      */

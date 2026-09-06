@@ -40,14 +40,22 @@ final class DocumentFileValidatorTest extends TestCase
 
     public function testRejectsFileLargerThanRequirementLimit(): void
     {
-        $this->expectException(ValidationException::class);
-        $this->validator->assertAllowed($this->requirement(maxSizeBytes: 1000), 'application/pdf', 2000, 'file.pdf');
+        try {
+            $this->validator->assertAllowed($this->requirement(maxSizeBytes: 1000), 'application/pdf', 2000, 'file.pdf');
+            self::fail('Expected ValidationException');
+        } catch (ValidationException $exception) {
+            self::assertStringContainsString('larger than the', $exception->fields()['size_bytes'][0]);
+        }
     }
 
     public function testRejectsFileLargerThanPlatformCap(): void
     {
-        $this->expectException(ValidationException::class);
-        $this->validator->assertAllowed($this->requirement(maxSizeBytes: 999999999), 'application/pdf', 20 * 1024 * 1024, 'file.pdf');
+        try {
+            $this->validator->assertAllowed($this->requirement(maxSizeBytes: 999999999), 'application/pdf', 20 * 1024 * 1024, 'file.pdf');
+            self::fail('Expected ValidationException');
+        } catch (ValidationException $exception) {
+            self::assertSame(['This file is larger than the 10 MB limit.'], $exception->fields()['size_bytes']);
+        }
     }
 
     public function testRejectsDeniedExtension(): void
