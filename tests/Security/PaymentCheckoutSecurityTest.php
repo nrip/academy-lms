@@ -178,14 +178,18 @@ final class PaymentCheckoutSecurityTest extends TestCase
         };
 
         $_ENV['PAYMENTS_FAKE_GATEWAY'] = '1';
+        putenv('PAYMENTS_FAKE_GATEWAY=1');
         $_ENV['RAZORPAY_KEY_ID'] = 'rzp_live_test';
         $_ENV['RAZORPAY_KEY_SECRET'] = 'secret';
         $_ENV['TOKEN_PEPPER'] = 'staging-token-pepper-value';
         $_ENV['OTP_PEPPER'] = 'staging-otp-pepper-different';
         $_ENV['NOTIFICATION_DELIVERY_KEY'] = base64_encode(str_repeat('a', 32));
         $_ENV['RATE_LIMIT_PEPPER'] = 'staging-rate-limit-pepper';
+        // Isolate from sibling suites that leave recording/local adapters in $_ENV.
+        $_ENV['NOTIFICATION_EMAIL_ADAPTER'] = 'unavailable';
+        $_ENV['NOTIFICATION_SMS_ADAPTER'] = 'unavailable';
 
-        /** @var callable(string, callable, callable, callable): array $builder */
+        /** @var callable(string, callable, callable, callable, \Academy\Application\Ops\EnvironmentCapability|null): array $builder */
         $builder = require dirname(__DIR__, 2) . '/config/security.php';
 
         $this->expectException(InvalidArgumentException::class);
@@ -193,6 +197,7 @@ final class PaymentCheckoutSecurityTest extends TestCase
         try {
             $builder('staging', $bool, $string, $int);
         } finally {
+            putenv('PAYMENTS_FAKE_GATEWAY');
             unset(
                 $_ENV['PAYMENTS_FAKE_GATEWAY'],
                 $_ENV['RAZORPAY_KEY_ID'],
@@ -201,6 +206,8 @@ final class PaymentCheckoutSecurityTest extends TestCase
                 $_ENV['OTP_PEPPER'],
                 $_ENV['NOTIFICATION_DELIVERY_KEY'],
                 $_ENV['RATE_LIMIT_PEPPER'],
+                $_ENV['NOTIFICATION_EMAIL_ADAPTER'],
+                $_ENV['NOTIFICATION_SMS_ADAPTER'],
             );
         }
     }

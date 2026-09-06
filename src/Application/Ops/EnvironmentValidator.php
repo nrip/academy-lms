@@ -100,8 +100,16 @@ final class EnvironmentValidator
         if ($capability->isProductionLike() && $fakeGateway) {
             $errors[] = 'PAYMENTS_FAKE_GATEWAY is forbidden in staging/production.';
         }
-        if ($capability->isProductionLike() && ($payments['razorpay_webhook_secret'] ?? '') === '') {
-            $warnings[] = 'RAZORPAY_WEBHOOK_SECRET is empty; webhook ingress will fail closed until configured.';
+        if ($capability->isProductionLike() && !$fakeGateway) {
+            if (trim((string) ($payments['razorpay_key_id'] ?? '')) === '') {
+                $errors[] = 'RAZORPAY_KEY_ID is required in staging/production when the fake gateway is disabled.';
+            }
+            if (trim((string) ($payments['razorpay_key_secret'] ?? '')) === '') {
+                $errors[] = 'RAZORPAY_KEY_SECRET is required in staging/production when the fake gateway is disabled.';
+            }
+            if (trim((string) ($payments['razorpay_webhook_secret'] ?? '')) === '') {
+                $errors[] = 'RAZORPAY_WEBHOOK_SECRET is required in staging/production when the fake gateway is disabled.';
+            }
         }
 
         $storagePath = (string) ($paths['storage'] ?? '');

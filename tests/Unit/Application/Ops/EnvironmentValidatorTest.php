@@ -27,6 +27,26 @@ final class EnvironmentValidatorTest extends TestCase
         self::assertStringNotContainsString('super-secret-value-xyz', $joined);
     }
 
+    public function testProductionLikeRequiresRazorpayCredentialsWhenFakeGatewayDisabled(): void
+    {
+        $config = $this->baseConfig('production');
+        $config['security']['payments']['fake_gateway_enabled'] = false;
+        $config['security']['payments']['razorpay_key_id'] = '';
+        $config['security']['payments']['razorpay_key_secret'] = '';
+        $config['security']['payments']['razorpay_webhook_secret'] = '';
+
+        $result = (new EnvironmentValidator())->validate(
+            $config,
+            EnvironmentCapability::fromEnvName('production'),
+        );
+
+        self::assertFalse($result->ok());
+        $joined = implode(' ', $result->errors());
+        self::assertStringContainsString('RAZORPAY_KEY_ID', $joined);
+        self::assertStringContainsString('RAZORPAY_KEY_SECRET', $joined);
+        self::assertStringContainsString('RAZORPAY_WEBHOOK_SECRET', $joined);
+    }
+
     public function testUatAllowsExplicitFakeGatewayWhenConfigured(): void
     {
         $config = $this->baseConfig('uat');

@@ -108,6 +108,70 @@ final class WebhookAdmissionEnrolmentFlowTest extends TestCase
         self::assertSame(1, (int) $stmt->fetchColumn());
     }
 
+    public function testFailedWebhookMarksPaymentFailedWithoutAdmission(): void
+    {
+        $fixture = PaymentTestFixture::seedPaymentPendingApplication();
+        $container = ApplicationFactory::container('testing');
+        $checkout = $container->get(PaymentCheckoutService::class);
+        $payment = $checkout->initiate($fixture['applicant_auth'], $fixture['application_id']);
+        self::assertSame(PaymentStatus::PENDING, $payment->status);
+        self::assertNotNull($payment->providerOrderId);
+
+        /** @var FakePaymentGateway $gateway */
+        $gateway = $container->get(\Academy\Domain\Payments\PaymentGateway::class);
+        $failed = $gateway->simulateFailure(
+            $payment->providerOrderId,
+            $payment->amountMinor,
+            $payment->currency,
+            'gateway_declined',
+            'pay_flow_fail_1',
+        );
+
+        $payload = [
+            'id' => 'evt_flow_fail_1',
+            'event' => 'payment.failed',
+            'created_at' => time(),
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id' => $failed->providerPaymentId,
+                        'order_id' => $payment->providerOrderId,
+                        'amount' => $payment->amountMinor,
+                        'currency' => $payment->currency,
+                        'status' => 'failed',
+                        'captured' => false,
+                        'error_code' => 'gateway_declined',
+                        'error_reason' => 'payment_failed',
+                    ],
+                ],
+            ],
+        ];
+        $raw = json_encode($payload, JSON_THROW_ON_ERROR);
+        $signature = $container->get(FakeWebhookSigner::class)->sign($raw);
+
+        $ingress = $container->get(RazorpayWebhookIngressService::class);
+        $receipt = $ingress->receive($raw, $signature, 'application/json');
+        self::assertFalse($receipt['duplicate']);
+
+        $processed = $container->get(PaymentWebhookProcessor::class)->run('test-worker-fail');
+        self::assertGreaterThanOrEqual(1, $processed);
+
+        $pdo = DatabaseTestCase::pdo();
+        $stmt = $pdo->prepare('SELECT status, successful_marker FROM payments WHERE payment_id = ?');
+        $stmt->execute([$payment->paymentId]);
+        $payRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+        self::assertSame(PaymentStatus::FAILED, $payRow['status']);
+        self::assertNull($payRow['successful_marker']);
+
+        $stmt = $pdo->prepare('SELECT status FROM applications WHERE application_id = ?');
+        $stmt->execute([$fixture['application_id']]);
+        self::assertSame(ApplicationStatus::PAYMENT_PENDING, $stmt->fetchColumn());
+
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM enrolments WHERE application_id = ?');
+        $stmt->execute([$fixture['application_id']]);
+        self::assertSame(0, (int) $stmt->fetchColumn());
+    }
+
     public function testInvalidSignatureDoesNotPersistReceipt(): void
     {
         $container = ApplicationFactory::container('testing');

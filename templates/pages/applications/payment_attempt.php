@@ -12,6 +12,7 @@ use Academy\Domain\Payments\PaymentStatus;
 /** @var \Academy\Domain\Payments\Payment $payment */
 /** @var string|null $gatewayPublicKeyId */
 /** @var bool $demoPaymentAvailable */
+/** @var \Academy\Application\Branding\AcademyBranding $branding */
 
 $demoPaymentAvailable = $demoPaymentAvailable ?? false;
 $statusLabel = match ($payment->status) {
@@ -59,7 +60,7 @@ ob_start();
                  data-order="<?= $e->attr($payment->providerOrderId) ?>"
                  data-amount="<?= $e->attr($payment->amountMinor) ?>"
                  data-currency="<?= $e->attr($payment->currency) ?>"
-                 data-name="<?= $e->attr('Academy LMS') ?>"
+                 data-name="<?= $e->attr($branding->name) ?>"
                  data-description="<?= $e->attr($payment->publicReference) ?>"
                  data-return-action="/applications/<?= $e->attr($application->applicationId) ?>/payments/<?= $e->attr($payment->paymentId) ?>/checkout-return"
                  data-csrf="<?= $e->attr($csrf) ?>">
