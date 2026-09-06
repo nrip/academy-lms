@@ -17,9 +17,10 @@ Use before any Product Owner or prospective-user session.
 
 - [ ] `php bin/jobs.php demo:prepare --confirm` succeeded (twice if proving idempotency)
 - [ ] Printed persona emails and password reviewed
-- [ ] Course **Certificate Course in Obesity and Metabolic Health** visible in catalogue
-- [ ] Open batch visible with seats and application dates
-- [ ] Seeded scenarios present (draft through full-batch)
+- [ ] Course **Phase 1 Demo — Obesity Learning Pathway** visible in catalogue (player / MCQ / cert path)
+- [ ] Course **Certificate Course in Obesity and Metabolic Health** visible (Mode A catalogue)
+- [ ] Phase 1 batch open with `starts_at` in the past (Active enrolment path)
+- [ ] Seeded scenarios present (draft through full-batch + Phase 1 learn/cert)
 
 ## Runtime
 
@@ -46,7 +47,7 @@ Use before any Product Owner or prospective-user session.
 
 - [ ] Staging/production-like `APP_ENV` refuses `demo:prepare` / fake adapters
 - [ ] No production secrets in `.env` committed
-- [ ] Presenter knows features that are **out of scope** (player, assessments, certificates, refunds)
+- [ ] Presenter knows features that are **out of scope** (video, PDF media download, cert designer/revoke/QR, production SES/S3/Razorpay, refunds)
 
 ## Facilitation
 

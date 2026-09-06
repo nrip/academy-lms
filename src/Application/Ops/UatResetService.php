@@ -60,6 +60,65 @@ final class UatResetService
             if ($ids !== []) {
                 $in = implode(',', array_fill(0, count($ids), '?'));
 
+                // Phase 1 learning children must be removed before enrolments (RESTRICT FKs).
+                try {
+                    $pdo->prepare(
+                        "DELETE ce FROM certificate_events ce
+                         INNER JOIN certificates c ON c.certificate_id = ce.certificate_id
+                         INNER JOIN enrolments e ON e.enrolment_id = c.enrolment_id
+                         INNER JOIN applications a ON a.application_id = e.application_id
+                         WHERE a.user_id IN ($in) OR a.application_number LIKE ?",
+                    )->execute([...$ids, $marker]);
+                    $pdo->prepare(
+                        "DELETE c FROM certificates c
+                         INNER JOIN enrolments e ON e.enrolment_id = c.enrolment_id
+                         INNER JOIN applications a ON a.application_id = e.application_id
+                         WHERE a.user_id IN ($in) OR a.application_number LIKE ?",
+                    )->execute([...$ids, $marker]);
+                } catch (\Throwable) {
+                }
+
+                try {
+                    $pdo->prepare(
+                        "DELETE ar FROM assessment_responses ar
+                         INNER JOIN assessment_attempts aa ON aa.attempt_id = ar.attempt_id
+                         INNER JOIN enrolments e ON e.enrolment_id = aa.enrolment_id
+                         INNER JOIN applications a ON a.application_id = e.application_id
+                         WHERE a.user_id IN ($in) OR a.application_number LIKE ?",
+                    )->execute([...$ids, $marker]);
+                    $pdo->prepare(
+                        "DELETE aaq FROM assessment_attempt_questions aaq
+                         INNER JOIN assessment_attempts aa ON aa.attempt_id = aaq.attempt_id
+                         INNER JOIN enrolments e ON e.enrolment_id = aa.enrolment_id
+                         INNER JOIN applications a ON a.application_id = e.application_id
+                         WHERE a.user_id IN ($in) OR a.application_number LIKE ?",
+                    )->execute([...$ids, $marker]);
+                    $pdo->prepare(
+                        "DELETE aah FROM assessment_attempt_status_history aah
+                         INNER JOIN assessment_attempts aa ON aa.attempt_id = aah.attempt_id
+                         INNER JOIN enrolments e ON e.enrolment_id = aa.enrolment_id
+                         INNER JOIN applications a ON a.application_id = e.application_id
+                         WHERE a.user_id IN ($in) OR a.application_number LIKE ?",
+                    )->execute([...$ids, $marker]);
+                    $pdo->prepare(
+                        "DELETE aa FROM assessment_attempts aa
+                         INNER JOIN enrolments e ON e.enrolment_id = aa.enrolment_id
+                         INNER JOIN applications a ON a.application_id = e.application_id
+                         WHERE a.user_id IN ($in) OR a.application_number LIKE ?",
+                    )->execute([...$ids, $marker]);
+                } catch (\Throwable) {
+                }
+
+                try {
+                    $pdo->prepare(
+                        "DELETE cp FROM content_progress cp
+                         INNER JOIN enrolments e ON e.enrolment_id = cp.enrolment_id
+                         INNER JOIN applications a ON a.application_id = e.application_id
+                         WHERE a.user_id IN ($in) OR a.application_number LIKE ?",
+                    )->execute([...$ids, $marker]);
+                } catch (\Throwable) {
+                }
+
                 $pdo->prepare(
                     "DELETE e FROM enrolments e
                      INNER JOIN applications a ON a.application_id = e.application_id
@@ -90,6 +149,13 @@ final class UatResetService
 
                 try {
                     $pdo->prepare(
+                        "DELETE FROM course_admin_scope_assignments WHERE admin_user_id IN ($in)",
+                    )->execute($ids);
+                } catch (\Throwable) {
+                }
+
+                try {
+                    $pdo->prepare(
                         "DELETE FROM reviewer_scope_assignments WHERE reviewer_user_id IN ($in)",
                     )->execute($ids);
                 } catch (\Throwable) {
@@ -112,7 +178,7 @@ final class UatResetService
 
         $summary[] = 'removed UAT persona users and related demo rows';
         $summary[] = 'schema and phinxlog preserved';
-        $summary[] = 'demo catalogue (WP02-DEMO-*) retained — re-run phinx seed if needed';
+        $summary[] = 'demo catalogue (WP02-DEMO-* / PHASE1-DEMO-*) retained — re-run phinx seed if needed';
 
         return [
             'deleted_users' => count($ids),

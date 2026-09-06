@@ -1,24 +1,38 @@
-# Mode A demonstration script (15–20 minutes)
+# Phase 1 demonstration script (25–35 minutes)
 
 **Application URL:** `http://127.0.0.1:8080`  
 **Login:** `http://127.0.0.1:8080/login`  
-**Prepare:** `php bin/jobs.php demo:prepare --confirm`  
-**Process jobs:** `php bin/jobs.php demo:process`
+**Prepare:** `composer demo-prepare` (or `php bin/jobs.php demo:prepare --confirm`)  
+**Process jobs:** `composer demo-process` after document upload/submit and after demo payment  
+
+This script covers the **LMS Expansion Phase 1** customer journey: Course Admin authoring → Mode A admit → player → MCQ → certificate → public verify. Mode A admissions rules are unchanged (Enrolment only after Admitted; browser payment is never the source of truth).
 
 ## Personas and password
 
 | Persona | Email | Opens on |
 |---|---|---|
-| Learner | `learner@uat.example.test` | My Applications (`/dashboard`) |
+| Course Admin | `course-admin@uat.example.test` | Course Admin (`/admin/courses`) |
+| Learner | `learner@uat.example.test` | My Applications (`/dashboard`) — **Active** Phase 1 enrolment ready |
+| Certificate scenario | `learner-phase1-complete@uat.example.test` | Dashboard — completed pathway + issued certificate |
 | Reviewer | `reviewer@uat.example.test` | Reviewer Queue |
-| Finance | `finance@uat.example.test` | Reconciliation |
-| Notification Ops | `ops@uat.example.test` | Reviewer Queue first (Super Admin precedence); open **Notifications** in nav → `/admin/notifications` |
+| Finance | `finance@uat.example.test` | Reconciliation (optional SoD) |
+| Notification Ops | `ops@uat.example.test` | Notifications via nav (`/admin/notifications`) |
 
-**Password mechanism:** environment `UAT_SEED_PASSWORD`, else documented default `Uat-Demo-Passw0rd!`.  
-`demo:prepare` prints the exact password in use. These are fictional UAT/demo identities only.
+**Password:** environment `UAT_SEED_PASSWORD`, else `Uat-Demo-Passw0rd!`.  
+`demo:prepare` prints the exact password in use.
 
-**Course:** Certificate Course in Obesity and Metabolic Health (`WP02-DEMO-OBESITY-101`)  
-**Open batch:** March 2027 cohort (`WP02-DEMO-OBESITY-101-OPEN`)
+## Seeded Phase 1 course (use this for learning)
+
+| Field | Value |
+|---|---|
+| **Course** | Phase 1 Demo — Obesity Learning Pathway (`PHASE1-DEMO-CME-101`) |
+| **Slug** | `/courses/phase1-demo-obesity-learning` |
+| **Curriculum** | Module 1: two text lessons · Module 2: MCQ knowledge check (5 questions, pass 60%) |
+| **Batch** | Phase 1 demo cohort (active learning) — `starts_at` in the past → Admit creates **Active** enrolment |
+| **Learner progress** | `learner@` has lesson 1 completed; lesson 2 + MCQ still available |
+| **Certificate scenario** | `learner-phase1-complete@` has all items complete + issued certificate |
+
+**Also seeded (Mode A catalogue):** Certificate Course in Obesity and Metabolic Health (`WP02-DEMO-OBESITY-101`) with open/upcoming/closed batches — useful for admissions discussion. Prefer the **Phase 1 Demo** course for player/assessment/certificate beats.
 
 ---
 
@@ -30,111 +44,92 @@ Narrative:
 
 - This is the real Academy LMS application, not a clickable mock.
 - Mode A: documents reviewed before payment; Enrolment is created only when Application is Admitted.
-- Browser payment return never marks success; webhook + worker do.
+- Browser payment return never marks success; webhook + worker (`demo:process`) do.
+- Phase 1 adds Course Admin curriculum, learner player, MCQ attempts, and completion certificates.
 
-### Minute 2–7 — Learner applies
+### Minute 2–8 — Course Admin: existing Phase 1 course
 
-1. Open `/login`, sign in as **Learner**.
-2. Confirm nav: Courses · My Applications · Profile · Logout.
-3. Open **Courses** → open **Certificate Course in Obesity and Metabolic Health**.
-4. Point out description, audience, duration, eligibility, fee+GST, document requirements, open batch and capacity.
-5. Open batches → select open batch → **Apply** / create Application.
-6. Complete profile/qualification fields if prompted.
-7. Upload a clean PDF for required documents (any small PDF is fine).
-8. Submit the Application.
-9. Say: “Documents must be scanned before they reach the reviewer queue.”
+1. Sign in as **Course Admin**.
+2. Open **Course Admin** → confirm **Phase 1 Demo — Obesity Learning Pathway** is in scope.
+3. Open the published version → **Open curriculum**.
+4. Show Module 1 text lessons and Module 2 MCQ item.
+5. Open **Question bank** (from the course page) and show MCQ stems (correct flags only here).
+6. Open **Configure assessment** on the MCQ content item (pass %, linked questions).
+7. Optional: show **Create batch** / existing active batch; do not invent new product features.
 
-In a second terminal:
+If the customer asks to *create* from scratch: New course → curriculum → bank → assessment → Publish → batch with **start date today or earlier**.
 
-```bash
-php bin/jobs.php demo:process
-```
+### Minute 8–10 — Public catalogue
 
-Expected: Application moves toward review; learner sees status such as Under review / Submitted.
+1. Sign out (or guest window).
+2. Open `/courses` → **Phase 1 Demo — Obesity Learning Pathway**.
+3. Point out fee, eligibility, document requirement, open batch, Apply.
 
-### Minute 7–11 — Reviewer decides
+### Minute 10–20 — Learner Mode A (optional live admit)
 
-1. Logout → login as **Reviewer**.
-2. Confirm landing is Reviewer Queue; nav shows Reviewer Queue · Logout (plus any other authorized items).
-3. Open the learner’s Application by matching the **application reference** shown on My Applications
-   (e.g. `APP-…`). Do **not** open seeded `UAT-REVIEW-001` unless the live queue has no learner-created row —
-   that seeded marker is a different application and will not show the learner’s uploads.
-4. Claim the Application.
-5. Review documents → Approve documents.
-6. Approve Application into **Payment required** / `payment_pending`.
+**Fast path (recommended for time):** skip live admit; use seeded `learner@` Active enrolment (next section).
 
-Narrative: Finance never sees these documents; segregation of duties is intentional.
-After uploads, the learner must **Submit** the application before it appears in the reviewer queue.
-Scan-pending documents remain visible on the detail page; Verify stays disabled until scan is clean.
-Run `php bin/jobs.php demo:process` (or `composer demo-process`) after upload/submit so scans complete.
+**Full Mode A path:**
 
-### Minute 11–15 — Learner pays (demo capture)
+1. Sign in as **Learner** (or register a new user).
+2. Apply to the Phase 1 demo batch → upload documents → submit.
+3. Run `composer demo-process`.
+4. As **Reviewer**, claim the live application → approve docs → send to payment.
+5. As **Learner**, **Complete demo payment** → screen shows **Confirming payment…**.
+6. Run `composer demo-process` again → dashboard shows **Admitted** + **Active** enrolment + **Continue learning**.
 
-1. Logout → login as **Learner** again.
-2. Open the Application → **Pay now**.
-3. Initiate payment if needed.
-4. On the payment attempt page, click **Complete demo payment**.
-5. Expect **Confirming payment…** — emphasise this is not “Successful”.
-6. Run:
+### Minute 20–26 — Player + progress
 
-```bash
-php bin/jobs.php demo:process
-```
+1. As **Learner** (`learner@`), open **Continue learning** on the Phase 1 enrolment.
+2. Outline shows Module 1 / Module 2; lesson 1 already completed (seeded progress).
+3. Open lesson 2 → **Mark complete**.
+4. Confirm outline progress updates; MCQ unlocks when prior mandatory items are done.
 
-7. Refresh payment status / My Applications.
-8. Expect Admitted + Enrolment (Scheduled or Active depending on batch dates).
+### Minute 26–30 — Assessment
 
-Narrative: The button only creates a signed Razorpay-shaped webhook; workers perform acceptance and Enrolment.
+1. Open **Module knowledge check** → **Start attempt**.
+2. Answer questions (correct options are the first choice in the seeded bank).
+3. **Submit attempt** → show score / pass.
+4. Outline shows assessment completed when passed.
 
-### Minute 15–17 — Finance
+### Minute 30–33 — Certificate + public verify
 
-1. Login as **Finance**.
-2. Open **Payments** — find the successful payment.
-3. Open **Reconciliation** — mention under-verification / seeded reconciliation cases (`UAT-AWAIT-001`, `UAT-FULLBATCH-001`, `UAT-DUP-001`).
-4. Attempt any document URL if shown in notes — Finance must be denied document access.
+**Path A — finish with `learner@`:** after all mandatory items complete, open **Certificates** from the outline → view certificate → **Download PDF** / **Print** → open **Public verification link** (logged out).
 
-### Minute 17–20 — Notifications + wrap
+**Path B — seeded certificate scenario:** sign in as `learner-phase1-complete@uat.example.test` → Continue learning → **Certificates** → show issued certificate → copy public verify URL → open in a logged-out window.
 
-1. Login as **Notification Ops** (`ops@uat.example.test`).
-2. Super Admin permission precedence may land on Reviewer Queue — open **Notifications** in the nav (`/admin/notifications`).
-3. Open Notifications — show masked recipients (`lea***@uat.example.test`).
-4. Open a failed/retryable sample (`uat.retryable`) and retry if the UI allows.
-5. Summarise what is in scope vs not (below).
-6. Ask feedback questions (below).
+Public verify shows: validity, learner name, course, type, issue date — **no email, phone, or address**.
+
+### Minute 33–35 — Close / optional SoD
+
+- Finance login cannot open credential document URLs.
+- Re-run `demo:process` is safe (no duplicate Enrolment).
 
 ---
 
-## Fallback ready-made scenarios
+## Fallback scenarios (Mode A catalogue)
 
-If time is short or live path stalls, log in as the scenario owner or inspect as reviewer/finance:
-
-| Marker | State | Discussion point |
+| Application | State | Use |
 |---|---|---|
-| `UAT-DRAFT-001` | Draft | Incomplete application |
-| `UAT-REVIEW-001` | Under review | Queue / claim |
-| `UAT-CORRECT-001` | Correction required | Resubmission |
-| `UAT-PAYPEND-001` | Payment pending | Approved, awaiting pay |
-| `UAT-CONFIRM-001` | Payment pending (in-flight) | Confirming UI |
-| `UAT-AWAIT-001` | Awaiting verification | Payment under verification |
-| `UAT-ADMIT-SCHED-001` | Admitted + Scheduled Enrolment | Post-admission before batch start |
-| `UAT-ADMIT-ACTIVE-001` | Admitted + Active Enrolment | Learning access later |
-| `UAT-REJECT-001` | Rejected | Mode A rejection (no Enrolment) |
-| `UAT-DUP-001` | Admitted + duplicate reconciliation row | Duplicate capture discussion |
-| `UAT-FULLBATCH-001` | Payment pending + capacity reconciliation | Full batch after capture |
+| `UAT-REVIEW-001` | Under review | Reviewer queue |
+| `UAT-CONFIRM-001` | Payment pending | Confirming payment screen |
+| `UAT-ADMIT-ACTIVE-001` | Admitted + Active on obesity catalogue course | Admissions only — **no Phase 1 curriculum** on that course |
+| `UAT-PHASE1-LEARN-001` | Learner Phase 1 Active + partial progress | Primary learning demo (`learner@`) |
+| `UAT-PHASE1-CERT-001` | Complete + certificate | Certificate / verify demo |
 
-Scenario learners: `learner-{slug}@uat.example.test` (same password).
+Scenario learners use `learner-{slug}@uat.example.test` (same password), except the Phase 1 complete persona above.
 
 ---
 
-## Features not yet implemented (say this clearly)
+## Features not in this Phase 1 demo (say this clearly)
 
-- Course player / lessons / modules
-- Assessments
-- Certificate generation / public verify beyond existing stubs
-- Course Admin builder UI
-- Refunds
-- Production email/SMS providers
-- Production hosting / monitoring / backup automation
+- Video lessons / Mux streaming
+- PDF learning file download (type exists; media delivery later)
+- Certificate designer, revoke UI, QR
+- Timers / randomised papers / proctoring
+- Refunds automation
+- Production SES / S3 / Razorpay (local demo uses fake/local adapters)
+- MFA challenge UI for privileged roles (production gap)
 
 ---
 
@@ -142,9 +137,17 @@ Scenario learners: `learner-{slug}@uat.example.test` (same password).
 
 1. Was the next step always obvious after each screen?
 2. Did “Confirming payment…” make the payment trust model clear?
-3. Would reviewers trust this queue for real credential work?
-4. What language felt clinical vs confusing?
+3. Was the path from lessons → assessment → certificate understandable?
+4. Would reviewers trust this queue for real credential work?
 5. What would block you from recommending a pilot with a real cohort?
-6. Which ready-made scenario matched a case you see today?
 
 Capture answers in [`USER_FEEDBACK_TEMPLATE.md`](./USER_FEEDBACK_TEMPLATE.md).
+
+---
+
+## Related docs
+
+- [`PHASE1_CUSTOMER_DEMO_ACCEPTANCE_CHECKLIST.md`](./PHASE1_CUSTOMER_DEMO_ACCEPTANCE_CHECKLIST.md)
+- [`PHASE1_DEMO_READINESS_AUDIT.md`](./PHASE1_DEMO_READINESS_AUDIT.md)
+- [`DEMO_READINESS_CHECKLIST.md`](./DEMO_READINESS_CHECKLIST.md)
+- [`README.md`](./README.md)

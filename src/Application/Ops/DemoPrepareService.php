@@ -73,6 +73,9 @@ final class DemoPrepareService
         $this->runCatalogueSeeder();
         $summary[] = 'catalogue_seed:ok';
 
+        $this->runPhase1LearningSeeder();
+        $summary[] = 'phase1_learning_seed:ok';
+
         $seed = $this->uatSeed->seed();
         foreach ($seed['summary'] as $line) {
             $summary[] = $line;
@@ -204,6 +207,20 @@ final class DemoPrepareService
         } catch (\Throwable $exception) {
             throw new RuntimeException(
                 'demo:prepare catalogue seed failed: ' . $exception->getMessage()
+                . ' Ensure MySQL is running and migrations are applied.',
+                0,
+                $exception,
+            );
+        }
+    }
+
+    private function runPhase1LearningSeeder(): void
+    {
+        try {
+            $this->phinxManager()->seed($this->phinxEnvironment(), 'WpL9Phase1LearningDemoSeeder');
+        } catch (\Throwable $exception) {
+            throw new RuntimeException(
+                'demo:prepare Phase 1 learning seed failed: ' . $exception->getMessage()
                 . ' Ensure MySQL is running and migrations are applied.',
                 0,
                 $exception,
