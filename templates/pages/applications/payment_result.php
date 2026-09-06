@@ -26,8 +26,9 @@ ob_start();
     <?php if ($view->isConfirming): ?>
         <div class="alert alert-info" role="status">
             <?= $e->html('Confirming payment… Browser return is not final confirmation. Please wait while the server verifies the payment.') ?>
-            <p class="mb-0 mt-2 small"><?= $e->html('Demo tip: run php bin/jobs.php demo:process then refresh this page.') ?></p>
+            <p class="mb-0 mt-2 small"><?= $e->html('This page refreshes automatically while confirmation is in progress.') ?></p>
         </div>
+        <meta http-equiv="refresh" content="2">
     <?php elseif ($primary !== null && $primary->status === PaymentStatus::SUCCESSFUL): ?>
         <div class="alert alert-success" role="status">
             <?= $e->html('Payment recorded as successful.') ?>
@@ -38,6 +39,11 @@ ob_start();
                 <?php endif; ?>
             <?php endif; ?>
         </div>
+        <?php if ($application->status === \Academy\Domain\Admissions\ApplicationStatus::ADMITTED): ?>
+            <p class="mb-3">
+                <a class="btn btn-primary" href="/dashboard"><?= $e->html('Continue to dashboard') ?></a>
+            </p>
+        <?php endif; ?>
     <?php elseif ($primary !== null && $primary->status === PaymentStatus::RECONCILIATION_PENDING): ?>
         <div class="alert alert-warning" role="status">
             <?= $e->html('Payment is under verification. Enrolment is not confirmed yet.') ?>

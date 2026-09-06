@@ -42,6 +42,11 @@ ob_start();
                 . ($attempt->passedFlag ? 'Passed.' : 'Not passed.'),
             ) ?>
         </div>
+        <?php if ($view->completionMessage !== null): ?>
+            <div class="alert alert-<?= $e->attr($attempt->passedFlag ? 'success' : 'secondary') ?>">
+                <?= $e->html($view->completionMessage) ?>
+            </div>
+        <?php endif; ?>
     <?php endif; ?>
 
     <form method="post" action="/learning/attempts/<?= $e->attr((string) $attempt->attemptId) ?>/responses" id="attempt-form">
@@ -94,7 +99,19 @@ ob_start();
                 </button>
             </div>
         <?php else: ?>
-            <a class="btn btn-outline-primary" href="<?= $e->attr($outlineUrl) ?>"><?= $e->html('Back to outline') ?></a>
+            <div class="d-flex flex-wrap gap-2">
+                <?php if ($view->certificateId !== null): ?>
+                    <a class="btn btn-primary" href="/certificates/<?= $e->attr((string) $view->certificateId) ?>">
+                        <?= $e->html('View certificate') ?>
+                    </a>
+                <?php endif; ?>
+                <?php if ($view->certificatesListUrl !== null): ?>
+                    <a class="btn btn-outline-primary" href="<?= $e->attr($view->certificatesListUrl) ?>">
+                        <?= $e->html('Certificates') ?>
+                    </a>
+                <?php endif; ?>
+                <a class="btn btn-outline-secondary" href="<?= $e->attr($outlineUrl) ?>"><?= $e->html('Back to outline') ?></a>
+            </div>
         <?php endif; ?>
     </form>
 </div>

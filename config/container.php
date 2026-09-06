@@ -411,8 +411,9 @@ return static function (): ContainerInterface {
         SecurityHeaderPolicy::class => static function (ContainerInterface $c): SecurityHeaderPolicy {
             /** @var array{force_https: bool} $security */
             $security = $c->get('config.security');
+            $branding = $c->get(AcademyBranding::class);
 
-            return new SecurityHeaderPolicy($security['force_https']);
+            return new SecurityHeaderPolicy($security['force_https'], $branding->logoUrl);
         },
 
         SessionRepository::class => static fn (ContainerInterface $c): SessionRepository => new PdoSessionRepository(
@@ -762,6 +763,8 @@ return static function (): ContainerInterface {
             $c->get(AssessmentAttemptQuestionRepository::class),
             $c->get(AssessmentResponseRepository::class),
             $c->get(AssessmentRepository::class),
+            $c->get(CertificateIssuanceService::class),
+            $c->get(CertificateRepository::class),
         ),
         BatchRepository::class => static fn (ContainerInterface $c): BatchRepository => new PdoBatchRepository(
             $c->get(ConnectionFactory::class),
