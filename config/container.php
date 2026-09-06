@@ -291,6 +291,7 @@ use Academy\Infrastructure\Notifications\PdoNotificationDeliveryRepository;
 use Academy\Infrastructure\Notifications\RecordingEmailAdapter;
 use Academy\Infrastructure\Notifications\RecordingSmsAdapter;
 use Academy\Infrastructure\Notifications\SealedSecretBox;
+use Academy\Infrastructure\Notifications\SmtpEmailAdapter;
 use Academy\Infrastructure\Notifications\UnavailableEmailAdapter;
 use Academy\Infrastructure\Notifications\UnavailableSmsAdapter;
 use Academy\Infrastructure\Outbox\InMemoryOutboxTransport;
@@ -741,6 +742,7 @@ return static function (): ContainerInterface {
             $c->get(CertificateLearnerNameResolver::class),
             $c->get(ConnectionFactory::class),
             $c->get(AuditService::class),
+            $c->get(OutboxWriter::class),
         ),
         CertificateQueryService::class => static fn (ContainerInterface $c): CertificateQueryService => new CertificateQueryService(
             $c->get(AuthorizationService::class),
@@ -1475,7 +1477,22 @@ return static function (): ContainerInterface {
         RecordingEmailAdapter::class => static fn (): RecordingEmailAdapter => new RecordingEmailAdapter(),
         RecordingSmsAdapter::class => static fn (): RecordingSmsAdapter => new RecordingSmsAdapter(),
         EmailDeliveryPort::class => static function (ContainerInterface $c): EmailDeliveryPort {
-            /** @var array{notifications: array{email_adapter: string, local_mail_path: string}} $security */
+            /** @var array{
+             *   notifications: array{
+             *     email_adapter: string,
+             *     local_mail_path: string,
+             *     mail: array{
+             *       host: string,
+             *       port: int,
+             *       username: string,
+             *       password: string,
+             *       from_address: string,
+             *       from_name: string,
+             *       encryption: string
+             *     }
+             *   }
+             * } $security
+             */
             $security = $c->get('config.security');
             $adapter = $security['notifications']['email_adapter'];
             if ($adapter === 'recording') {
@@ -1495,6 +1512,19 @@ return static function (): ContainerInterface {
 
                 return new LocalFileEmailAdapter($directory);
             }
+            if ($adapter === 'smtp') {
+                $mail = $security['notifications']['mail'];
+
+                return new SmtpEmailAdapter(
+                    $mail['host'],
+                    $mail['port'],
+                    $mail['username'],
+                    $mail['password'],
+                    $mail['from_address'],
+                    $mail['from_name'],
+                    $mail['encryption'],
+                );
+            }
 
             return new UnavailableEmailAdapter();
         },
@@ -1513,7 +1543,7 @@ return static function (): ContainerInterface {
             $security = $c->get('config.security');
 
             return NotificationCapability::fromEnvFlags(
-                $security['notifications']['email_adapter'] !== 'unavailable',
+                in_array($security['notifications']['email_adapter'], ['recording', 'local_file', 'smtp'], true),
                 $security['notifications']['sms_adapter'] !== 'unavailable',
             );
         },
