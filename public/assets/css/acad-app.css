@@ -1,4 +1,4 @@
-/* Base application stylesheet — Phase 0 (no production components). */
+/* Base application stylesheet — storefront shell + public catalogue skin. */
 
 body {
   color: var(--acad-ink);
@@ -12,21 +12,75 @@ body {
 }
 
 .acad-shell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--acad-sp-5);
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--acad-line);
   background: var(--acad-surface);
   padding: var(--acad-sp-4) var(--acad-sp-5);
+  box-shadow: var(--bs-box-shadow-sm);
 }
 
 .acad-shell__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--acad-sp-3);
   font-weight: 700;
+  font-size: 1.125rem;
   letter-spacing: -0.01em;
   color: var(--acad-teal);
   text-decoration: none;
 }
 
+.acad-shell__brand:hover {
+  color: var(--acad-teal-dk);
+}
+
+.acad-shell__logo {
+  display: block;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.acad-shell__nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--acad-sp-2) var(--acad-sp-4);
+}
+
+.acad-shell__nav-link,
+.acad-shell__nav-button {
+  color: var(--acad-ink);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.95rem;
+  background: none;
+  border: 0;
+  padding: 0.25rem 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.acad-shell__nav-link:hover,
+.acad-shell__nav-button:hover {
+  color: var(--acad-teal);
+}
+
+.acad-shell__nav-form {
+  display: inline;
+  margin: 0;
+}
+
 .acad-shell__main {
   flex: 1;
   padding: var(--acad-sp-6) var(--acad-sp-5);
+  max-width: 72rem;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .acad-eyebrow {
@@ -44,4 +98,131 @@ body {
   border-radius: var(--bs-border-radius-lg);
   padding: var(--acad-sp-6);
   box-shadow: var(--bs-box-shadow-sm);
+}
+
+.acad-panel {
+  background: var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  padding: var(--acad-sp-5);
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+.acad-catalogue-intro__title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--acad-sp-2);
+}
+
+.acad-catalogue-intro__lead {
+  max-width: 36rem;
+}
+
+.acad-course-card {
+  background: var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  box-shadow: var(--bs-box-shadow-sm);
+  height: 100%;
+}
+
+.acad-course-card__body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--acad-sp-5);
+}
+
+.acad-course-card__meta {
+  font-size: 0.8125rem;
+  color: var(--acad-muted);
+}
+
+.acad-course-card__title {
+  margin: 0 0 var(--acad-sp-3);
+  letter-spacing: -0.01em;
+}
+
+.acad-course-card__audience {
+  flex-grow: 1;
+  color: var(--acad-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: var(--acad-sp-4);
+}
+
+.acad-course-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--acad-sp-3);
+}
+
+.acad-course-hero {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--acad-sp-5);
+  background: var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  padding: var(--acad-sp-5);
+  box-shadow: var(--bs-box-shadow-sm);
+  border-top: 3px solid var(--acad-teal);
+}
+
+.acad-course-hero__title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--acad-sp-2);
+}
+
+.acad-course-hero__fee-amount {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--acad-teal-dk);
+}
+
+.acad-course-hero__cta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  min-width: 12rem;
+}
+
+.acad-batch-list .list-group-item {
+  background: transparent;
+}
+
+.acad-next-step {
+  background: var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-left: 4px solid var(--acad-teal);
+  border-radius: var(--bs-border-radius-lg);
+  padding: var(--acad-sp-5);
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+.acad-next-step__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--acad-sp-3);
+}
+
+.acad-next-step__item + .acad-next-step__item {
+  margin-top: var(--acad-sp-4);
+  padding-top: var(--acad-sp-4);
+  border-top: 1px solid var(--acad-line);
+}
+
+.acad-next-step__label {
+  font-weight: 600;
+  flex: 1 1 12rem;
 }

@@ -13,7 +13,7 @@ ob_start();
 <div class="acad-login mx-auto" style="max-width: 28rem;">
     <p class="acad-eyebrow mb-2"><?= $e->html('Academy LMS') ?></p>
     <h1 class="h3 mb-3"><?= $e->html('Sign in') ?></h1>
-    <p class="text-muted mb-4"><?= $e->html('Use your demo or UAT account credentials to continue.') ?></p>
+    <p class="text-muted mb-4"><?= $e->html('Sign in with your academy account to continue.') ?></p>
 
     <?php if ($error !== null && $error !== ''): ?>
         <div class="alert alert-danger" role="alert"><?= $e->html($error) ?></div>

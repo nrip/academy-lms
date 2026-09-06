@@ -42,7 +42,7 @@ final class LearnerDashboardHttpTest extends TestCase
 
         self::assertSame(200, $response->getStatusCode());
         $body = (string) $response->getBody();
-        self::assertStringContainsString('Dashboard', $body);
+        self::assertStringContainsString('My learning', $body);
         self::assertStringContainsString('Payment required', $body);
     }
 

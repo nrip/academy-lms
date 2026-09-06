@@ -7,7 +7,7 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var \Academy\Application\Dashboard\LearnerDashboardView $view */
 
-$badge = static function (string $severity): string {
+    $badge = static function (string $severity): string {
     return match ($severity) {
         'success' => 'success',
         'warning' => 'warning',
@@ -17,32 +17,31 @@ $badge = static function (string $severity): string {
     };
 };
 
-ob_start();
+    ob_start();
 ?>
 <div class="acad-dashboard">
     <p class="acad-eyebrow mb-2"><?= $e->html('Learner') ?></p>
-    <h1 class="h3 mb-4"><?= $e->html('Dashboard') ?></h1>
+    <h1 class="h3 mb-4"><?= $e->html('My learning') ?></h1>
 
     <?php if ($view->requiredActions !== []): ?>
-        <section class="mb-4" aria-labelledby="required-actions-heading">
-            <h2 id="required-actions-heading" class="h5"><?= $e->html('Required actions') ?></h2>
-            <ul class="list-group">
+        <section class="acad-next-step mb-4" aria-labelledby="required-actions-heading">
+            <h2 id="required-actions-heading" class="h5 mb-3"><?= $e->html('Your next step') ?></h2>
+            <ul class="list-unstyled mb-0">
                 <?php foreach ($view->requiredActions as $action): ?>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span><?= $e->html($action['label']) ?></span>
-                        <a class="btn btn-sm btn-primary" href="<?= $e->attr($action['href']) ?>"><?= $e->html('Continue') ?></a>
+                    <li class="acad-next-step__item">
+                        <span class="acad-next-step__label"><?= $e->html($action['label']) ?></span>
+                        <a class="btn btn-primary" href="<?= $e->attr($action['href']) ?>"><?= $e->html('Continue') ?></a>
                     </li>
                 <?php endforeach; ?>
             </ul>
         </section>
     <?php endif; ?>
 
-    <section class="mb-4" aria-labelledby="applications-heading">
+    <section class="acad-panel mb-4" aria-labelledby="applications-heading">
         <h2 id="applications-heading" class="h5"><?= $e->html('Applications') ?></h2>
         <?php if ($view->cards === []): ?>
-            <p class="text-muted"><?= $e->html('You have no applications yet.') ?>
-                <a href="/courses"><?= $e->html('Browse courses') ?></a>
-            </p>
+            <p class="text-muted mb-3"><?= $e->html('You have no applications yet.') ?></p>
+            <a class="btn btn-outline-primary" href="/courses"><?= $e->html('Browse courses') ?></a>
         <?php else: ?>
             <div class="table-responsive">
                 <table class="table table-sm align-middle">
@@ -92,7 +91,7 @@ ob_start();
         <?php endif; ?>
     </section>
 
-    <section class="mb-4" aria-labelledby="payments-heading">
+    <section class="acad-panel mb-4" aria-labelledby="payments-heading">
         <h2 id="payments-heading" class="h5"><?= $e->html('Payments') ?></h2>
         <?php
         $paymentCards = array_values(array_filter(
@@ -150,7 +149,7 @@ ob_start();
         <?php endif; ?>
     </section>
 
-    <section aria-labelledby="enrolments-heading">
+    <section class="acad-panel" aria-labelledby="enrolments-heading">
         <h2 id="enrolments-heading" class="h5"><?= $e->html('Enrolments') ?></h2>
         <?php
         $enrolmentCards = array_values(array_filter(
@@ -159,7 +158,8 @@ ob_start();
         ));
         ?>
         <?php if ($enrolmentCards === []): ?>
-            <p class="text-muted mb-0"><?= $e->html('No enrolments yet. Enrolment is created only after admission.') ?></p>
+            <p class="text-muted mb-3"><?= $e->html('No enrolments yet. Enrolment is created only after admission.') ?></p>
+            <a class="btn btn-outline-primary" href="/courses"><?= $e->html('Browse courses') ?></a>
         <?php else: ?>
             <div class="table-responsive">
                 <table class="table table-sm align-middle">
