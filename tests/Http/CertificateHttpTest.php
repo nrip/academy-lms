@@ -104,11 +104,17 @@ final class CertificateHttpTest extends TestCase
         self::assertSame(200, $show->getStatusCode());
         self::assertStringContainsString('Dr Demo Cert', (string) $show->getBody());
         self::assertStringContainsString('Download PDF', (string) $show->getBody());
+        self::assertStringContainsString('data-acad-print', (string) $show->getBody());
+        self::assertStringNotContainsString('onclick=', (string) $show->getBody());
 
         $pdf = $this->request('GET', '/certificates/' . $certificateId . '/pdf', $boot);
         self::assertSame(200, $pdf->getStatusCode());
         self::assertSame('application/pdf', $pdf->getHeaderLine('Content-Type'));
-        self::assertStringStartsWith('%PDF', (string) $pdf->getBody());
+        $pdfBody = (string) $pdf->getBody();
+        self::assertStringStartsWith('%PDF', $pdfBody);
+        self::assertStringContainsString("4 0 obj\n<< /Length ", $pdfBody);
+        self::assertStringNotContainsString('4 0 obj\\n', $pdfBody);
+        self::assertStringContainsString('Dr Demo Cert', $pdfBody);
 
         $verify = ApplicationFactory::handle(
             (new ServerRequest([], [], 'http://localhost/verify/certificates/' . rawurlencode($number), 'GET'))

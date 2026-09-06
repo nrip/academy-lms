@@ -26,6 +26,9 @@ final class UatSeedService
     public const MARKER_PREFIX = 'UAT-';
     public const DEMO_BATCH_CODE = 'WP02-DEMO-OBESITY-101-OPEN';
     public const DEMO_COURSE_CODE = 'WP02-DEMO-OBESITY-101';
+    public const PHASE1_COURSE_CODE = 'PHASE1-DEMO-CME-101';
+    public const PHASE1_BATCH_CODE = 'PHASE1-DEMO-CME-101-ACTIVE';
+    public const PHASE1_COMPLETE_APP = self::MARKER_PREFIX . 'PHASE1-CERT-001';
 
     public function __construct(
         private readonly ConnectionFactory $connections,
@@ -49,6 +52,7 @@ final class UatSeedService
         $applicationCount = $catalogueOk
             ? $this->seedScenarioApplications($pdo, $hash, $now, $summary)
             : 0;
+        $this->seedPhase1LearningDemo($pdo, $hash, $now, $summary);
         $notificationCount = $this->seedNotificationSamples($pdo, $now, $summary);
 
         return [
@@ -100,9 +104,11 @@ final class UatSeedService
             }
             if (in_array(RoleKeys::CREDENTIAL_REVIEWER, $persona['roles'], true)) {
                 $this->ensureReviewerBatchScope($pdo, $userId, $now);
+                $this->ensureReviewerBatchScopeByCode($pdo, $userId, self::PHASE1_BATCH_CODE, $now);
             }
             if (in_array(RoleKeys::COURSE_ADMIN, $persona['roles'], true)) {
                 $this->ensureCourseAdminDemoCourseScope($pdo, $userId, $now);
+                $this->ensureCourseAdminCourseScopeByCode($pdo, $userId, self::PHASE1_COURSE_CODE, $now);
             }
             $summary[] = 'persona:' . $persona['label'] . '=' . $persona['email'];
             ++$count;
@@ -409,6 +415,8 @@ final class UatSeedService
                 'UPDATE learner_profiles SET
                     first_name = COALESCE(first_name, :first_name),
                     last_name = COALESCE(last_name, :last_name),
+                    certificate_name = COALESCE(certificate_name, :certificate_name),
+                    certificate_name_confirmed = IF(certificate_name_confirmed = 1, 1, :confirmed),
                     profession = COALESCE(profession, :profession),
                     medical_council_registration_number = COALESCE(medical_council_registration_number, :reg),
                     updated_at = :updated_at
@@ -417,6 +425,8 @@ final class UatSeedService
             $update->execute([
                 'first_name' => $firstName,
                 'last_name' => $lastName,
+                'certificate_name' => trim($firstName . ' ' . $lastName),
+                'confirmed' => 1,
                 'profession' => 'doctor',
                 'reg' => 'DEMO-MCI-' . $userId,
                 'updated_at' => $now,
@@ -428,10 +438,12 @@ final class UatSeedService
 
         $insert = $pdo->prepare(
             'INSERT INTO learner_profiles (
-                user_id, first_name, last_name, profession, medical_council_registration_number,
+                user_id, first_name, last_name, certificate_name, certificate_name_confirmed,
+                profession, medical_council_registration_number,
                 row_version, created_at, updated_at
             ) VALUES (
-                :user_id, :first_name, :last_name, :profession, :reg,
+                :user_id, :first_name, :last_name, :certificate_name, 1,
+                :profession, :reg,
                 1, :created_at, :updated_at
             )',
         );
@@ -439,6 +451,7 @@ final class UatSeedService
             'user_id' => $userId,
             'first_name' => $firstName,
             'last_name' => $lastName,
+            'certificate_name' => trim($firstName . ' ' . $lastName),
             'profession' => 'doctor',
             'reg' => 'DEMO-MCI-' . $userId,
             'created_at' => $now,
@@ -448,8 +461,13 @@ final class UatSeedService
 
     private function ensureReviewerBatchScope(PDO $pdo, int $userId, string $now): void
     {
+        $this->ensureReviewerBatchScopeByCode($pdo, $userId, self::DEMO_BATCH_CODE, $now);
+    }
+
+    private function ensureReviewerBatchScopeByCode(PDO $pdo, int $userId, string $batchCode, string $now): void
+    {
         $batch = $pdo->prepare('SELECT batch_id FROM batches WHERE batch_code = :code LIMIT 1');
-        $batch->execute(['code' => self::DEMO_BATCH_CODE]);
+        $batch->execute(['code' => $batchCode]);
         $batchId = $batch->fetchColumn();
         if ($batchId === false) {
             return;
@@ -493,8 +511,17 @@ final class UatSeedService
 
     private function ensureCourseAdminDemoCourseScope(PDO $pdo, int $userId, string $now): void
     {
+        $this->ensureCourseAdminCourseScopeByCode($pdo, $userId, self::DEMO_COURSE_CODE, $now);
+    }
+
+    private function ensureCourseAdminCourseScopeByCode(
+        PDO $pdo,
+        int $userId,
+        string $courseCode,
+        string $now,
+    ): void {
         $course = $pdo->prepare('SELECT course_id FROM courses WHERE course_code = :code LIMIT 1');
-        $course->execute(['code' => self::DEMO_COURSE_CODE]);
+        $course->execute(['code' => $courseCode]);
         $courseId = $course->fetchColumn();
         if ($courseId === false) {
             return;
@@ -533,6 +560,313 @@ final class UatSeedService
             'created_by' => $userId,
             'created_at' => $now,
             'updated_at' => $now,
+        ]);
+    }
+
+    /**
+     * Phase 1 learning demo: Active enrolment for main learner (partial progress + MCQ available)
+     * and a completed scenario with an issued certificate.
+     *
+     * @param list<string> $summary
+     */
+    private function seedPhase1LearningDemo(PDO $pdo, string $hash, string $now, array &$summary): void
+    {
+        $batchStmt = $pdo->prepare(
+            'SELECT b.batch_id, b.course_version_id, cv.course_id, c.master_title, cv.title AS version_title,
+                    cv.certificate_type
+             FROM batches b
+             INNER JOIN course_versions cv ON cv.version_id = b.course_version_id
+             INNER JOIN courses c ON c.course_id = cv.course_id
+             WHERE b.batch_code = :code LIMIT 1',
+        );
+        $batchStmt->execute(['code' => self::PHASE1_BATCH_CODE]);
+        $batch = $batchStmt->fetch(PDO::FETCH_ASSOC);
+        if ($batch === false) {
+            $summary[] = 'phase1:skipped-no-batch';
+
+            return;
+        }
+
+        $batchId = (int) $batch['batch_id'];
+        $versionId = (int) $batch['course_version_id'];
+        $courseId = (int) $batch['course_id'];
+        $courseTitle = (string) $batch['master_title'];
+        $versionTitle = (string) $batch['version_title'];
+        $certLabel = (string) $batch['certificate_type'];
+
+        $contentRows = $pdo->prepare(
+            'SELECT ci.content_id, ci.content_type, ci.sequence, ci.title
+             FROM content_items ci
+             INNER JOIN modules m ON m.module_id = ci.module_id
+             WHERE m.course_version_id = :version_id
+             ORDER BY m.sequence ASC, ci.sequence ASC',
+        );
+        $contentRows->execute(['version_id' => $versionId]);
+        /** @var list<array<string, mixed>> $contents */
+        $contents = $contentRows->fetchAll(PDO::FETCH_ASSOC);
+        if ($contents === []) {
+            $summary[] = 'phase1:skipped-no-content';
+
+            return;
+        }
+
+        $textLessons = array_values(array_filter(
+            $contents,
+            static fn (array $row): bool => (string) $row['content_type'] === 'text_lesson',
+        ));
+        $mcqItems = array_values(array_filter(
+            $contents,
+            static fn (array $row): bool => (string) $row['content_type'] === 'mcq_assessment',
+        ));
+
+        $learnerId = $this->userIdByEmail($pdo, 'learner@' . self::EMAIL_DOMAIN);
+        if ($learnerId !== null) {
+            $this->ensureLearnerProfile($pdo, $learnerId, $now, 'Ananya', 'Sharma');
+            $appId = $this->ensureApplication(
+                $pdo,
+                $learnerId,
+                $batchId,
+                $versionId,
+                self::MARKER_PREFIX . 'PHASE1-LEARN-001',
+                'admitted',
+                $now,
+            );
+            $paymentId = $this->ensurePayment(
+                $pdo,
+                $appId,
+                $learnerId,
+                $versionId,
+                $batchId,
+                'successful',
+                self::MARKER_PREFIX . 'PHASE1-LEARN-001-PAY',
+                $now,
+            );
+            $this->ensureEnrolment(
+                $pdo,
+                $appId,
+                $learnerId,
+                $courseId,
+                $versionId,
+                $batchId,
+                $paymentId,
+                'active',
+                self::MARKER_PREFIX . 'PHASE1-LEARN-001',
+                $now,
+            );
+            $enrolmentId = $this->enrolmentIdForApplication($pdo, $appId);
+            if ($enrolmentId !== null && $textLessons !== []) {
+                $firstLessonId = (int) $textLessons[0]['content_id'];
+                $this->ensureContentCompleted($pdo, $enrolmentId, $firstLessonId, 'learner', $now);
+                $summary[] = 'phase1:learner-progress=lesson1-complete';
+            }
+            $summary[] = 'phase1:learner-active-enrolment=ok';
+            if ($mcqItems !== []) {
+                $summary[] = 'phase1:assessment-available=' . (string) $mcqItems[0]['title'];
+            }
+        }
+
+        $completeEmail = 'learner-phase1-complete@' . self::EMAIL_DOMAIN;
+        $completeUserId = $this->ensureUser($pdo, $completeEmail, '+919900001101', $hash, $now);
+        $this->ensureRole($pdo, $completeUserId, RoleKeys::APPLICANT, $now);
+        $this->ensureLearnerProfile($pdo, $completeUserId, $now, 'Priya', 'Nair');
+        $completeAppId = $this->ensureApplication(
+            $pdo,
+            $completeUserId,
+            $batchId,
+            $versionId,
+            self::PHASE1_COMPLETE_APP,
+            'admitted',
+            $now,
+        );
+        $completePaymentId = $this->ensurePayment(
+            $pdo,
+            $completeAppId,
+            $completeUserId,
+            $versionId,
+            $batchId,
+            'successful',
+            self::PHASE1_COMPLETE_APP . '-PAY',
+            $now,
+        );
+        $this->ensureEnrolment(
+            $pdo,
+            $completeAppId,
+            $completeUserId,
+            $courseId,
+            $versionId,
+            $batchId,
+            $completePaymentId,
+            'active',
+            self::PHASE1_COMPLETE_APP,
+            $now,
+        );
+        $completeEnrolmentId = $this->enrolmentIdForApplication($pdo, $completeAppId);
+        if ($completeEnrolmentId !== null) {
+            foreach ($contents as $content) {
+                $source = (string) $content['content_type'] === 'mcq_assessment' ? 'assessment' : 'learner';
+                $this->ensureContentCompleted(
+                    $pdo,
+                    $completeEnrolmentId,
+                    (int) $content['content_id'],
+                    $source,
+                    $now,
+                );
+            }
+            $this->ensureCompletionCertificate(
+                $pdo,
+                $completeEnrolmentId,
+                $versionId,
+                'Priya Nair',
+                $courseTitle,
+                $versionTitle,
+                $certLabel !== '' ? $certLabel : 'Certificate of Completion',
+                $completeUserId,
+                $now,
+            );
+            $summary[] = 'phase1:certificate-scenario=issued';
+        }
+    }
+
+    private function enrolmentIdForApplication(PDO $pdo, int $applicationId): ?int
+    {
+        $stmt = $pdo->prepare('SELECT enrolment_id FROM enrolments WHERE application_id = :id LIMIT 1');
+        $stmt->execute(['id' => $applicationId]);
+        $id = $stmt->fetchColumn();
+
+        return $id === false ? null : (int) $id;
+    }
+
+    private function ensureContentCompleted(
+        PDO $pdo,
+        int $enrolmentId,
+        int $contentId,
+        string $completionSource,
+        string $now,
+    ): void {
+        $existing = $pdo->prepare(
+            'SELECT progress_id, completion_status FROM content_progress
+             WHERE enrolment_id = :enrolment_id AND content_id = :content_id LIMIT 1',
+        );
+        $existing->execute([
+            'enrolment_id' => $enrolmentId,
+            'content_id' => $contentId,
+        ]);
+        $row = $existing->fetch(PDO::FETCH_ASSOC);
+        if ($row !== false) {
+            if ((string) $row['completion_status'] === 'completed') {
+                return;
+            }
+            $pdo->prepare(
+                'UPDATE content_progress SET
+                    completion_status = :status,
+                    completed_at = :completed_at,
+                    last_accessed_at = :last_accessed_at,
+                    completion_source = :completion_source,
+                    row_version = row_version + 1,
+                    updated_at = :updated_at
+                 WHERE progress_id = :progress_id',
+            )->execute([
+                'status' => 'completed',
+                'completed_at' => $now,
+                'last_accessed_at' => $now,
+                'completion_source' => $completionSource,
+                'updated_at' => $now,
+                'progress_id' => (int) $row['progress_id'],
+            ]);
+
+            return;
+        }
+
+        $pdo->prepare(
+            'INSERT INTO content_progress (
+                enrolment_id, content_id, completion_status, resume_position, watch_percentage,
+                first_accessed_at, last_accessed_at, completed_at, manual_override_flag,
+                completion_source, row_version, created_at, updated_at
+            ) VALUES (
+                :enrolment_id, :content_id, :completion_status, NULL, NULL,
+                :first_accessed_at, :last_accessed_at, :completed_at, 0,
+                :completion_source, 1, :created_at, :updated_at
+            )',
+        )->execute([
+            'enrolment_id' => $enrolmentId,
+            'content_id' => $contentId,
+            'completion_status' => 'completed',
+            'first_accessed_at' => $now,
+            'last_accessed_at' => $now,
+            'completed_at' => $now,
+            'completion_source' => $completionSource,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    private function ensureCompletionCertificate(
+        PDO $pdo,
+        int $enrolmentId,
+        int $courseVersionId,
+        string $learnerName,
+        string $courseTitle,
+        string $versionTitle,
+        string $certificateLabel,
+        int $actorUserId,
+        string $now,
+    ): void {
+        $existing = $pdo->prepare(
+            'SELECT certificate_id FROM certificates
+             WHERE enrolment_id = :enrolment_id AND certificate_type = :type AND current_marker = 1
+             LIMIT 1',
+        );
+        $existing->execute([
+            'enrolment_id' => $enrolmentId,
+            'type' => 'completion',
+        ]);
+        if ($existing->fetchColumn() !== false) {
+            return;
+        }
+
+        $number = 'ACAD-DEMO-' . strtoupper(substr(hash('sha256', 'phase1-cert-' . $enrolmentId), 0, 8));
+        $hash = hash('sha256', 'phase1-verify-' . $enrolmentId);
+        $insert = $pdo->prepare(
+            'INSERT INTO certificates (
+                enrolment_id, course_version_id, certificate_type, certificate_number,
+                verification_hash, learner_name_snapshot, course_title_snapshot,
+                version_title_snapshot, certificate_label, status, current_marker,
+                issued_at, created_at, updated_at
+            ) VALUES (
+                :enrolment_id, :course_version_id, :certificate_type, :certificate_number,
+                :verification_hash, :learner_name_snapshot, :course_title_snapshot,
+                :version_title_snapshot, :certificate_label, :status, 1,
+                :issued_at, :created_at, :updated_at
+            )',
+        );
+        $insert->execute([
+            'enrolment_id' => $enrolmentId,
+            'course_version_id' => $courseVersionId,
+            'certificate_type' => 'completion',
+            'certificate_number' => $number,
+            'verification_hash' => $hash,
+            'learner_name_snapshot' => $learnerName,
+            'course_title_snapshot' => $courseTitle,
+            'version_title_snapshot' => $versionTitle,
+            'certificate_label' => $certificateLabel,
+            'status' => 'active',
+            'issued_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $certificateId = (int) $pdo->lastInsertId();
+        $pdo->prepare(
+            'INSERT INTO certificate_events (
+                certificate_id, event_type, actor_user_id, reason, created_at
+            ) VALUES (
+                :certificate_id, :event_type, :actor_user_id, :reason, :created_at
+            )',
+        )->execute([
+            'certificate_id' => $certificateId,
+            'event_type' => 'issued',
+            'actor_user_id' => $actorUserId,
+            'reason' => 'phase1_demo_seed',
+            'created_at' => $now,
         ]);
     }
 
