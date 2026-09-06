@@ -17,12 +17,20 @@ final class RazorpayPaymentGateway implements PaymentGateway
 {
     private const BASE_URL = 'https://api.razorpay.com/v1';
 
+    /**
+     * @param (callable(string,string,list<string>,?string):string)|null $httpSender
+     *        Optional transport override for unit tests (method, url, headers, body) → raw response.
+     */
     public function __construct(
         private readonly string $keyId,
         private readonly string $keySecret,
+        private readonly mixed $httpSender = null,
     ) {
         if (trim($this->keyId) === '' || trim($this->keySecret) === '') {
             throw new ExternalServiceException('Razorpay credentials are incomplete.');
+        }
+        if ($this->httpSender !== null && !is_callable($this->httpSender)) {
+            throw new ExternalServiceException('Razorpay HTTP transport is invalid.');
         }
     }
 
@@ -148,9 +156,9 @@ final class RazorpayPaymentGateway implements PaymentGateway
 
         try {
             if (function_exists('curl_init')) {
-                $raw = $this->requestWithCurl($method, $url, $headers, $encodedBody);
+                $raw = $this->sendHttp($method, $url, $headers, $encodedBody);
             } else {
-                $raw = $this->requestWithStreams($method, $url, $headers, $encodedBody);
+                $raw = $this->sendHttpWithStreams($method, $url, $headers, $encodedBody);
             }
         } catch (ExternalServiceException $e) {
             throw $e;
@@ -178,8 +186,12 @@ final class RazorpayPaymentGateway implements PaymentGateway
     /**
      * @param list<string> $headers
      */
-    private function requestWithCurl(string $method, string $url, array $headers, ?string $body): string
+    private function sendHttp(string $method, string $url, array $headers, ?string $body): string
     {
+        if (is_callable($this->httpSender)) {
+            return ($this->httpSender)($method, $url, $headers, $body);
+        }
+
         $ch = curl_init($url);
         if ($ch === false) {
             throw new ExternalServiceException('Unable to initialise Razorpay HTTP client.');
@@ -216,7 +228,7 @@ final class RazorpayPaymentGateway implements PaymentGateway
     /**
      * @param list<string> $headers
      */
-    private function requestWithStreams(string $method, string $url, array $headers, ?string $body): string
+    private function sendHttpWithStreams(string $method, string $url, array $headers, ?string $body): string
     {
         $context = stream_context_create([
             'http' => [

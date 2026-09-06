@@ -7,13 +7,14 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var string|null $error */
 /** @var string|null $return_to */
+/** @var \Academy\Application\Branding\AcademyBranding $branding */
 
 ob_start();
 ?>
 <div class="acad-login mx-auto" style="max-width: 28rem;">
-    <p class="acad-eyebrow mb-2"><?= $e->html('Academy LMS') ?></p>
+    <p class="acad-eyebrow mb-2"><?= $e->html($branding->name) ?></p>
     <h1 class="h3 mb-3"><?= $e->html('Sign in') ?></h1>
-    <p class="text-muted mb-4"><?= $e->html('Use your demo or UAT account credentials to continue.') ?></p>
+    <p class="text-muted mb-4"><?= $e->html('Sign in with your academy account to continue.') ?></p>
 
     <?php if ($error !== null && $error !== ''): ?>
         <div class="alert alert-danger" role="alert"><?= $e->html($error) ?></div>
@@ -35,6 +36,12 @@ ob_start();
         <button type="submit" class="btn btn-primary w-100"><?= $e->html('Sign in') ?></button>
     </form>
     <p class="mt-3 mb-0"><a href="/forgot-password"><?= $e->html('Forgot password?') ?></a></p>
+    <?php if ($branding->supportEmail !== ''): ?>
+        <p class="mt-2 mb-0 small text-muted">
+            <?= $e->html('Need help? Contact ') ?>
+            <a href="mailto:<?= $e->attr($branding->supportEmail) ?>"><?= $e->html($branding->supportEmail) ?></a>
+        </p>
+    <?php endif; ?>
 </div>
 <?php
 $content = ob_get_clean();

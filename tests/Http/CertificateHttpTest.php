@@ -112,9 +112,10 @@ final class CertificateHttpTest extends TestCase
         self::assertSame('application/pdf', $pdf->getHeaderLine('Content-Type'));
         $pdfBody = (string) $pdf->getBody();
         self::assertStringStartsWith('%PDF', $pdfBody);
-        self::assertStringContainsString("4 0 obj\n<< /Length ", $pdfBody);
-        self::assertStringNotContainsString('4 0 obj\\n', $pdfBody);
-        self::assertStringContainsString('Dr Demo Cert', $pdfBody);
+        $pdfText = (new \Smalot\PdfParser\Parser())->parseContent($pdfBody)->getText();
+        self::assertStringContainsString('Dr Demo Cert', $pdfText);
+        self::assertStringContainsString($number, $pdfText);
+        self::assertStringContainsString('verify/certificates/' . $number, $pdfText);
 
         $verify = ApplicationFactory::handle(
             (new ServerRequest([], [], 'http://localhost/verify/certificates/' . rawurlencode($number), 'GET'))

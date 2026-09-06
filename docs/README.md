@@ -85,6 +85,12 @@ If documents conflict, stop and identify the conflict. Do not resolve by assumpt
 | [BACKUP_RESTORE_RUNBOOK.md](./operations/BACKUP_RESTORE_RUNBOOK.md) | UAT mysqldump backup/restore rehearsal |
 | [UAT_DEPLOYMENT_RUNBOOK.md](./operations/UAT_DEPLOYMENT_RUNBOOK.md) | UAT deploy / verify / rollback |
 
+## Deployment
+
+| Document | Description |
+|---|---|
+| [RAZORPAY_CONFIGURATION.md](./deployment/RAZORPAY_CONFIGURATION.md) | Razorpay env vars, webhook setup, local testing |
+
 ## Releases
 
 | Document | Description |

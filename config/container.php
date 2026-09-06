@@ -17,6 +17,7 @@ use Academy\Application\Admissions\ApplicationWorkspaceService;
 use Academy\Application\Admissions\DraftApplicationService;
 use Academy\Application\Audit\AuditRedactor;
 use Academy\Application\Audit\AuditService;
+use Academy\Application\Branding\AcademyBranding;
 use Academy\Application\Courses\AssignCourseAdminScopeService;
 use Academy\Application\Courses\CatalogueService;
 use Academy\Application\Courses\CloneCourseVersionService;
@@ -334,10 +335,25 @@ return static function (): ContainerInterface {
     $builder->addDefinitions([
         'config' => $config,
         'config.app' => $config['app'],
+        'config.branding' => $config['branding'],
         'config.database' => $config['database'],
         'config.logging' => $config['logging'],
         'config.security' => $config['security'],
         'config.paths' => $config['paths'],
+
+        AcademyBranding::class => static function (ContainerInterface $c): AcademyBranding {
+            /** @var array{
+             *   name: string,
+             *   logo_url: string,
+             *   primary_color: string,
+             *   support_email: string,
+             *   certificate_issuer_name: string
+             * } $branding
+             */
+            $branding = $c->get('config.branding');
+
+            return AcademyBranding::fromConfig($branding);
+        },
 
         LoggerInterface::class => static function (ContainerInterface $c): LoggerInterface {
             /** @var array{name: string, level: string, path: string, json: bool} $logging */
@@ -387,6 +403,7 @@ return static function (): ContainerInterface {
                 $c->get(CurrentAuth::class),
                 $c->get(NavigationMenuBuilder::class),
                 $c->get(CurrentCsrfToken::class),
+                $c->get(AcademyBranding::class),
             );
         },
 
@@ -696,7 +713,21 @@ return static function (): ContainerInterface {
         ),
         CompletionEligibilityPolicy::class => static fn (): CompletionEligibilityPolicy => new CompletionEligibilityPolicy(),
         CertificateLearnerNameResolver::class => static fn (): CertificateLearnerNameResolver => new CertificateLearnerNameResolver(),
-        SimpleCertificatePdfRenderer::class => static fn (): SimpleCertificatePdfRenderer => new SimpleCertificatePdfRenderer(),
+        SimpleCertificatePdfRenderer::class => static function (ContainerInterface $c): SimpleCertificatePdfRenderer {
+            /** @var array{url: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{templates: string} $paths */
+            $paths = $c->get('config.paths');
+            $branding = $c->get(AcademyBranding::class);
+
+            return new SimpleCertificatePdfRenderer(
+                $c->get(Escaper::class),
+                $paths['templates'],
+                $app['url'],
+                $branding->certificateIssuerName,
+                $branding->primaryColor,
+            );
+        },
         CertificateIssuanceService::class => static fn (ContainerInterface $c): CertificateIssuanceService => new CertificateIssuanceService(
             $c->get(EnrolmentRepository::class),
             $c->get(ContentItemRepository::class),

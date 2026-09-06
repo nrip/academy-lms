@@ -7,6 +7,7 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var \Academy\Domain\Certificates\Certificate $certificate */
 /** @var string $verifyUrl */
+/** @var \Academy\Application\Branding\AcademyBranding $branding */
 
 $issued = $certificate->issuedAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y');
 
@@ -20,7 +21,7 @@ ob_start();
     </p>
 
     <div class="acad-certificate-card border p-4 p-md-5 mb-4 text-center">
-        <p class="text-uppercase text-muted small mb-2"><?= $e->html('Academy LMS') ?></p>
+        <p class="text-uppercase text-muted small mb-2"><?= $e->html($branding->certificateIssuerName) ?></p>
         <h1 class="h3 mb-1"><?= $e->html($certificate->certificateLabel) ?></h1>
         <p class="text-muted mb-4"><?= $e->html('Certificate of Completion') ?></p>
         <p class="mb-1"><?= $e->html('This is to certify that') ?></p>

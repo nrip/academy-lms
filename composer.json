@@ -6,6 +6,7 @@
     "require": {
         "php": "^8.4",
         "ext-sodium": "*",
+        "dompdf/dompdf": "^3.1",
         "laminas/laminas-diactoros": "^3.5",
         "laminas/laminas-httphandlerrunner": "^2.11",
         "league/route": "^7.0",
@@ -21,7 +22,8 @@
         "friendsofphp/php-cs-fixer": "^3.75",
         "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^11.5",
-        "robmorgan/phinx": "^0.16"
+        "robmorgan/phinx": "^0.16",
+        "smalot/pdfparser": "^2.12"
     },
     "autoload": {
         "psr-4": {
