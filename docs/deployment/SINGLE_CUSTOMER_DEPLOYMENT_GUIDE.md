@@ -1,243 +1,316 @@
-# Single-Customer Deployment Guide — Phase 1 Release Candidate
+# Single-Customer Deployment Guide — LMS Phase 1 Release Candidate
 
-**RC HEAD:** `31363c5` (`fix(lms): clear Phase 1 trial blockers for payment, seed, and UX`)  
-**Branch (typical):** `demo/mode-a-user-demo` (or the approved RC tag cut from this SHA)  
-**Audience:** Ops / engineer deploying **one** Academy LMS instance for a single customer trial on Ubuntu VPS, AWS EC2, or Hostinger VPS  
-**Nature:** Application deployment checklist. Host provisioning details vary by provider; adapt paths/users accordingly.
+**Feature RC HEAD:** `31363c5` (`fix(lms): clear Phase 1 trial blockers for payment, seed, and UX`)  
+**Doc revision branch tip:** may sit on later docs-only commits; deploy **application code** at `31363c5` (or an approved tag of that SHA).  
+**Audience:** Ops / engineer preparing a **single-customer 5-day trial** on Ubuntu VPS, AWS EC2, or Hostinger VPS.  
+**Rules for this document:** Describes the repository as it is. Does not invent S3, MFA, or other unimplemented packs.
 
-**Related docs:**  
-[RAZORPAY_CONFIGURATION.md](./RAZORPAY_CONFIGURATION.md) · [EMAIL_CONFIGURATION.md](./EMAIL_CONFIGURATION.md) · [WORKERS_AND_SCHEDULES.md](../operations/WORKERS_AND_SCHEDULES.md) · [PROCESS_SUPERVISION_EXAMPLES.md](../operations/PROCESS_SUPERVISION_EXAMPLES.md) · [BACKUP_RESTORE_RUNBOOK.md](../operations/BACKUP_RESTORE_RUNBOOK.md) · [PHASE1_RELEASE_CHECKLIST.md](../release/PHASE1_RELEASE_CHECKLIST.md)
-
----
-
-## Scope and posture
-
-| Item | Guidance |
-|---|---|
-| Single deployment | One academy branding + one Razorpay account + one SMTP sender per environment |
-| `APP_ENV` for customer trial | Prefer `production` (or `staging` for dry-run). Do **not** use `local` / `uat` on a public customer host |
-| Fake adapters | **Forbidden** in `staging` / `production` (`PAYMENTS_FAKE_GATEWAY`, local document storage as sole strategy, `local_file` / `recording` email) |
-| Demo / UAT seed | **Never** run `uat:seed`, `uat:reset`, or `demo:prepare` on the customer production database |
-| Dotenv | `.env` file load is for `local` / `testing` / `ci` / `uat` only. Staging/production should inject env via the process manager / systemd `EnvironmentFile` / panel secrets — do not rely on committed soft defaults |
-
-This guide targets a **facilitated 5-day Phase 1 trial**, not a claim of full production DR / multi-tenant readiness.
+**Related (authoritative companions):**  
+[RAZORPAY_CONFIGURATION.md](./RAZORPAY_CONFIGURATION.md) · [EMAIL_CONFIGURATION.md](./EMAIL_CONFIGURATION.md) · [WORKERS_AND_SCHEDULES.md](../operations/WORKERS_AND_SCHEDULES.md) · [PROCESS_SUPERVISION_EXAMPLES.md](../operations/PROCESS_SUPERVISION_EXAMPLES.md) · [BACKUP_RESTORE_RUNBOOK.md](../operations/BACKUP_RESTORE_RUNBOOK.md) · [PRODUCTION_READINESS_REGISTER.md](../product/PRODUCTION_READINESS_REGISTER.md) · [PHASE1_RELEASE_CHECKLIST.md](../release/PHASE1_RELEASE_CHECKLIST.md) · `public/nginx.conf.example` · `.env.example`
 
 ---
 
-## 1. Server requirements
+## 1. Deployment target assumptions
 
-### Operating system
+### 1.1 Recommended minimum — first customer trial
 
-| Requirement | Value |
+| Layer | Assumption |
 |---|---|
-| OS | **Ubuntu 22.04 LTS or 24.04 LTS** (recommended). Equivalent Amazon Linux / Debian OK if packages match |
-| Architecture | `x86_64` or `arm64` with PHP 8.4 packages available |
-| Access | SSH with a non-root deploy user; `sudo` for packages and services |
+| OS | **Ubuntu 22.04 LTS or 24.04 LTS** |
+| PHP | **8.4** FPM + CLI (`composer.json`: `php ^8.4`) |
+| PHP extensions | `pdo_mysql`, `mbstring`, `json`, `sodium`, `openssl`, `curl`, `fileinfo`, `gd` (Dompdf), `intl` (recommended), `zip` (recommended). CI installs: `pdo_mysql`, `mbstring`, `json`, `sodium` |
+| Database | **MySQL 8.4 LTS**, InnoDB, `utf8mb4` (architecture baseline). MariaDB is **not** the documented target — use MySQL 8.4 unless you accept untested compatibility risk |
+| Composer | **2.x** |
+| Web server | **Nginx** (example in `public/nginx.conf.example`) or Apache with document root = `public/` |
+| SSL | **HTTPS required** for customer trial (`FORCE_HTTPS=true`, secure session cookies, Razorpay webhook) |
+| Node | **≥ 22** at **build** time only (`package.json` engines) — not a runtime service |
+| Host size (starting) | 2 vCPU, 4 GB RAM, 40 GB SSD |
 
-### PHP
+### 1.2 Future production scale (not claimed complete in-repo)
 
-| Requirement | Value |
+| Layer | Direction (register / architecture) |
 |---|---|
-| Version | **PHP 8.4** (`^8.4` in `composer.json`) — FPM + CLI same major.minor |
-| Upload limits | `upload_max_filesize=10M`, `post_max_size=16M` (credential documents capped at 10 MB) |
-| Memory | At least `128M` PHP memory; prefer `256M` for Dompdf certificate generation |
-| Timezone | Prefer UTC in PHP; app stores timestamps in UTC |
+| Hosting | Approved AWS (or equivalent) layout — `PR-HOST` still open |
+| Object storage | Private **S3** + IAM — `PR-S3` open; **no S3 adapter in `ObjectStorageFactory` today** |
+| Malware | Real scanner pack — `PR-MALWARE` open; only `FakeMalwareScanner` / `UnconfiguredMalwareScanner` exist |
+| Workers | Supervised systemd timers / managed scheduler — `PR-CRON` |
+| Observability | Alerting integration — `PR-ALERT` |
+| DR | Encrypted backups, restore RTO/RPO — `PR-BACKUP` |
+| Security | Pen-test / MFA for privileged roles — `PR-SEC`, AGENTS MFA rule |
 
-### Required PHP extensions
+### 1.3 Critical `APP_ENV` posture for trial vs production-like
 
-Confirmed by CI / Composer / runtime usage:
+From `EnvironmentCapability` / `EnvironmentValidator` / `ObjectStorageFactory`:
 
-| Extension | Why |
-|---|---|
-| `pdo_mysql` | Database |
-| `mbstring` | Strings / validation |
-| `json` | API / JSON columns |
-| `sodium` | Cryptography (`ext-sodium` required by Composer) |
-| `openssl` | HTTPS / SMTP TLS / signed URLs |
-| `curl` | Outbound HTTP (Razorpay, SMTP providers as applicable) |
-| `fileinfo` | Upload MIME checks |
-| `gd` or `imagick` | Dompdf image/PDF rendering (install `gd` at minimum) |
-| `intl` | Recommended for Dompdf / locale-safe formatting |
-| `zip` | Composer packages / Dompdf assets |
+| `APP_ENV` | Fake/local adapters | Customer-facing meaning |
+|---|---|---|
+| `local` / `testing` / `ci` / `uat` | Allowed with **explicit** flags | Can use `DOCUMENTS_STORAGE_DRIVER=local`, `DOCUMENTS_FAKE_SCANNER`, optional fake Razorpay |
+| `staging` / `production` | **Fail closed** | Local document storage **forbidden**; fake scanner **forbidden**; fake Razorpay **forbidden**; Razorpay secrets **required**; SMTP/`MAIL_DRIVER` required for real email |
 
-Verify:
+**Repository fact:** Production-like environments have **no implemented private object-storage driver** (factory returns `UnconfiguredObjectStorage` unless driver is `local` **and** env allows fake/local). Likewise there is **no production malware scanner implementation**.
+
+Therefore the honest **first 5-day trial** recommendation is:
+
+- Prefer `APP_ENV=uat` on the VPS for a Mode A + documents trial, with **real** Razorpay + **real** SMTP, and **explicit** local documents + fake scanner flags — treat as a **controlled trial host**, not production cutover.  
+- Or `APP_ENV=production` only if you accept that **credential document upload/scan is blocked** until S3 + scanner packs land (learning/certs still work for already-admitted enrolments).
+
+Do **not** run `uat:seed` / demo catalogue seeders against a database that will hold real customer PII without a wipe plan.
+
+---
+
+## 2. Server setup
+
+### 2.1 OS packages (Ubuntu example)
+
+Adapt package names to the Ubuntu release; ensure PHP **8.4** packages are available (ondrej PPA or distro equivalent).
 
 ```bash
-php8.4 -v
-php8.4 -m | grep -E 'pdo_mysql|mbstring|json|sodium|openssl|curl|fileinfo|gd|intl|zip'
+sudo apt update
+sudo apt install -y \
+  nginx \
+  mysql-server \
+  git unzip curl ca-certificates \
+  php8.4-fpm php8.4-cli php8.4-mysql php8.4-mbstring php8.4-xml \
+  php8.4-curl php8.4-zip php8.4-gd php8.4-intl php8.4-bcmath
+# Confirm sodium is present (often bundled):
+php8.4 -m | grep -i sodium
 ```
 
-### MySQL
+### 2.2 PHP installation / FPM
 
-| Requirement | Value |
+| Setting | Value |
 |---|---|
-| Version | **MySQL 8.4 LTS** (InnoDB, `utf8mb4`) — project baseline |
-| Charset / collation | `utf8mb4` / `utf8mb4_unicode_ci` (or server default compatible with utf8mb4) |
-| Privileges | App user: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `ALTER`, `INDEX`, `REFERENCES` on the app schema (migrations need DDL) |
-| Client tools | `mysql`, `mysqldump` for backup/restore |
+| Version | 8.4 FPM + CLI identical |
+| `upload_max_filesize` | `10M` |
+| `post_max_size` | `16M` |
+| `memory_limit` | Prefer `256M` (Dompdf certificates) |
+| Pool user | Dedicated deploy user (e.g. `academy`) |
 
-### Composer
+Restart after changes: `sudo systemctl restart php8.4-fpm`.
 
-| Requirement | Value |
-|---|---|
-| Composer | **2.x** matching PHP 8.4 |
-| Install mode (customer host) | `composer install --no-dev --optimize-autoloader` |
+### 2.3 Composer
 
-### Node.js (build-time only)
+```bash
+curl -sS https://getcomposer.org/installer | php8.4 -- --install-dir=/usr/local/bin --filename=composer
+composer --version   # 2.x
+```
 
-Frontend is Bootstrap 5.3 + jQuery copied into `public/assets/vendor`. Node is **not** required at runtime.
+### 2.4 MySQL setup
 
-| Requirement | Value |
-|---|---|
-| Node | **≥ 22** (`package.json` `engines`) |
-| When | Deploy/build machine: `npm ci` then `node bin/install-frontend-assets.mjs` (or `composer assets:install` / `npm run assets:install`) |
-| Runtime | Serve static files from `public/`; no Node process needed |
+1. Install MySQL 8.4 (or 8.0+ only if 8.4 packages unavailable — prefer 8.4).  
+2. Create database + user with utf8mb4.  
+3. Grant DDL + DML for migrations.  
+4. Prefer binding to localhost or private network; do not expose 3306 publicly.
 
-### Suggested host sizing (trial)
+### 2.5 Nginx / Apache
 
-| Resource | Starting point |
-|---|---|
-| vCPU | 2 |
-| RAM | 4 GB |
-| Disk | 40 GB SSD (OS + app + MySQL + logs + local document storage if used) |
-| Network | Public HTTPS; outbound HTTPS for Razorpay + SMTP |
+**Document root must be `…/public` only.** Example: `public/nginx.conf.example`.
+
+Requirements:
+
+- `try_files $uri /index.php…` (or Apache equivalent front-controller rewrite)
+- PHP passed to PHP 8.4-FPM
+- Deny HTTP access to `src`, `config`, `database`, `tests`, `storage`, `vendor`, `templates`, `bin`
+- TLS server block (or terminate TLS at LB / Hostinger panel) and redirect HTTP→HTTPS
+- Forward `X-Forwarded-Proto` / `X-Forwarded-For` when behind a proxy; set `TRUSTED_PROXIES`
+
+### 2.6 File permissions
+
+```bash
+sudo mkdir -p /var/www/academy-lms
+sudo chown -R academy:academy /var/www/academy-lms
+cd /var/www/academy-lms
+mkdir -p storage/logs storage/documents storage/mail storage/cache storage/sessions storage/tmp
+chmod -R u+rwX,g+rX storage
+# Web server must not serve storage/; only PHP writes there
+```
 
 ---
 
-## 2. Application deployment
+## 3. Application deployment
 
-### 2.1 Clone repository
+Exact application steps (no invented caches/frameworks — this app has no Laravel-style `config:cache`).
+
+### 3.1 Obtain code
 
 ```bash
-sudo mkdir -p /var/www
-sudo chown "$USER":"$USER" /var/www
 cd /var/www
 git clone <REPO_URL> academy-lms
 cd academy-lms
 git fetch --prune
-git checkout 31363c5   # or approved RC tag
-git rev-parse HEAD     # must equal 31363c5 (or tag tip)
+git checkout 31363c5
+git rev-parse HEAD   # must print 31363c5
 ```
 
-Use a deploy key or CI artifact; do not leave personal tokens on the VPS.
+### 3.2 Configure environment
 
-### 2.2 Environment setup
+Inject env into **both** PHP-FPM and CLI (cron/systemd). Prefer systemd `EnvironmentFile=/etc/academy-lms/trial.env` (mode `0600`).
 
-1. Create MySQL database and user (utf8mb4).
-2. Provide **all** required environment variables to PHP-FPM and CLI (see §4).  
-   - Preferred: `/etc/academy-lms/production.env` (mode `0600`, owned by root, readable by app user) referenced by systemd / PHP-FPM `clear_env` + `env[]` / `EnvironmentFile`.  
-   - If the host must use a project `.env`, understand dotenv soft-load is designed for non-production-like envs — for `APP_ENV=production`, inject via the process environment.
-3. Set `APP_ENV=production` (or `staging` for a private dry-run).
-4. Set `APP_DEBUG=false`, `FORCE_HTTPS=true` behind TLS.
-5. Set `APP_URL=https://<customer-domain>`.
+Notes from `config/app.php`:
 
-### 2.3 Composer install
+- Dotenv file load is intended for `local|testing|ci|uat`.  
+- For `staging|production`, do not depend on soft secret defaults; inject real secrets via process environment.
+
+### 3.3 Composer install
 
 ```bash
-cd /var/www/academy-lms
 composer install --no-dev --optimize-autoloader
 ```
 
-Record `composer.lock` hash in the deploy note.
-
-### 2.4 Frontend assets
-
-On a machine with Node 22+:
+### 3.4 Frontend assets (build)
 
 ```bash
+# Node >= 22
 npm ci
 node bin/install-frontend-assets.mjs
-# verifies files under public/assets/vendor/{bootstrap,jquery}
+# copies Bootstrap/jQuery into public/assets/vendor
 ```
 
-Commit/deploy the generated vendor assets with the release, or run this on the VPS if Node is installed there.
-
-### 2.5 Migrations
+### 3.5 Database creation + migrations
 
 ```bash
+# Create empty DB first (MySQL client)
 php8.4 vendor/bin/phinx migrate -c phinx.php
-# or: composer migrate   # when vendor/bin is available
 ```
 
-- Run **forward** migrations only on customer data.
-- Confirm WP-L10 video migration is included on this HEAD (`20260906000001_wp_l10_video_content_items`).
-- Prefer fix-forward if a migration fails mid-way; do not invent destructive rollbacks on a live trial DB.
+Latest Phase 1 migration on this lineage includes video content items:  
+`database/migrations/20260906000001_wp_l10_video_content_items.php`.
 
-Optional clean-install check (empty DB only):
+Optional empty-DB bootstrap check: `php8.4 bin/setup.php` — **do not** pass `--seed-uat` on a customer-bound database.
 
-```bash
-php8.4 bin/setup.php
-```
+### 3.6 Seed requirements
 
-Do **not** use `php bin/setup.php --seed-uat` on the customer trial database.
-
-### 2.6 Seed / demo removal (critical)
-
-| Action | Customer trial host |
+| Command / seeder | Customer trial DB |
 |---|---|
-| `php bin/jobs.php uat:seed` | **Do not run** (refused in staging/production; still never point at customer DB from a mis-set env) |
-| `php bin/jobs.php uat:reset --confirm` | **Do not run** |
-| `composer demo-prepare` / `demo:process` | **Do not run** |
-| `Wp02DemoCatalogueSeeder` / Phase 1 learning seeder | **Do not run** via Phinx seed on production |
-| `ALLOW_LOCAL_BOOTSTRAP_ADMIN` | Must be `false` |
-| `PAYMENTS_FAKE_GATEWAY` | Must be unset / `0` |
-| `DOCUMENTS_FAKE_SCANNER` | Must be unset / off |
-| `DOCUMENTS_STORAGE_DRIVER=local` | Allowed only as an explicit short-term trial choice with documented risk; prefer private object storage for anything beyond a private dry-run |
-| `NOTIFICATION_EMAIL_ADAPTER=local_file\|recording` | **Forbidden** in staging/production |
+| `php bin/jobs.php uat:seed` | **Do not run** for real customer PII; refused in staging/production |
+| `uat:reset --confirm` | **Do not run** on customer data |
+| `demo:prepare` / Phinx demo seeders | **Do not run** on customer production data |
+| Course content | Create via Course Admin UI (or a controlled import process you own) |
 
-Create the customer Super Admin / Course Admin accounts through the approved bootstrap path for production (or a controlled first-user procedure). Do not ship UAT passwords (`Uat-Demo-Passw0rd!`) to the customer host.
+Create admin/course-admin users through an approved bootstrap procedure for the chosen `APP_ENV` (local bootstrap flags must stay **off** on public hosts: `ALLOW_LOCAL_BOOTSTRAP_ADMIN=false`).
 
-If a staging dry-run used UAT seed, **wipe and re-migrate** before customer data entry — do not “clean up” demo rows ad hoc.
+### 3.7 Cache / config
 
-### 2.7 Web document root
-
-Point the web server **only** at:
-
-```text
-/var/www/academy-lms/public
-```
-
-Deny direct HTTP access to `src/`, `config/`, `database/`, `storage/`, `tests/`, `vendor/`, `.env*`.
-
-All requests enter via `public/index.php` (front controller).
+No separate config-cache command exists. Opcache (PHP) is recommended at the host level. Application “cache” under `storage/cache` is runtime scratch — keep writable; no mandatory warm-up step in-repo.
 
 ---
 
-## 3. Runtime services
+## 4. Environment variables
 
-### 3.1 PHP-FPM
+Legend: **Trial** = required for recommended 5-day trial host · **Prod** = required for true `staging`/`production` cutover · **Opt** = optional.
 
-- Pool for site user (e.g. `academy`).
-- Same env vars as CLI workers.
-- `php.ini` / pool overrides: `upload_max_filesize=10M`, `post_max_size=16M`.
-- Restart after env changes: `sudo systemctl restart php8.4-fpm`.
+Sources: `.env.example`, `EnvironmentValidator`, payment/email deployment docs.
 
-### 3.2 Nginx or Apache
+### 4.1 Application / security
 
-**Nginx (recommended sketch):**
+| Variable | Trial | Prod | Notes |
+|---|---|---|---|
+| `APP_ENV` | Required | Required | Trial recommendation: `uat` (see §1.3). Cutover: `production` / `staging` |
+| `APP_URL` | Required | Required | Canonical `https://…` |
+| `APP_DEBUG` | Required (`false`) | Required (`false`) | Warning if true on production-like |
+| `APP_NAME` | Opt | Opt | Branding may override display name |
+| `FORCE_HTTPS` | Required (`true`) | Required | |
+| `TRUSTED_PROXIES` | Opt | Opt | Set when behind LB/proxy |
+| `SESSION_COOKIE_SECURE` | Required (`true`) | Required | |
+| `RATE_LIMIT_PEPPER` | Required | Required | No soft default outside local soft-secret envs |
+| `TOKEN_PEPPER` | Required | Required | |
+| `OTP_PEPPER` | Required | Required | Must differ from token pepper |
+| `NOTIFICATION_DELIVERY_KEY` | Required | Required | 32-byte key, strict base64 |
+| `NOTIFICATION_DELIVERY_KEY_PREVIOUS` | Opt | Opt | Rotation |
+| `TERMS_VERSION` / `PRIVACY_VERSION` | Required | Required | Match published legal text |
+| `ALLOW_LOCAL_BOOTSTRAP_ADMIN` | Required (`false`) | Required (`false`) | |
+| `UAT_SEED_PASSWORD` | Opt | — | Only if deliberately seeding UAT; never for real customer DB |
 
-- `root /var/www/academy-lms/public;`
-- `try_files $uri /index.php?$query_string;`
-- Pass PHP to `unix:/run/php/php8.4-fpm.sock` (or TCP).
-- TLS termination here or at a load balancer / Hostinger SSL.
-- Forward `X-Forwarded-Proto` / `X-Forwarded-For` when behind a proxy; set `TRUSTED_PROXIES` accordingly.
-- Deny access to hidden files and non-public trees.
+### 4.2 Database
 
-**Apache:** `DocumentRoot` → `public/`; `FallbackResource /index.php` or equivalent rewrite; same TLS / proxy rules.
+| Variable | Trial | Prod | Notes |
+|---|---|---|---|
+| `DB_HOST` | Required | Required | |
+| `DB_PORT` | Required | Required | Default 3306 |
+| `DB_NAME` | Required | Required | |
+| `DB_USER` | Required | Required | |
+| `DB_PASSWORD` | Required | Required | |
+| `DB_CHARSET` | Required | Required | `utf8mb4` |
 
-### 3.3 Cron / scheduled workers
+### 4.3 Branding
 
-Jobs are **batch** commands (`php bin/jobs.php <command>`), not long-lived daemons. Prefer **systemd timers** or **cron** (≥ 1 minute). See [PROCESS_SUPERVISION_EXAMPLES.md](../operations/PROCESS_SUPERVISION_EXAMPLES.md).
+| Variable | Trial | Prod | Notes |
+|---|---|---|---|
+| `ACADEMY_NAME` | Required | Required | Defaults toward `APP_NAME` if unset |
+| `ACADEMY_LOGO_URL` | Required | Required | Same-origin path or HTTPS URL (CSP allows configured HTTPS logo host) |
+| `ACADEMY_PRIMARY_COLOR` | Required | Required | `#RRGGBB` |
+| `ACADEMY_SUPPORT_EMAIL` | Required | Required | |
+| `ACADEMY_CERTIFICATE_ISSUER_NAME` | Required | Required | Defaults to academy name |
 
-| Cadence | Commands |
-|---|---|
-| Every minute | `outbox:relay`, `notification:deliver`, `document:scan`, `payment:webhook-process` |
-| Every 5 minutes | `session:cleanup`, `rate-limit:cleanup`, `document:stuck-scan`, `payment:reconcile` |
-| Hourly | `token-confirmation:cleanup` |
+### 4.4 Payments (Razorpay)
 
-Example (customize user/path/PHP):
+| Variable | Trial | Prod | Notes |
+|---|---|---|---|
+| `RAZORPAY_KEY_ID` | Required* | Required | *Required whenever fake gateway is off |
+| `RAZORPAY_KEY_SECRET` | Required* | Required | Server only |
+| `RAZORPAY_WEBHOOK_SECRET` | Required* | Required | Dashboard webhook secret |
+| `PAYMENTS_FAKE_GATEWAY` | Required (`0`) | Required (`0`/empty) | Forbidden in staging/production if enabled |
+| `PAYMENTS_RECONCILE_PENDING_STALE_SECONDS` | Opt | Opt | Default 1800 |
+
+### 4.5 Email
+
+| Variable | Trial | Prod | Notes |
+|---|---|---|---|
+| `MAIL_DRIVER` | Required (`smtp` or `ses`) | Required | Overrides legacy adapter when set |
+| `MAIL_HOST` | Required | Required | With SMTP driver |
+| `MAIL_PORT` | Required | Required | e.g. 587 |
+| `MAIL_ENCRYPTION` | Opt | Opt | `tls` / `ssl` / `none` |
+| `MAIL_USERNAME` / `MAIL_PASSWORD` | Required | Required | Provider credentials |
+| `MAIL_FROM_ADDRESS` / `MAIL_FROM_NAME` | Required | Required | Verified sender |
+| `NOTIFICATION_EMAIL_ADAPTER` | Opt | Must not be `local_file`/`recording` | Staging/production reject those |
+| `NOTIFICATION_SMS_ADAPTER` | Opt | Opt | SMS OTP pack incomplete (`PR-SMS`) |
+| `NOTIFICATION_LOCAL_MAIL_PATH` | — | — | Local demo only |
+
+### 4.6 Storage / documents
+
+| Variable | Trial | Prod | Notes |
+|---|---|---|---|
+| `DOCUMENTS_STORAGE_DRIVER` | Required (`local` only if `APP_ENV` allows) | **Blocked today** | No S3 driver in-repo; production-like forbids `local` |
+| `DOCUMENTS_LOCAL_BASE_PATH` | Required if local | — | Default `storage/documents` |
+| `DOCUMENTS_LOCAL_SIGNING_SECRET` | Required if local | — | |
+| `DOCUMENTS_FAKE_SCANNER` | Explicit `1` only on trial/`uat` | **Forbidden** | No real scanner class |
+| `DOCUMENTS_DECLARATION_VERSION` | Required | Required | |
+| `DOCUMENTS_UPLOAD_TTL_SECONDS` / `DOWNLOAD_TTL_SECONDS` | Opt | Opt | Defaults 900 |
+| Scan SLA / lease knobs | Opt | Opt | See `.env.example` |
+
+### 4.7 Logging / outbox
+
+| Variable | Trial | Prod | Notes |
+|---|---|---|---|
+| `LOG_LEVEL` | Required (`info`/`warning`) | Required | Avoid `debug` on public hosts |
+| `LOG_PATH` | Required | Required | Default `storage/logs/app.log` |
+| `OUTBOX_TRANSPORT` | Required for reliable mail | Required | Must not silently stay unconfigured if email must leave |
+| Outbox lease/backoff knobs | Opt | Opt | Defaults in `.env.example` |
+
+---
+
+## 5. Background jobs and workers
+
+CLI entry: `php bin/jobs.php <command>` (`bin/jobs.php`). Jobs are **finite batches** — schedule with cron or systemd timers (≥ 1 minute). Examples: [PROCESS_SUPERVISION_EXAMPLES.md](../operations/PROCESS_SUPERVISION_EXAMPLES.md).
+
+| Command | Purpose | Cadence | Required for trial? |
+|---|---|---|---|
+| `payment:webhook-process` | Process durable Razorpay webhook receipts → payment/admission flow | Every 1 min | **Yes** (real Razorpay) |
+| `payment:reconcile` | Reconcile stale/pending payments | Every 5 min | **Yes** |
+| `outbox:relay` | Publish outbox messages | Every 1 min | **Yes** if email/outbox used |
+| `notification:deliver` | Identity + transactional email delivery (incl. certificate issued) | Every 1 min | **Yes** if email required |
+| `document:scan` | Claim submissions pending malware scan | Every 1 min | **Yes** if Mode A documents used |
+| `document:stuck-scan` | Stuck-scan watchdog | Every 5 min | **Yes** if documents used |
+| `session:cleanup` | Expire sessions | Every 5–15 min | **Yes** |
+| `rate-limit:cleanup` | Expire rate-limit rows | Every 5–15 min | **Yes** |
+| `token-confirmation:cleanup` | Purge confirmation contexts | Hourly | **Yes** |
+| `uat:seed` / `uat:reset` | UAT personas | Never on schedule | **No** — ops-only, gated |
+| `demo:prepare` / `demo:process` / `demo:payment-capture` | Local demo helpers | Never on schedule | **No** on customer host |
+
+### Sample cron (customize user/path/PHP)
 
 ```cron
+MAILTO=""
 */1 * * * * academy cd /var/www/academy-lms && /usr/bin/php8.4 bin/jobs.php payment:webhook-process >> /var/log/academy-lms/webhook.log 2>&1
 */1 * * * * academy cd /var/www/academy-lms && /usr/bin/php8.4 bin/jobs.php outbox:relay >> /var/log/academy-lms/outbox.log 2>&1
 */1 * * * * academy cd /var/www/academy-lms && /usr/bin/php8.4 bin/jobs.php notification:deliver >> /var/log/academy-lms/notification.log 2>&1
@@ -249,251 +322,209 @@ Example (customize user/path/PHP):
 0 * * * * academy cd /var/www/academy-lms && /usr/bin/php8.4 bin/jobs.php token-confirmation:cleanup >> /var/log/academy-lms/token-cleanup.log 2>&1
 ```
 
-**Never** schedule `uat:seed`, `uat:reset`, or `demo:process`.
+Ensure cron inherits the same env file as PHP-FPM.
 
-### 3.4 Queue / outbox
-
-- Application outbox is relayed by `outbox:relay`.
-- Configure `OUTBOX_TRANSPORT` appropriately for the environment (must not remain silently unconfigured if notifications must leave the box).
-- Payment confirmation for **real Razorpay** is: Dashboard webhook → `POST /webhooks/razorpay` → durable event → **`payment:webhook-process`** → existing payment/admission state machines. Do not rely on browser return.
-
-### 3.5 Health checks
-
-```bash
-curl -sS https://<host>/health/live
-curl -sS https://<host>/health/ready
-```
-
-Expect HTTP 200 when DB, writable paths, and adapter policy are healthy.
+**Architecture reminder:** Real Razorpay path is webhook HTTP ingress → durable event → `payment:webhook-process` → existing payment/admission state machines. Browser “Confirming payment…” is informational. In-process webhook processing after demo capture exists **only** for fake-gateway demo (`DemoPaymentSimulationService`) and must stay off on the customer host.
 
 ---
 
-## 4. Environment variables
+## 6. Storage
 
-Use `.env.example` as the field catalogue. Values below are the **customer-trial** subset.
+### 6.1 Writable directories (repository layout)
 
-### 4.1 Application / security
-
-| Variable | Trial requirement |
-|---|---|
-| `APP_ENV` | `production` (or `staging`) |
-| `APP_DEBUG` | `false` |
-| `APP_URL` | Public HTTPS origin |
-| `APP_TIMEZONE` | `UTC` |
-| `FORCE_HTTPS` | `true` |
-| `TRUSTED_PROXIES` | Proxy/LB IPs if applicable |
-| `SESSION_COOKIE_SECURE` | `true` on HTTPS |
-| `RATE_LIMIT_PEPPER` | Strong unique secret |
-| `TOKEN_PEPPER` | Strong unique secret |
-| `OTP_PEPPER` | Strong unique secret (≠ token pepper) |
-| `NOTIFICATION_DELIVERY_KEY` | 32-byte key, strict base64 |
-| `TERMS_VERSION` / `PRIVACY_VERSION` | Match published legal versions |
-
-### 4.2 Database
-
-| Variable | Trial requirement |
-|---|---|
-| `DB_HOST` / `DB_PORT` | MySQL host |
-| `DB_NAME` / `DB_USER` / `DB_PASSWORD` | Dedicated schema credentials |
-| `DB_CHARSET` | `utf8mb4` |
-
-### 4.3 Branding
-
-| Variable | Trial requirement |
-|---|---|
-| `ACADEMY_NAME` | Customer academy display name |
-| `ACADEMY_LOGO_URL` | Same-origin path (e.g. `/assets/brand/logo.svg`) **or** HTTPS URL whose host is allowed by CSP |
-| `ACADEMY_PRIMARY_COLOR` | `#RRGGBB` |
-| `ACADEMY_SUPPORT_EMAIL` | Support contact |
-| `ACADEMY_CERTIFICATE_ISSUER_NAME` | Certificate issuer line |
-
-### 4.4 Razorpay
-
-| Variable | Trial requirement |
-|---|---|
-| `RAZORPAY_KEY_ID` | Live or test key (test OK for private rehearsal; live for paid trial) |
-| `RAZORPAY_KEY_SECRET` | Server only |
-| `RAZORPAY_WEBHOOK_SECRET` | Dashboard webhook secret |
-| `PAYMENTS_FAKE_GATEWAY` | **Off** (`0` / empty) |
-
-Webhook URL: `https://<host>/webhooks/razorpay`  
-Subscribe at least: `payment.captured`, `payment.failed` (plus recommended `order.paid` / `payment.authorized`).  
-Details: [RAZORPAY_CONFIGURATION.md](./RAZORPAY_CONFIGURATION.md).
-
-### 4.5 Email
-
-| Variable | Trial requirement |
-|---|---|
-| `MAIL_DRIVER` | `smtp` or `ses` |
-| `MAIL_HOST` / `MAIL_PORT` / `MAIL_ENCRYPTION` | Provider endpoint |
-| `MAIL_USERNAME` / `MAIL_PASSWORD` | SMTP auth |
-| `MAIL_FROM_ADDRESS` / `MAIL_FROM_NAME` | Verified sender |
-| `NOTIFICATION_EMAIL_ADAPTER` | Not `local_file` / `recording` |
-
-Workers: `outbox:relay` + `notification:deliver` must be scheduled or mail will not leave the outbox.  
-Details: [EMAIL_CONFIGURATION.md](./EMAIL_CONFIGURATION.md).
-
-### 4.6 Documents / storage
-
-| Variable | Trial requirement |
-|---|---|
-| `DOCUMENTS_STORAGE_DRIVER` | Prefer private object storage for real PII; `local` only with explicit risk acceptance |
-| `DOCUMENTS_LOCAL_BASE_PATH` | If local: under `storage/` outside web root |
-| `DOCUMENTS_LOCAL_SIGNING_SECRET` | Strong secret |
-| `DOCUMENTS_FAKE_SCANNER` | **Off** for customer-facing hosts (or accept malware-scan gap in writing) |
-| Upload PHP limits | 10M / 16M as above |
-
-### 4.7 Logging
-
-| Variable | Trial requirement |
-|---|---|
-| `LOG_LEVEL` | `info` or `warning` (not `debug` on public hosts) |
-| `LOG_PATH` | `storage/logs/app.log` (writable; rotated) |
-
----
-
-## 5. Storage
-
-### 5.1 Writable directories
-
-Ensure the app user can write:
+Under `storage/` (also present in tree): `logs`, `documents`, `mail`, `cache`, `sessions`, `tmp`, `uploads`, `backups`.
 
 | Path | Purpose |
 |---|---|
-| `storage/` | Runtime storage root (readiness checks) |
-| `storage/logs/` | Application logs |
-| `storage/documents/` | Local document objects (if local driver) |
-| `storage/mail/` | Only if local_file mail (not for production) |
+| `storage/` | Root checked by readiness / `EnvironmentValidator` |
+| `storage/logs/` | `LOG_PATH` default |
+| `storage/documents/` | Local object storage for credential documents (when local driver allowed) |
+| `storage/mail/` | `local_file` email only (not for production-like) |
+| Others | Runtime scratch |
 
-```bash
-sudo mkdir -p storage/logs storage/documents
-sudo chown -R academy:academy storage
-sudo chmod -R u+rwX,g+rX storage
-```
+Certificates: **generated on demand** (Dompdf HTML→PDF); metadata in MySQL `certificates` table — **no dedicated certificate file store** in Phase 1.
 
-Never expose `storage/` via the web server.
+### 6.2 Uploaded content
 
-### 5.2 Backups
+- Credential documents: private object storage abstraction; **local disk** implementation only for non-production-like envs.  
+- Learning PDFs: content type exists; learner download/media pipeline is incomplete (placeholder UX).  
+- Video: **external URL / embed only** — no uploaded video blobs.
 
-Minimum for a 5-day trial:
+### 6.3 Limitations (current repository)
 
-1. Nightly `mysqldump` (gzip + checksum) to disk **outside** the web root or to object storage.  
-2. Copy `storage/documents` if using local driver.  
-3. Record restore steps; rehearse once before day 1 if possible.
+| Topic | Status |
+|---|---|
+| Local storage | Implemented (`LocalObjectStorage`); allowed only when env permits fake/local |
+| S3 readiness | **Not implemented** in `ObjectStorageFactory` — falls through to `UnconfiguredObjectStorage` |
+| Malware scanner | Fake + unconfigured only |
+| Backups | UAT `mysqldump` rehearsal docs/scripts exist; production DR not certified (`PR-BACKUP`) |
 
-UAT-oriented scripts/docs: [BACKUP_RESTORE_RUNBOOK.md](../operations/BACKUP_RESTORE_RUNBOOK.md), `bin/backup-uat.sh`. Adapt for production credentials and retention. This does **not** by itself satisfy full production DR (`PR-BACKUP`).
+### 6.4 Backup considerations (trial minimum)
+
+1. Nightly logical DB dump + checksum to non-web disk or object storage.  
+2. If using local documents, back up `storage/documents`.  
+3. Rehearse restore once before day 1 when possible.  
+4. See [BACKUP_RESTORE_RUNBOOK.md](../operations/BACKUP_RESTORE_RUNBOOK.md) (UAT-oriented).
 
 ---
 
-## 6. SSL / domain setup
+## 7. External services
 
-1. Point customer DNS `A`/`AAAA` (or CNAME) to the VPS / load balancer.
-2. Issue certificate (Let’s Encrypt / Hostinger SSL / ACM).
-3. Force HTTPS redirects; HSTS via app (`FORCE_HTTPS`) and/or edge.
-4. Set `APP_URL` to the canonical `https://` origin (no trailing path).
-5. Set `SESSION_COOKIE_SECURE=true`.
-6. Configure `TRUSTED_PROXIES` if TLS terminates upstream.
-7. Confirm Razorpay webhook HTTPS URL matches the public host.
-8. Confirm outbound SMTP/Razorpay from the VPS is not blocked by security groups / firewall.
+### 7.1 Razorpay
 
-Smoke:
+| Item | Requirement |
+|---|---|
+| Keys | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` |
+| Webhook secret | `RAZORPAY_WEBHOOK_SECRET` |
+| Webhook URL | `https://<customer-domain>/webhooks/razorpay` |
+| Events | At least `payment.captured`, `payment.failed`; recommended `order.paid`, `payment.authorized` |
+| Mode | Test keys for private rehearsal; live keys only when taking real money |
+| Fake gateway | Must be **off** on customer host |
+
+Worker: `payment:webhook-process` (+ `payment:reconcile`). Details: [RAZORPAY_CONFIGURATION.md](./RAZORPAY_CONFIGURATION.md).
+
+### 7.2 Email provider
+
+| Item | Requirement |
+|---|---|
+| Driver | `MAIL_DRIVER=smtp` or `ses` |
+| Host/auth/from | Verified domain or address (SES sandbox limits apply until production access) |
+| Workers | `outbox:relay` + `notification:deliver` |
+| Forbidden on staging/production | `local_file`, `recording` adapters |
+
+Details: [EMAIL_CONFIGURATION.md](./EMAIL_CONFIGURATION.md).
+
+### 7.3 Domain / SSL
+
+1. DNS A/AAAA (or CNAME) → VPS / LB.  
+2. Issue certificate (Let’s Encrypt, Hostinger SSL, ACM, etc.).  
+3. Set `APP_URL` to canonical HTTPS origin.  
+4. Enable HTTPS redirect + `FORCE_HTTPS` / secure cookies.  
+5. Confirm webhook and mail provider can reach/accept the public hostname.
+
+Health:
 
 ```bash
-curl -sI https://<domain>/login
+curl -sS https://<domain>/health/live
 curl -sS https://<domain>/health/ready
 ```
 
 ---
 
-## 7. First customer trial checklist
+## 8. First customer trial deployment checklist
 
-Execute in order; tick before inviting learners.
+Before giving the customer access:
 
-### A. Deploy freeze
+### Platform
 
-| # | Check | Pass? |
-|---|---|---|
-| A1 | Deployed commit is `31363c5` (or approved tag of that SHA) | ☐ |
-| A2 | `APP_ENV` is `production` or `staging` (not `local`/`uat`) | ☐ |
-| A3 | `APP_DEBUG=false` | ☐ |
-| A4 | No UAT/demo seed commands run against this DB | ☐ |
-| A5 | Fake payment / fake scanner / local_file email disabled | ☐ |
-| A6 | `composer install --no-dev` completed | ☐ |
-| A7 | Migrations applied (incl. video content columns) | ☐ |
-| A8 | Frontend vendor assets present under `public/assets/vendor` | ☐ |
+- [ ] Domain resolves to this host  
+- [ ] SSL active; HTTP redirects to HTTPS  
+- [ ] Deployed app commit is `31363c5` (or approved tag)  
+- [ ] `GET /health/live` and `/health/ready` return 200  
+- [ ] PHP-FPM + Nginx/Apache serve only `public/`  
+- [ ] Cron/systemd workers running (payment, outbox, notifications, documents as applicable)  
+- [ ] Nightly DB backup configured and one restore rehearsal noted  
 
-### B. Platform health
+### Branding & admin
 
-| # | Check | Pass? |
-|---|---|---|
-| B1 | `GET /health/live` → 200 | ☐ |
-| B2 | `GET /health/ready` → 200 | ☐ |
-| B3 | Cron/systemd timers running; logs show recent success | ☐ |
-| B4 | TLS valid; HTTP redirects to HTTPS | ☐ |
-| B5 | Branding name/logo/color visible on login + header | ☐ |
+- [ ] Academy branding configured (name, logo, colour, support email, certificate issuer)  
+- [ ] Admin / Course Admin account created (no UAT demo password reuse)  
+- [ ] Fake payment gateway off; bootstrap admin flags off  
 
-### C. Money path (real Razorpay)
+### Course / learning
 
-| # | Check | Pass? |
-|---|---|---|
-| C1 | Razorpay keys + webhook secret set | ☐ |
-| C2 | Webhook URL reachable: `POST /webhooks/razorpay` | ☐ |
-| C3 | Test payment → “Confirming…” → worker processes → Admitted + Enrolment | ☐ |
-| C4 | Browser return alone does **not** mark success (architecture check) | ☐ |
-| C5 | `payment:webhook-process` and `payment:reconcile` scheduled | ☐ |
+- [ ] Course loaded (catalogue + published version + open batch with `starts_at` in the past for Active enrolment)  
+- [ ] Video lesson tested (embedded YouTube/Vimeo or external HTTPS link)  
+- [ ] Text lesson / Mark complete tested  
+- [ ] Assessment attempt pass path tested  
+- [ ] Certificate view + PDF + public verify tested  
 
-### D. Mail path
+### Money & mail
 
-| # | Check | Pass? |
-|---|---|---|
-| D1 | SMTP/`MAIL_DRIVER` configured; from-address verified | ☐ |
-| D2 | `outbox:relay` + `notification:deliver` scheduled | ☐ |
-| D3 | Registration / password / certificate email observed (or recorded as deferred) | ☐ |
+- [ ] Razorpay test or live checkout tested end-to-end through webhook worker → Admitted + Enrolment  
+- [ ] Email delivery tested (registration or transactional) with SMTP/SES  
 
-### E. Learning path (Phase 1)
+### Documents (if Mode A docs in scope)
 
-| # | Check | Pass? |
-|---|---|---|
-| E1 | Course Admin can create Video (YouTube embed) + text + MCQ | ☐ |
-| E2 | Published batch with `starts_at` in the past → Active enrolment after admit | ☐ |
-| E3 | Learner sees embedded video; Mark complete works | ☐ |
-| E4 | MCQ pass shows completion message + certificate CTA | ☐ |
-| E5 | Certificate PDF + public verify URL work logged out | ☐ |
-
-### F. Documents / SoD
-
-| # | Check | Pass? |
-|---|---|---|
-| F1 | Document upload + scan worker path works (or documented gap if scanner not ready) | ☐ |
-| F2 | Finance cannot open credential document URLs | ☐ |
-
-### G. Ops readiness for trial week
-
-| # | Check | Pass? |
-|---|---|---|
-| G1 | Nightly DB backup job configured | ☐ |
-| G2 | Log rotation configured for `storage/logs` and worker logs | ☐ |
-| G3 | Support contact (`ACADEMY_SUPPORT_EMAIL`) monitored | ☐ |
-| G4 | Rollback plan: previous release artifact + DB restore point named | ☐ |
-| G5 | Facilitator knows remaining product gaps (PDF lesson download, MFA UI, etc.) | ☐ |
+- [ ] Storage/scanner posture agreed (`uat`+local+fake **or** accept blocked uploads on production-like)  
+- [ ] Upload → scan worker → reviewer path tested under that posture  
+- [ ] Finance SoD: finance cannot open document URLs  
 
 ### Sign-off
 
 | Role | Name | Date | Ack |
 |---|---|---|---|
-| Engineering / Deployer | | | ☐ |
-| Customer facilitator | | | ☐ |
+| Deployer | | | ☐ |
+| Facilitator | | | ☐ |
 | Product Owner | | | ☐ |
 
 ---
 
-## 8. Explicit non-goals for this guide
+## 9. Known limitations for first customer trial
 
-- Multi-tenant / white-label automation  
-- Mux / DRM / hosted video pipeline (Phase 1 uses external URL / embed only)  
-- Full production DR certification (`PR-BACKUP`, load, pen-test)  
-- Running demo personas on the customer database  
+Intentionally deferred / incomplete in the repository (do not promise these):
+
+| Area | Limitation |
+|---|---|
+| Object storage | **No S3 adapter**; production-like cannot use `local` |
+| Malware scanning | **No real scanner**; fake only on non-production-like envs |
+| MFA | Privileged MFA enrol/challenge UI incomplete (AGENTS expects MFA) |
+| Video hosting | No upload/transcode/CDN/DRM/Mux — external embed/link only |
+| PDF lessons | Type exists; learner download/viewer placeholder |
+| Assessment polish | No autosave; timers/cooldown not fully exposed in admin UI |
+| Analytics / watch-time | Not implemented |
+| Refunds / cancel application | Product deferrals (`PR-REFUND`, `PR-CANCEL`) |
+| SMS OTP | Provider pack incomplete (`PR-SMS`) |
+| Multi-tenancy | Single-deployment branding only |
+| Production register drift | Some rows still label player/assess/cert as “future” while Phase 1 code exists — trust code + this guide for trial scope |
+| Alerting / load / pen-test | `PR-ALERT`, `PR-LOAD`, `PR-SEC` open |
+| Demo in-process payment capture | Fake-gateway only — not for customer hosts |
 
 ---
 
-*Document only — no application code changes. Keep this file aligned with HEAD `31363c5` until the next RC bump.*
+## 10. Deployment recommendation
+
+### Recommended setup — first 5-day customer trial
+
+| Choice | Recommendation |
+|---|---|
+| Host | Single Ubuntu 22.04/24.04 VPS/EC2 (2 vCPU / 4 GB) |
+| App commit | `31363c5` |
+| `APP_ENV` | **`uat`** for Mode A+documents trial with explicit local storage + fake scanner; **real** Razorpay + **real** SMTP |
+| Web | Nginx → `public/` + Let’s Encrypt (or panel SSL) |
+| Workers | Cron/systemd minute jobs for webhook, outbox, notifications, document scan |
+| Data | No UAT persona seed on the customer’s real data; Course Admin builds the trial course |
+| Payments | Razorpay test mode until go-live moment; then live keys + live webhook |
+| Risk acceptance | Written acceptance that local docs + fake scanner are **temporary trial compromises**, not production |
+
+Alternative: `APP_ENV=production` with real Razorpay/SMTP **only if** document upload is out of trial scope (storage/scanner unconfigured).
+
+### Recommended future production setup
+
+| Choice | Recommendation |
+|---|---|
+| `APP_ENV` | `production` |
+| Storage | Implement/deploy private S3 pack (`PR-S3`) before enabling credential uploads |
+| Scanner | Real malware scanner (`PR-MALWARE`) |
+| Email | SES/SMTP with verified domain; workers supervised |
+| Payments | Live Razorpay + monitored `payment:webhook-process` / reconcile |
+| Ops | Alerting (`PR-ALERT`), backup/DR (`PR-BACKUP`), MFA for privileged roles, pen-test (`PR-SEC`) |
+| Hosting | Approved architecture host (`PR-HOST`) |
+
+Do not claim production cutover until register pilot/production rows above are closed or explicitly waived in the Decision Log.
+
+---
+
+## Appendix — Health & smoke commands
+
+```bash
+curl -sS "$APP_URL/health/live"
+curl -sS "$APP_URL/health/ready"
+php8.4 -v
+php8.4 -m | grep -E 'pdo_mysql|mbstring|json|sodium|openssl|curl|gd'
+php8.4 vendor/bin/phinx status -c phinx.php
+```
+
+---
+
+*Documentation only. No application code, migrations, or architecture changes in this file’s production.*
