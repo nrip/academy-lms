@@ -67,7 +67,8 @@ final class CertificateController
     {
         $certificateId = (int) ($args['certificateId'] ?? 0);
         $certificate = $this->query->getOwnedCertificate($this->auth($request), $certificateId);
-        $bytes = $this->pdf->render($certificate);
+        $verifyUrl = '/verify/certificates/' . rawurlencode($certificate->certificateNumber);
+        $bytes = $this->pdf->render($certificate, $verifyUrl);
         $filename = $certificate->certificateNumber . '.pdf';
 
         $response = new Response();

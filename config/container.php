@@ -696,7 +696,19 @@ return static function (): ContainerInterface {
         ),
         CompletionEligibilityPolicy::class => static fn (): CompletionEligibilityPolicy => new CompletionEligibilityPolicy(),
         CertificateLearnerNameResolver::class => static fn (): CertificateLearnerNameResolver => new CertificateLearnerNameResolver(),
-        SimpleCertificatePdfRenderer::class => static fn (): SimpleCertificatePdfRenderer => new SimpleCertificatePdfRenderer(),
+        SimpleCertificatePdfRenderer::class => static function (ContainerInterface $c): SimpleCertificatePdfRenderer {
+            /** @var array{url: string, name: string} $app */
+            $app = $c->get('config.app');
+            /** @var array{templates: string} $paths */
+            $paths = $c->get('config.paths');
+
+            return new SimpleCertificatePdfRenderer(
+                $c->get(Escaper::class),
+                $paths['templates'],
+                $app['url'],
+                $app['name'] !== '' ? $app['name'] : 'Academy LMS',
+            );
+        },
         CertificateIssuanceService::class => static fn (ContainerInterface $c): CertificateIssuanceService => new CertificateIssuanceService(
             $c->get(EnrolmentRepository::class),
             $c->get(ContentItemRepository::class),
