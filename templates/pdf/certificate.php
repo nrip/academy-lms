@@ -5,6 +5,7 @@ declare(strict_types=1);
 /** @var \Academy\Infrastructure\View\Escaper $e */
 /** @var \Academy\Domain\Certificates\Certificate $certificate */
 /** @var string $academyName */
+/** @var string $primaryColor */
 /** @var string $issued */
 /** @var string $verifyUrl */
 
@@ -22,7 +23,7 @@ declare(strict_types=1);
             padding: 0;
         }
         .acad-certificate-card {
-            border: 2pt solid #333;
+            border: 2pt solid <?= $e->html($primaryColor) ?>;
             padding: 48pt 36pt;
             text-align: center;
         }
@@ -30,7 +31,7 @@ declare(strict_types=1);
             text-transform: uppercase;
             letter-spacing: 0.08em;
             font-size: 10pt;
-            color: #6c757d;
+            color: <?= $e->html($primaryColor) ?>;
             margin: 0 0 12pt;
         }
         .acad-certificate-card h1 {

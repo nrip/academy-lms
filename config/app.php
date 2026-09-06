@@ -10,6 +10,13 @@ use Dotenv\Dotenv;
  *
  * @return array{
  *   app: array{name: string, env: string, debug: bool, url: string},
+ *   branding: array{
+ *     name: string,
+ *     logo_url: string,
+ *     primary_color: string,
+ *     support_email: string,
+ *     certificate_issuer_name: string
+ *   },
  *   database: array{
  *     host: string,
  *     port: int,
@@ -117,13 +124,25 @@ $securityBuilder = require __DIR__ . '/security.php';
 $security = $securityBuilder($env, $bool, $string, $int, $capability);
 $security['trusted_proxies'] = $trustedProxies;
 
+$appName = $string('APP_NAME', 'Academy LMS');
+$academyName = $string('ACADEMY_NAME', $appName);
+$certificateIssuer = $string('ACADEMY_CERTIFICATE_ISSUER_NAME', $academyName);
+
 return [
     'app' => [
-        'name' => $string('APP_NAME', 'Academy LMS'),
+        'name' => $appName,
         'env' => $env,
         'debug' => $debug,
         'url' => $string('APP_URL', 'http://localhost:8080'),
         'timezone' => $timezone !== '' ? $timezone : 'UTC',
+    ],
+    // Single-deployment branding (env-only; no multi-tenancy / admin UI).
+    'branding' => [
+        'name' => $academyName,
+        'logo_url' => $string('ACADEMY_LOGO_URL', '/assets/brand/logo.svg'),
+        'primary_color' => $string('ACADEMY_PRIMARY_COLOR', '#0F6E62'),
+        'support_email' => $string('ACADEMY_SUPPORT_EMAIL', ''),
+        'certificate_issuer_name' => $certificateIssuer !== '' ? $certificateIssuer : $academyName,
     ],
     'database' => [
         'host' => $string('DB_HOST', '127.0.0.1'),

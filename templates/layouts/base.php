@@ -8,6 +8,7 @@ declare(strict_types=1);
 /** @var list<array{label: string, href: string, method?: string}>|null $navItems */
 /** @var string|null $navCsrf */
 /** @var string|null $csrf */
+/** @var \Academy\Application\Branding\AcademyBranding $branding */
 
 $nav = $navItems ?? [
     ['label' => 'Courses', 'href' => '/courses'],
@@ -35,13 +36,20 @@ $brandHref = $authenticated ? '/dashboard' : '/courses';
     <link rel="stylesheet" href="/assets/vendor/bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" href="/assets/css/acad-tokens.css">
     <link rel="stylesheet" href="/assets/css/acad-app.css">
+    <style>
+        :root {
+            --acad-teal: <?= $e->attr($branding->primaryColor) ?>;
+            --bs-primary: var(--acad-teal);
+            --bs-primary-rgb: <?= $e->html($branding->primaryColorRgb()) ?>;
+        }
+    </style>
 </head>
 <body>
 <div class="acad-shell">
     <header class="acad-shell__header">
         <a class="acad-shell__brand" href="<?= $e->attr($brandHref) ?>">
-            <img class="acad-shell__logo" src="/assets/brand/logo.svg" width="36" height="36" alt="">
-            <span class="acad-shell__brand-text"><?= $e->html('Academy LMS') ?></span>
+            <img class="acad-shell__logo" src="<?= $e->attr($branding->logoUrl) ?>" width="36" height="36" alt="">
+            <span class="acad-shell__brand-text"><?= $e->html($branding->name) ?></span>
         </a>
         <nav class="acad-shell__nav" aria-label="Primary">
             <?php foreach ($nav as $item): ?>

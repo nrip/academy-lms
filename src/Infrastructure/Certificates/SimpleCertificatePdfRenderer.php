@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Academy\Infrastructure\Certificates;
 
+use Academy\Application\Branding\AcademyBranding;
 use Academy\Domain\Certificates\Certificate;
 use Academy\Infrastructure\View\Escaper;
 use Dompdf\Dompdf;
@@ -15,12 +16,22 @@ use RuntimeException;
  */
 final class SimpleCertificatePdfRenderer
 {
+    private readonly string $certificateIssuerName;
+    private readonly string $primaryColor;
+
     public function __construct(
         private readonly Escaper $escaper,
         private readonly string $templatePath,
         private readonly string $appUrl,
-        private readonly string $academyName = 'Academy LMS',
+        string $certificateIssuerName = AcademyBranding::DEFAULT_NAME,
+        string $primaryColor = AcademyBranding::DEFAULT_PRIMARY_COLOR,
     ) {
+        $branding = AcademyBranding::fromConfig([
+            'certificate_issuer_name' => $certificateIssuerName,
+            'primary_color' => $primaryColor,
+        ]);
+        $this->certificateIssuerName = $branding->certificateIssuerName;
+        $this->primaryColor = $branding->primaryColor;
     }
 
     public function render(Certificate $certificate, ?string $verifyUrl = null): string
@@ -57,7 +68,8 @@ final class SimpleCertificatePdfRenderer
         }
 
         $e = $this->escaper;
-        $academyName = $this->academyName;
+        $academyName = $this->certificateIssuerName;
+        $primaryColor = $this->primaryColor;
         $issued = $certificate->issuedAt
             ->setTimezone(new \DateTimeZone('Asia/Kolkata'))
             ->format('d M Y');

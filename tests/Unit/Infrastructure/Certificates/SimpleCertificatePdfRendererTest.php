@@ -27,6 +27,8 @@ final class SimpleCertificatePdfRendererTest extends TestCase
         self::assertStringContainsString('Priya Nair', $html);
         self::assertStringContainsString('Phase 1 Demo — Obesity Learning Pathway', $html);
         self::assertStringContainsString('ACAD-TEST-PDF-001', $html);
+        self::assertStringContainsString('Contoso CME Board', $html);
+        self::assertStringContainsString('#1A5F9E', $html);
         self::assertStringContainsString($verifyUrl, $html);
 
         $pdf = $renderer->render($certificate, $verifyUrl);
@@ -74,7 +76,8 @@ final class SimpleCertificatePdfRendererTest extends TestCase
             new Escaper(),
             dirname(__DIR__, 3) . '/../templates',
             'http://localhost:8080',
-            'Academy LMS',
+            'Contoso CME Board',
+            '#1A5F9E',
         );
     }
 

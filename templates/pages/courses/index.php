@@ -7,13 +7,14 @@ use Academy\Domain\Courses\FeeDisplay;
 /** @var \Academy\Infrastructure\View\Escaper $e */
 /** @var string $title */
 /** @var list<array{course: \Academy\Domain\Courses\Course, version: \Academy\Domain\Courses\CourseVersion}> $courses */
-    /** @var \Academy\Domain\Security\AuthContext|null $auth */
+/** @var \Academy\Domain\Security\AuthContext|null $auth */
+/** @var \Academy\Application\Branding\AcademyBranding $branding */
 
 ob_start();
 ?>
 <div class="acad-course-catalogue">
     <header class="acad-catalogue-intro mb-4">
-        <p class="acad-eyebrow mb-2"><?= $e->html('Continuing medical education') ?></p>
+        <p class="acad-eyebrow mb-2"><?= $e->html($branding->name) ?></p>
         <h1 class="acad-catalogue-intro__title"><?= $e->html('Courses') ?></h1>
         <p class="acad-catalogue-intro__lead text-muted mb-0">
             <?= $e->html('Browse accredited programmes and apply to an open batch.') ?>
