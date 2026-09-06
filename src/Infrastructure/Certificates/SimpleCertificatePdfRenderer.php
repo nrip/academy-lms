@@ -58,7 +58,8 @@ final class SimpleCertificatePdfRenderer
         $objects[] = "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n";
         $objects[] = "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
             . "/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n";
-        $objects[] = '4 0 obj\n<< /Length ' . strlen($content) . " >>\nstream\n"
+        // Double-quoted: single-quoted '\n' is a literal backslash-n and yields a blank page.
+        $objects[] = "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n"
             . $content . "endstream\nendobj\n";
         $objects[] = "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
 

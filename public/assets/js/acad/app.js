@@ -10,6 +10,19 @@
   Academy.App = {
     boot() {
       document.documentElement.setAttribute('data-acad-app', 'ready');
+      // CSP script-src 'self' blocks inline onclick; delegate print controls here.
+      document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+          return;
+        }
+        const trigger = target.closest('[data-acad-print]');
+        if (trigger === null) {
+          return;
+        }
+        event.preventDefault();
+        global.print();
+      });
     },
   };
 

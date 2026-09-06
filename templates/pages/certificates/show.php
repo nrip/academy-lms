@@ -39,7 +39,7 @@ ob_start();
         <a class="btn btn-primary" href="/certificates/<?= $e->attr((string) $certificate->certificateId) ?>/pdf">
             <?= $e->html('Download PDF') ?>
         </a>
-        <button class="btn btn-outline-secondary" type="button" onclick="window.print()">
+        <button class="btn btn-outline-secondary" type="button" data-acad-print>
             <?= $e->html('Print') ?>
         </button>
         <a class="btn btn-outline-primary" href="<?= $e->attr($verifyUrl) ?>" target="_blank" rel="noopener">
