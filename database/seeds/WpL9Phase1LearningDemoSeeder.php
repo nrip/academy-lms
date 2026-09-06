@@ -44,19 +44,22 @@ final class WpL9Phase1LearningDemoSeeder extends AbstractSeed
         $module1 = $this->insertModule($pdo, $versionId, 1, 'Foundations of metabolic health', $now);
         $module2 = $this->insertModule($pdo, $versionId, 2, 'Assessment and completion', $now);
 
-        $this->insertTextLesson(
+        $this->insertVideoLesson(
             $pdo,
             $module1,
             1,
-            'Introduction to obesity assessment',
-            "This lesson introduces guideline-based assessment of adult obesity.\n\nKey points:\n- Measure BMI and waist circumference\n- Screen for metabolic complications\n- Document shared decision-making",
+            'Introduction to Metabolic Health',
+            'A short public overview used for the Phase 1 demo video lesson.',
+            'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
+            'embedded',
+            'youtube',
             $now,
         );
         $this->insertTextLesson(
             $pdo,
             $module1,
             2,
-            'Lifestyle counselling essentials',
+            'Reading Material',
             "Lifestyle counselling remains first-line care.\n\nCover nutrition, physical activity, sleep, and behavioural support in a brief clinic visit.",
             $now,
         );
@@ -169,10 +172,10 @@ final class WpL9Phase1LearningDemoSeeder extends AbstractSeed
         $stmt->execute([
             'course_id' => $courseId,
             'title' => 'Phase 1 Demo — Obesity Learning Pathway (v1)',
-            'description' => 'Short Continuing Medical Education pathway used for the Phase 1 customer demo: text lessons, an MCQ assessment, and a completion certificate after all mandatory items are passed.',
-            'learning_objectives' => 'Complete foundational lessons; pass the module knowledge check; receive a completion certificate when eligible.',
+            'description' => 'Short Continuing Medical Education pathway used for the Phase 1 customer demo: a video lesson, reading material, an MCQ assessment, and a completion certificate after all mandatory items are passed.',
+            'learning_objectives' => 'Watch the introduction video; complete the reading material; pass the module knowledge check; receive a completion certificate when eligible.',
             'intended_audience' => 'Demo facilitators and Product Owner walkthroughs for Academy LMS Phase 1.',
-            'syllabus_summary' => 'Module 1: Foundations (two text lessons). Module 2: Knowledge check (MCQ assessment).',
+            'syllabus_summary' => 'Module 1: Foundations (video lesson + reading material). Module 2: Knowledge check (MCQ assessment).',
             'admission_mode' => 'A',
             'delivery_type' => 'online',
             'duration_text' => 'Self-paced Phase 1 demo pathway',
@@ -184,7 +187,7 @@ final class WpL9Phase1LearningDemoSeeder extends AbstractSeed
             'faq_json' => json_encode([
                 [
                     'question' => 'Does this course include the learning player?',
-                    'answer' => 'Yes. This Phase 1 demo course includes lessons, an MCQ assessment, and certificate verification.',
+                    'answer' => 'Yes. This Phase 1 demo course includes a video lesson, reading material, an MCQ assessment, and certificate verification.',
                 ],
             ], JSON_THROW_ON_ERROR),
             'status' => 'draft',
@@ -277,9 +280,11 @@ final class WpL9Phase1LearningDemoSeeder extends AbstractSeed
         $stmt = $pdo->prepare(
             'INSERT INTO content_items (
                 module_id, sequence, content_type, title, body_text, object_key,
+                video_url, video_delivery_mode, video_provider,
                 mandatory_flag, completion_rule, created_at, updated_at
             ) VALUES (
                 :module_id, :sequence, :content_type, :title, :body_text, NULL,
+                NULL, NULL, NULL,
                 1, :completion_rule, :created_at, :updated_at
             )',
         );
@@ -297,14 +302,55 @@ final class WpL9Phase1LearningDemoSeeder extends AbstractSeed
         return (int) $pdo->lastInsertId();
     }
 
+    private function insertVideoLesson(
+        PDO $pdo,
+        int $moduleId,
+        int $sequence,
+        string $title,
+        string $description,
+        string $videoUrl,
+        string $deliveryMode,
+        string $provider,
+        string $now,
+    ): int {
+        $stmt = $pdo->prepare(
+            'INSERT INTO content_items (
+                module_id, sequence, content_type, title, body_text, object_key,
+                video_url, video_delivery_mode, video_provider,
+                mandatory_flag, completion_rule, created_at, updated_at
+            ) VALUES (
+                :module_id, :sequence, :content_type, :title, :body_text, NULL,
+                :video_url, :video_delivery_mode, :video_provider,
+                1, :completion_rule, :created_at, :updated_at
+            )',
+        );
+        $stmt->execute([
+            'module_id' => $moduleId,
+            'sequence' => $sequence,
+            'content_type' => 'video',
+            'title' => $title,
+            'body_text' => $description,
+            'video_url' => $videoUrl,
+            'video_delivery_mode' => $deliveryMode,
+            'video_provider' => $provider,
+            'completion_rule' => 'mark_complete',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return (int) $pdo->lastInsertId();
+    }
+
     private function insertMcqContent(PDO $pdo, int $moduleId, int $sequence, string $title, string $now): int
     {
         $stmt = $pdo->prepare(
             'INSERT INTO content_items (
                 module_id, sequence, content_type, title, body_text, object_key,
+                video_url, video_delivery_mode, video_provider,
                 mandatory_flag, completion_rule, created_at, updated_at
             ) VALUES (
                 :module_id, :sequence, :content_type, :title, NULL, NULL,
+                NULL, NULL, NULL,
                 1, :completion_rule, :created_at, :updated_at
             )',
         );

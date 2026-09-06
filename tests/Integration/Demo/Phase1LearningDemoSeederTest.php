@@ -51,7 +51,7 @@ final class Phase1LearningDemoSeederTest extends TestCase
              WHERE c.course_code = \'PHASE1-DEMO-CME-101\'
              ORDER BY m.sequence, ci.sequence',
         )->fetchAll(\PDO::FETCH_COLUMN);
-        self::assertSame(['text_lesson', 'text_lesson', 'mcq_assessment'], $contentTypes);
+        self::assertSame(['video', 'text_lesson', 'mcq_assessment'], $contentTypes);
 
         $assessmentLinks = (int) $pdo->query(
             'SELECT COUNT(*) FROM assessment_question_links aql

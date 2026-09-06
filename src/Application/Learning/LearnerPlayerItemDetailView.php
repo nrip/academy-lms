@@ -27,6 +27,8 @@ final class LearnerPlayerItemDetailView
         public readonly ?Assessment $assessment = null,
         public readonly ?AssessmentAttempt $inProgressAttempt = null,
         public readonly int $assessmentAttemptsUsed = 0,
+        public readonly ?string $videoEmbedUrl = null,
+        public readonly ?string $videoWatchUrl = null,
     ) {
     }
 }

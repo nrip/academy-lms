@@ -26,6 +26,9 @@ interface ContentItemRepository
      *   title: string,
      *   body_text: ?string,
      *   object_key: ?string,
+     *   video_url: ?string,
+     *   video_delivery_mode: ?string,
+     *   video_provider: ?string,
      *   mandatory_flag: bool,
      *   completion_rule: string
      * } $data
@@ -37,6 +40,9 @@ interface ContentItemRepository
      *   title: string,
      *   body_text: ?string,
      *   object_key: ?string,
+     *   video_url: ?string,
+     *   video_delivery_mode: ?string,
+     *   video_provider: ?string,
      *   mandatory_flag: bool,
      *   completion_rule: string
      * } $data

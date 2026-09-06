@@ -85,6 +85,8 @@ final class CoursesAuditPayload implements AuditPayload
             'completion_rule',
             'body_text_length',
             'object_key_present',
+            'video_provider',
+            'video_delivery_mode',
             'cloned_from_version_id',
             'published_at',
             'locked_reason',

@@ -15,6 +15,7 @@ use PDO;
 final class PdoContentItemRepository implements ContentItemRepository
 {
     private const COLUMNS = 'content_id, module_id, sequence, content_type, title, body_text, object_key,
+        video_url, video_delivery_mode, video_provider,
         mandatory_flag, completion_rule, created_at, updated_at';
 
     public function __construct(
@@ -37,7 +38,8 @@ final class PdoContentItemRepository implements ContentItemRepository
         $pdo = $this->connections->connection();
         $stmt = $pdo->prepare(
             'SELECT ci.content_id, ci.module_id, ci.sequence, ci.content_type, ci.title, ci.body_text,
-                    ci.object_key, ci.mandatory_flag, ci.completion_rule, ci.created_at, ci.updated_at,
+                    ci.object_key, ci.video_url, ci.video_delivery_mode, ci.video_provider,
+                    ci.mandatory_flag, ci.completion_rule, ci.created_at, ci.updated_at,
                     m.course_version_id, cv.course_id, cv.locked_at
              FROM content_items ci
              INNER JOIN modules m ON m.module_id = ci.module_id
@@ -82,7 +84,8 @@ final class PdoContentItemRepository implements ContentItemRepository
         $pdo = $this->connections->connection();
         $stmt = $pdo->prepare(
             'SELECT ci.content_id, ci.module_id, ci.sequence, ci.content_type, ci.title, ci.body_text,
-                    ci.object_key, ci.mandatory_flag, ci.completion_rule, ci.created_at, ci.updated_at
+                    ci.object_key, ci.video_url, ci.video_delivery_mode, ci.video_provider,
+                    ci.mandatory_flag, ci.completion_rule, ci.created_at, ci.updated_at
              FROM content_items ci
              INNER JOIN modules m ON m.module_id = ci.module_id
              WHERE m.course_version_id = :version_id
@@ -116,9 +119,11 @@ final class PdoContentItemRepository implements ContentItemRepository
         $stmt = $pdo->prepare(
             'INSERT INTO content_items (
                 module_id, sequence, content_type, title, body_text, object_key,
+                video_url, video_delivery_mode, video_provider,
                 mandatory_flag, completion_rule, created_at, updated_at
              ) VALUES (
                 :module_id, :sequence, :content_type, :title, :body_text, :object_key,
+                :video_url, :video_delivery_mode, :video_provider,
                 :mandatory_flag, :completion_rule, :created_at, :updated_at
              )',
         );
@@ -129,6 +134,9 @@ final class PdoContentItemRepository implements ContentItemRepository
             'title' => $data['title'],
             'body_text' => $data['body_text'],
             'object_key' => $data['object_key'],
+            'video_url' => $data['video_url'],
+            'video_delivery_mode' => $data['video_delivery_mode'],
+            'video_provider' => $data['video_provider'],
             'mandatory_flag' => $data['mandatory_flag'] ? 1 : 0,
             'completion_rule' => $data['completion_rule'],
             'created_at' => $now,
@@ -147,6 +155,9 @@ final class PdoContentItemRepository implements ContentItemRepository
                 title = :title,
                 body_text = :body_text,
                 object_key = :object_key,
+                video_url = :video_url,
+                video_delivery_mode = :video_delivery_mode,
+                video_provider = :video_provider,
                 mandatory_flag = :mandatory_flag,
                 completion_rule = :completion_rule,
                 updated_at = :updated_at
@@ -156,6 +167,9 @@ final class PdoContentItemRepository implements ContentItemRepository
             'title' => $data['title'],
             'body_text' => $data['body_text'],
             'object_key' => $data['object_key'],
+            'video_url' => $data['video_url'],
+            'video_delivery_mode' => $data['video_delivery_mode'],
+            'video_provider' => $data['video_provider'],
             'mandatory_flag' => $data['mandatory_flag'] ? 1 : 0,
             'completion_rule' => $data['completion_rule'],
             'updated_at' => $now,
@@ -189,6 +203,9 @@ final class PdoContentItemRepository implements ContentItemRepository
             title: (string) $row['title'],
             bodyText: $row['body_text'] === null ? null : (string) $row['body_text'],
             objectKey: $row['object_key'] === null ? null : (string) $row['object_key'],
+            videoUrl: $row['video_url'] === null ? null : (string) $row['video_url'],
+            videoDeliveryMode: $row['video_delivery_mode'] === null ? null : (string) $row['video_delivery_mode'],
+            videoProvider: $row['video_provider'] === null ? null : (string) $row['video_provider'],
             mandatoryFlag: (int) $row['mandatory_flag'] === 1,
             completionRule: (string) $row['completion_rule'],
             createdAt: new DateTimeImmutable((string) $row['created_at'], $utc),

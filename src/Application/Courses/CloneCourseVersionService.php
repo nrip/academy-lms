@@ -147,6 +147,9 @@ final class CloneCourseVersionService
                         'title' => $item->title,
                         'body_text' => $item->bodyText,
                         'object_key' => $item->objectKey,
+                        'video_url' => $item->videoUrl,
+                        'video_delivery_mode' => $item->videoDeliveryMode,
+                        'video_provider' => $item->videoProvider,
                         'mandatory_flag' => $item->mandatoryFlag,
                         'completion_rule' => $item->completionRule,
                     ]);

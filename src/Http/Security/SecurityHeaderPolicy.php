@@ -35,7 +35,7 @@ final class SecurityHeaderPolicy
         if (!$response->hasHeader('Content-Security-Policy')) {
             $response = $response->withHeader(
                 'Content-Security-Policy',
-                "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; font-src 'self' data:; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+                "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; font-src 'self' data:; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
             );
         }
         if (!$response->hasHeader('Cross-Origin-Opener-Policy')) {

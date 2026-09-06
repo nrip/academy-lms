@@ -11,18 +11,19 @@ final class ContentItemType
     public const TEXT_LESSON = 'text_lesson';
     public const PDF = 'pdf';
     public const MCQ_ASSESSMENT = 'mcq_assessment';
+    public const VIDEO = 'video';
 
     /** @return list<string> */
     public static function allowed(): array
     {
-        return [self::TEXT_LESSON, self::PDF, self::MCQ_ASSESSMENT];
+        return [self::TEXT_LESSON, self::PDF, self::MCQ_ASSESSMENT, self::VIDEO];
     }
 
     /** Types Course Admins may create in the curriculum builder. */
     /** @return list<string> */
     public static function creatableInBuilder(): array
     {
-        return [self::TEXT_LESSON, self::PDF, self::MCQ_ASSESSMENT];
+        return [self::TEXT_LESSON, self::PDF, self::MCQ_ASSESSMENT, self::VIDEO];
     }
 
     public static function assertValid(string $type): string

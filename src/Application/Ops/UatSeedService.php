@@ -610,9 +610,9 @@ final class UatSeedService
             return;
         }
 
-        $textLessons = array_values(array_filter(
+        $markableLessons = array_values(array_filter(
             $contents,
-            static fn (array $row): bool => (string) $row['content_type'] === 'text_lesson',
+            static fn (array $row): bool => (string) $row['content_type'] !== 'mcq_assessment',
         ));
         $mcqItems = array_values(array_filter(
             $contents,
@@ -654,8 +654,8 @@ final class UatSeedService
                 $now,
             );
             $enrolmentId = $this->enrolmentIdForApplication($pdo, $appId);
-            if ($enrolmentId !== null && $textLessons !== []) {
-                $firstLessonId = (int) $textLessons[0]['content_id'];
+            if ($enrolmentId !== null && $markableLessons !== []) {
+                $firstLessonId = (int) $markableLessons[0]['content_id'];
                 $this->ensureContentCompleted($pdo, $enrolmentId, $firstLessonId, 'learner', $now);
                 $summary[] = 'phase1:learner-progress=lesson1-complete';
             }

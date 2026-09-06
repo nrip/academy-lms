@@ -11,6 +11,7 @@ use Academy\Domain\Courses\ContentItem;
 use Academy\Domain\Courses\ContentItemRepository;
 use Academy\Domain\Courses\ContentItemType;
 use Academy\Domain\Courses\ModuleRepository;
+use Academy\Domain\Courses\SafeVideoEmbedBuilder;
 use Academy\Domain\Exception\ConflictException;
 use Academy\Domain\Exception\NotFoundException;
 use Academy\Domain\Exception\ValidationException;
@@ -25,6 +26,7 @@ final class ContentItemCommandService
         private readonly ContentItemRepository $contentItems,
         private readonly ConnectionFactory $connections,
         private readonly AuditService $audit,
+        private readonly SafeVideoEmbedBuilder $videoEmbeds = new SafeVideoEmbedBuilder(),
     ) {
     }
 
@@ -50,6 +52,9 @@ final class ContentItemCommandService
                 'title' => $fields['title'],
                 'body_text' => $fields['body_text'],
                 'object_key' => $fields['object_key'],
+                'video_url' => $fields['video_url'],
+                'video_delivery_mode' => $fields['video_delivery_mode'],
+                'video_provider' => $fields['video_provider'],
                 'mandatory_flag' => $fields['mandatory_flag'],
                 'completion_rule' => $fields['completion_rule'],
             ]);
@@ -67,6 +72,8 @@ final class ContentItemCommandService
                         'content_type' => $fields['content_type'],
                         'body_text_length' => $fields['body_text'] === null ? 0 : mb_strlen($fields['body_text']),
                         'object_key_present' => $fields['object_key'] === null ? 0 : 1,
+                        'video_provider' => $fields['video_provider'],
+                        'video_delivery_mode' => $fields['video_delivery_mode'],
                     ],
                 ),
                 actorType: 'user',
@@ -124,12 +131,15 @@ final class ContentItemCommandService
                         'title' => $before->title,
                         'content_type' => $before->contentType,
                         'body_text_length' => $before->bodyText === null ? 0 : mb_strlen($before->bodyText),
+                        'video_provider' => $before->videoProvider,
                     ],
                     next: [
                         'content_id' => $contentId,
                         'title' => $fields['title'],
                         'content_type' => $before->contentType,
                         'body_text_length' => $fields['body_text'] === null ? 0 : mb_strlen($fields['body_text']),
+                        'video_provider' => $fields['video_provider'],
+                        'video_delivery_mode' => $fields['video_delivery_mode'],
                     ],
                 ),
                 actorType: 'user',
@@ -203,6 +213,9 @@ final class ContentItemCommandService
      *   title: string,
      *   body_text: ?string,
      *   object_key: ?string,
+     *   video_url: ?string,
+     *   video_delivery_mode: ?string,
+     *   video_provider: ?string,
      *   mandatory_flag: bool,
      *   completion_rule: string
      * }
@@ -224,6 +237,9 @@ final class ContentItemCommandService
         $objectKey = trim((string) ($input['object_key'] ?? ''));
         $bodyText = $body === '' ? null : $body;
         $objectKeyValue = $objectKey === '' ? null : $objectKey;
+        $videoUrl = null;
+        $videoDeliveryMode = null;
+        $videoProvider = null;
 
         if ($type === ContentItemType::TEXT_LESSON && $bodyText === null) {
             throw new ValidationException('Text lesson body is required.');
@@ -240,6 +256,17 @@ final class ContentItemCommandService
         if ($type === ContentItemType::MCQ_ASSESSMENT) {
             $bodyText = null;
             $objectKeyValue = null;
+        }
+        if ($type === ContentItemType::VIDEO) {
+            $objectKeyValue = null;
+            $delivery = trim((string) ($input['video_delivery_mode'] ?? ''));
+            $source = $this->videoEmbeds->build(
+                trim((string) ($input['video_url'] ?? '')),
+                $delivery,
+            );
+            $videoUrl = $source->sourceUrl;
+            $videoDeliveryMode = $source->deliveryMode;
+            $videoProvider = $source->provider;
         }
 
         $mandatory = !array_key_exists('mandatory_flag', $input)
@@ -262,6 +289,9 @@ final class ContentItemCommandService
             'title' => $title,
             'body_text' => $bodyText,
             'object_key' => $objectKeyValue,
+            'video_url' => $videoUrl,
+            'video_delivery_mode' => $videoDeliveryMode,
+            'video_provider' => $videoProvider,
             'mandatory_flag' => $mandatory,
             'completion_rule' => $completion,
         ];
@@ -273,6 +303,9 @@ final class ContentItemCommandService
      *   title: string,
      *   body_text: ?string,
      *   object_key: ?string,
+     *   video_url: ?string,
+     *   video_delivery_mode: ?string,
+     *   video_provider: ?string,
      *   mandatory_flag: bool,
      *   completion_rule: string
      * }
@@ -285,6 +318,9 @@ final class ContentItemCommandService
             'title' => $merged['title'],
             'body_text' => $merged['body_text'],
             'object_key' => $merged['object_key'],
+            'video_url' => $merged['video_url'],
+            'video_delivery_mode' => $merged['video_delivery_mode'],
+            'video_provider' => $merged['video_provider'],
             'mandatory_flag' => $merged['mandatory_flag'],
             'completion_rule' => $merged['completion_rule'],
         ];
