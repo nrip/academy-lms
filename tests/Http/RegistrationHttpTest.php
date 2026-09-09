@@ -42,6 +42,19 @@ final class RegistrationHttpTest extends TestCase
         self::assertStringContainsString('name="privacy_accepted"', (string) $response->getBody());
     }
 
+    public function testAnonymousCatalogueShellExposesRegistrationCta(): void
+    {
+        $response = ApplicationFactory::handle(
+            new ServerRequest([], [], 'http://localhost/courses', 'GET'),
+        );
+
+        $html = (string) $response->getBody();
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString('href="/register"', $html);
+        self::assertStringContainsString('Create account', $html);
+        self::assertStringContainsString('acad-shell__nav-link--cta', $html);
+    }
+
     public function testPostWithCsrfCreatesUserAndRedirectsToPending(): void
     {
         $boot = $this->bootSession();

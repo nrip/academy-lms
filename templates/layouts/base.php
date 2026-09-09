@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 $nav = $navItems ?? [
     ['label' => 'Courses', 'href' => '/courses'],
+    ['label' => 'Create account', 'href' => '/register'],
     ['label' => 'Sign in', 'href' => '/login'],
 ];
 $csrfToken = is_string($navCsrf ?? null) && $navCsrf !== ''
@@ -25,6 +26,33 @@ foreach ($nav as $navItem) {
         break;
     }
 }
+
+// Guest acquisition: ensure Create account is visible next to Sign in (templates only).
+if (!$authenticated) {
+    $hasRegister = false;
+    foreach ($nav as $navItem) {
+        if (($navItem['href'] ?? '') === '/register') {
+            $hasRegister = true;
+            break;
+        }
+    }
+    if (!$hasRegister) {
+        $withRegister = [];
+        $inserted = false;
+        foreach ($nav as $navItem) {
+            if (!$inserted && ($navItem['href'] ?? '') === '/login') {
+                $withRegister[] = ['label' => 'Create account', 'href' => '/register'];
+                $inserted = true;
+            }
+            $withRegister[] = $navItem;
+        }
+        if (!$inserted) {
+            $withRegister[] = ['label' => 'Create account', 'href' => '/register'];
+        }
+        $nav = $withRegister;
+    }
+}
+
 $brandHref = $authenticated ? '/dashboard' : '/courses';
 
 ?><!DOCTYPE html>
@@ -59,7 +87,16 @@ $brandHref = $authenticated ? '/dashboard' : '/courses';
                         <button type="submit" class="acad-shell__nav-button"><?= $e->html($item['label']) ?></button>
                     </form>
                 <?php else: ?>
-                    <a class="acad-shell__nav-link" href="<?= $e->attr($item['href']) ?>"><?= $e->html($item['label']) ?></a>
+                    <?php
+                    $navHref = (string) ($item['href'] ?? '');
+                    $navIsCta = $navHref === '/register'
+                        || ($item['label'] ?? '') === 'Create account'
+                        || ($item['label'] ?? '') === 'Register';
+                    $navClass = $navIsCta
+                        ? 'acad-shell__nav-link acad-shell__nav-link--cta'
+                        : 'acad-shell__nav-link';
+                    ?>
+                    <a class="<?= $e->attr($navClass) ?>" href="<?= $e->attr($navHref) ?>"><?= $e->html((string) ($item['label'] ?? '')) ?></a>
                 <?php endif; ?>
             <?php endforeach; ?>
         </nav>

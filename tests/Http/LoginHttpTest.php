@@ -39,9 +39,12 @@ final class LoginHttpTest extends TestCase
     public function testLoginGetReturnsForm(): void
     {
         $response = ApplicationFactory::handle(new ServerRequest([], [], 'http://localhost/login', 'GET'));
+        $html = (string) $response->getBody();
         self::assertSame(200, $response->getStatusCode());
-        self::assertStringContainsString('name="email"', (string) $response->getBody());
-        self::assertStringContainsString('name="password"', (string) $response->getBody());
+        self::assertStringContainsString('name="email"', $html);
+        self::assertStringContainsString('name="password"', $html);
+        self::assertStringContainsString('href="/register"', $html);
+        self::assertStringContainsString('Create an account', $html);
     }
 
     public function testLoginPostWithoutCsrfReturns403(): void
