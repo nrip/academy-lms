@@ -26,9 +26,11 @@
 | **Object Storage** | **Not a substitute for app storage today** | Phase 1 has **no S3 adapter** in-repo; do not claim production document storage via Hetzner Object Storage until `PR-S3` lands |
 | **Storage Box** | **Backup target only** | Useful for `mysqldump` off-box; not application object storage |
 | **Dedicated / Robot auction servers** | **Possible but out of scope here** | Same Ubuntu stack applies; this guide uses **Hetzner Cloud Console** |
-| **App / one-click marketplace images** | **Avoid unless you own the stack** | Prefer plain **Ubuntu 22.04 or 24.04** so document root and PHP 8.4 match this repo |
+| **App / one-click marketplace images** | **Avoid unless you own the stack** | Prefer plain **Ubuntu 22.04 / 24.04 / 26.04** so document root and **PHP 8.4** match this repo |
 
-This guide assumes a **Hetzner Cloud Server + Ubuntu 22.04 or 24.04 LTS**, root (or sudo) SSH, and Cloud Firewall (or host `ufw`) locking down MySQL.
+This guide assumes a **Hetzner Cloud Server + Ubuntu 22.04, 24.04, or 26.04 LTS** (including **26.04.1**), root (or sudo) SSH, and Cloud Firewall (or host `ufw`) locking down MySQL.
+
+**Ubuntu 26.04 note:** Distro default PHP is often **8.5**. Academy LMS Phase 1 is certified for **PHP 8.4** (`composer.json`: `php ^8.4`; AGENTS stack = 8.4). Install and run **`php8.4` / `php8.4-fpm`** — do not use unversioned `php` / `php-fpm` packages on 26.04.
 
 Companions for non-Hetzner-specific detail: payment ([RAZORPAY_CONFIGURATION.md](./RAZORPAY_CONFIGURATION.md)), email ([EMAIL_CONFIGURATION.md](./EMAIL_CONFIGURATION.md)), workers ([WORKERS_AND_SCHEDULES.md](../operations/WORKERS_AND_SCHEDULES.md)), Nginx sketch (`public/nginx.conf.example`).
 
@@ -41,7 +43,7 @@ Companions for non-Hetzner-specific detail: payment ([RAZORPAY_CONFIGURATION.md]
 1. Log in to [Hetzner Cloud Console](https://console.hetzner.cloud/) → select or create a **Project**.  
 2. **Servers** → **Add Server**.  
 3. **Location:** choose region closest to the customer / any data-residency preference (e.g. Falkenstein, Nuremberg, Helsinki, or other available locations).  
-4. **Image:** Ubuntu **22.04** or **24.04** (plain OS — not a third-party app image unless you intentionally manage that stack).  
+4. **Image:** Ubuntu **22.04**, **24.04**, or **26.04** LTS (plain OS — not a third-party app image unless you intentionally manage that stack). **26.04.1** is acceptable; still pin PHP to **8.4** (§3).  
 5. **Type:** prefer at least **2 vCPU / 4 GB RAM / 40 GB+** (CX/CPX class as available in the region).  
 6. **Networking:** attach a public IPv4 (and IPv6 if used). Optional: create a **private network** if you plan Managed Database later.  
 7. **SSH Keys:** add the deploy public key (preferred over password-only).  
@@ -107,27 +109,70 @@ ping -c 2 <customer-domain>
 
 Connect as root or `academy` with sudo.
 
-Ubuntu 24.04 may already ship PHP 8.4 packages. On 22.04 you typically need [ondrej/php](https://launchpad.net/~ondrej/+archive/ubuntu/php):
+Confirm the OS first:
+
+```bash
+lsb_release -a
+# Expect Ubuntu 22.04, 24.04, or 26.04.x (e.g. 26.04.1 LTS)
+```
+
+### 3.1 Make `php8.4` packages available
+
+| Ubuntu | How to get PHP 8.4 |
+|---|---|
+| **22.04 / 24.04** | Often via [ondrej/php](https://launchpad.net/~ondrej/+archive/ubuntu/php) if the archive has no `php8.4-*` |
+| **26.04 / 26.04.1** | Default archive PHP is typically **8.5**. Prefer **versioned** `php8.4-*` from APT if present; otherwise use Ondřej Surý’s [packages.sury.org](https://packages.sury.org/php/) (Launchpad `ppa:ondrej/php` may not publish for `resolute`) |
+
+**Ubuntu 26.04 — Sury (when `apt-cache policy php8.4` has no candidate):**
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl lsb-release
+sudo curl -fsSLo /usr/share/keyrings/deb.sury.org-php.gpg https://packages.sury.org/php/apt.gpg
+sudo sh -c 'printf "%s\n" \
+  "Types: deb" \
+  "URIs: https://packages.sury.org/php/" \
+  "Suites: $(lsb_release -sc)" \
+  "Components: main" \
+  "Signed-By: /usr/share/keyrings/deb.sury.org-php.gpg" \
+  > /etc/apt/sources.list.d/php.sources'
+sudo apt update
+apt-cache policy php8.4   # must show a 8.4.x candidate
+```
+
+**Ubuntu 22.04 / 24.04 — ondrej PPA (common path):**
 
 ```bash
 sudo apt update
 sudo apt install -y software-properties-common
 sudo add-apt-repository -y ppa:ondrej/php
 sudo apt update
+```
 
+Skip third-party repos if `php8.4-fpm` is already installable from Ubuntu archives.
+
+### 3.2 Install Nginx + PHP 8.4 FPM/CLI
+
+```bash
 sudo apt install -y \
   nginx \
   git unzip curl ca-certificates \
   php8.4-fpm php8.4-cli php8.4-mysql php8.4-mbstring php8.4-xml \
   php8.4-curl php8.4-zip php8.4-gd php8.4-intl php8.4-bcmath
 
-php8.4 -v
+php8.4 -v    # must be 8.4.x — not 8.5.x
 php8.4 -m | grep -E 'pdo_mysql|mbstring|json|sodium|openssl|curl|fileinfo|gd|intl|zip'
 ```
 
-Skip the PPA steps if `apt` already provides `php8.4-*` on your image.
+On Ubuntu 26.04, also confirm the default CLI is not silently 8.5:
 
-### PHP-FPM settings (trial)
+```bash
+php -v || true
+# Prefer explicit /usr/bin/php8.4 in cron and Composer (this guide already does)
+sudo update-alternatives --set php /usr/bin/php8.4   # only if alternatives are registered
+```
+
+### 3.3 PHP-FPM settings (trial)
 
 Edit `/etc/php/8.4/fpm/php.ini` or a conf.d drop-in:
 
@@ -152,7 +197,7 @@ sudo systemctl restart php8.4-fpm
 
 ## 4. MySQL setup
 
-Prefer **MySQL 8.4** when packages allow (architecture baseline). Ubuntu images often ship **8.0**; if 8.4 is unavailable, record the version and accept untested compatibility risk.
+Prefer **MySQL 8.4** when packages allow (architecture baseline). Older Ubuntu images often ship **8.0**; on **26.04** you may get 8.4 from archives — confirm with `mysql --version`. If only 8.0 is available, record the version and accept untested compatibility risk.
 
 ### 4.1 On-server MySQL (recommended for trial)
 
@@ -443,6 +488,8 @@ Full acceptance: [FIRST_CUSTOMER_TRIAL_RUNBOOK.md](./FIRST_CUSTOMER_TRIAL_RUNBOO
 | UAT seed on customer DB | Contaminates real PII — do not run |
 | SSH lockout after firewall change | Use Cloud Console **Console** (VNC) to recover |
 | Marketplace / one-click image with wrong document root | Rebuild on plain Ubuntu or fix vhost to `public/` |
+| Ubuntu **26.04** + unversioned `php` / `php-fpm` | Installs **8.5** by default — use **`php8.4-*`** and point Nginx/cron at `php8.4-fpm` / `php8.4` |
+| Assuming 26.04 is unsupported | **26.04.1 LTS is fine** for the OS; the hard requirement is still **PHP 8.4**, MySQL utf8mb4, and `public/` document root |
 
 ---
 
