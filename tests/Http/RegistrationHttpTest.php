@@ -36,10 +36,14 @@ final class RegistrationHttpTest extends TestCase
             new ServerRequest([], [], 'http://localhost/register', 'GET'),
         );
 
+        $html = (string) $response->getBody();
         self::assertSame(200, $response->getStatusCode());
-        self::assertStringContainsString('name="email"', (string) $response->getBody());
-        self::assertStringContainsString('name="terms_accepted"', (string) $response->getBody());
-        self::assertStringContainsString('name="privacy_accepted"', (string) $response->getBody());
+        self::assertStringContainsString('name="email"', $html);
+        self::assertStringContainsString('name="terms_accepted"', $html);
+        self::assertStringContainsString('name="privacy_accepted"', $html);
+        self::assertStringContainsString('acad-shell', $html);
+        self::assertStringContainsString('btn btn-primary', $html);
+        self::assertStringContainsString('Create account', $html);
     }
 
     public function testAnonymousCatalogueShellExposesRegistrationCta(): void
