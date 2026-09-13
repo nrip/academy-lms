@@ -21,6 +21,7 @@ $feeLabel = FeeDisplay::formatted(
 );
 $coursePath = '/courses/' . $course->slug;
 $loginApplyHref = '/login?return_to=' . rawurlencode($coursePath);
+$registerHref = '/register';
 $hasSelectableBatch = false;
 foreach ($batches as $entry) {
     if ($entry['availability']->selectable) {
@@ -53,9 +54,12 @@ ob_start();
                 <?php if ($auth !== null && $auth->authenticated): ?>
                     <a class="btn btn-primary btn-lg" href="#batches"><?= $e->html('Choose a batch to apply') ?></a>
                 <?php else: ?>
-                    <a class="btn btn-primary btn-lg" href="<?= $e->attr($loginApplyHref) ?>">
-                        <?= $e->html('Sign in to apply') ?>
+                    <a class="btn btn-primary btn-lg" href="<?= $e->attr($registerHref) ?>">
+                        <?= $e->html('Create account') ?>
                     </a>
+                    <p class="small mb-0 mt-2">
+                        <a href="<?= $e->attr($loginApplyHref) ?>"><?= $e->html('Already registered? Sign in to apply') ?></a>
+                    </p>
                     <p class="small text-muted mb-0 mt-2">
                         <a href="#batches"><?= $e->html('Or review batches first') ?></a>
                     </p>
@@ -129,9 +133,14 @@ ob_start();
                                 <button class="btn btn-primary btn-sm" type="submit"><?= $e->html('Apply') ?></button>
                             </form>
                         <?php else: ?>
-                            <a class="btn btn-outline-primary btn-sm" href="<?= $e->attr($loginApplyHref) ?>">
-                                <?= $e->html('Sign in to apply') ?>
-                            </a>
+                            <div class="d-flex flex-wrap gap-2 justify-content-end">
+                                <a class="btn btn-primary btn-sm" href="<?= $e->attr($registerHref) ?>">
+                                    <?= $e->html('Create account') ?>
+                                </a>
+                                <a class="btn btn-outline-primary btn-sm" href="<?= $e->attr($loginApplyHref) ?>">
+                                    <?= $e->html('Sign in') ?>
+                                </a>
+                            </div>
                         <?php endif; ?>
                     <?php else: ?>
                         <span class="badge text-bg-secondary"><?= $e->html($availability->label()) ?></span>

@@ -17,6 +17,9 @@ final class AssessmentAttemptView
         public readonly Assessment $assessment,
         public readonly array $questions,
         public readonly bool $showResults,
+        public readonly ?string $completionMessage = null,
+        public readonly ?int $certificateId = null,
+        public readonly ?string $certificatesListUrl = null,
     ) {
     }
 }

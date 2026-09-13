@@ -20,6 +20,7 @@ final class TransactionalNotificationEventTypes
     public const PAYMENT_SUCCESSFUL = 'payment.successful';
     public const APPLICATION_ADMITTED = 'application.admitted';
     public const ENROLMENT_CREATED = 'enrolment.created';
+    public const CERTIFICATE_ISSUED = 'certificate.issued';
 
     /** @return list<string> */
     public static function all(): array
@@ -35,6 +36,7 @@ final class TransactionalNotificationEventTypes
             self::PAYMENT_SUCCESSFUL,
             self::APPLICATION_ADMITTED,
             self::ENROLMENT_CREATED,
+            self::CERTIFICATE_ISSUED,
         ];
     }
 

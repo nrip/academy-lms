@@ -134,7 +134,7 @@ final class SubmitAssessmentAttemptService
                 source: 'learner_player',
             );
 
-            $this->certificates->issueCompletionIfEligible($attempt->enrolmentId, $userId);
+            $this->certificates->issueCompletionIfEligible($attempt->enrolmentId, $userId, true);
 
             $pdo->commit();
         } catch (Throwable $exception) {

@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Academy\Application\Assessments;
 
+use Academy\Application\Certificates\CertificateIssuanceService;
 use Academy\Domain\Assessments\Assessment;
 use Academy\Domain\Assessments\AssessmentAttempt;
 use Academy\Domain\Assessments\AssessmentAttemptQuestionRepository;
 use Academy\Domain\Assessments\AssessmentAttemptRepository;
 use Academy\Domain\Assessments\AssessmentRepository;
 use Academy\Domain\Assessments\AssessmentResponseRepository;
+use Academy\Domain\Certificates\CertificateRepository;
+use Academy\Domain\Certificates\CertificateType;
 use Academy\Domain\Exception\NotFoundException;
 use Academy\Domain\Security\AuthContext;
 
@@ -21,6 +24,8 @@ final class AssessmentAttemptQueryService
         private readonly AssessmentAttemptQuestionRepository $attemptQuestions,
         private readonly AssessmentResponseRepository $responses,
         private readonly AssessmentRepository $assessments,
+        private readonly CertificateIssuanceService $certificateIssuance,
+        private readonly CertificateRepository $certificates,
     ) {
     }
 
@@ -57,11 +62,41 @@ final class AssessmentAttemptQueryService
             );
         }
 
+        $completionMessage = null;
+        $certificateId = null;
+        $certificatesListUrl = null;
+        if ($showResults) {
+            $certificatesListUrl = '/learning/enrolments/' . $attempt->enrolmentId . '/certificates';
+            if ($attempt->passedFlag) {
+                $certificate = $this->certificateIssuance->issueCompletionIfEligible(
+                    $attempt->enrolmentId,
+                    $auth->userId,
+                );
+                if ($certificate === null) {
+                    $certificate = $this->certificates->findCurrentByEnrolmentAndType(
+                        $attempt->enrolmentId,
+                        CertificateType::COMPLETION,
+                    );
+                }
+                if ($certificate !== null) {
+                    $certificateId = $certificate->certificateId;
+                    $completionMessage = 'Assessment passed. Your course completion certificate is ready.';
+                } else {
+                    $completionMessage = 'Assessment passed. Complete any remaining mandatory lessons, then open Certificates from the course outline. If a certificate does not appear, add your certificate name in your learner profile.';
+                }
+            } else {
+                $completionMessage = 'Assessment not passed. You can return to the outline and try again if attempts remain.';
+            }
+        }
+
         return new AssessmentAttemptView(
             attempt: $attempt,
             assessment: $assessment,
             questions: $questionViews,
             showResults: $showResults,
+            completionMessage: $completionMessage,
+            certificateId: $certificateId,
+            certificatesListUrl: $certificatesListUrl,
         );
     }
 

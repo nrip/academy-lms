@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+use Academy\Application\Admissions\ApplicationDeclarationService;
+use Academy\Application\Admissions\ApplicationSubmitService;
+use Academy\Application\Admissions\ApplicationWorkspaceService;
+use Academy\Application\Admissions\DraftApplicationService;
 use Academy\Application\Assessments\AssessmentAttemptAccessGuard;
 use Academy\Application\Assessments\AssessmentAttemptQueryService;
 use Academy\Application\Assessments\AssessmentConfigService;
@@ -9,15 +13,11 @@ use Academy\Application\Assessments\QuestionBankService;
 use Academy\Application\Assessments\SaveAssessmentResponsesService;
 use Academy\Application\Assessments\StartAssessmentAttemptService;
 use Academy\Application\Assessments\SubmitAssessmentAttemptService;
-use Academy\Application\Certificates\CertificateIssuanceService;
-use Academy\Application\Certificates\CertificateQueryService;
-use Academy\Application\Admissions\ApplicationDeclarationService;
-use Academy\Application\Admissions\ApplicationSubmitService;
-use Academy\Application\Admissions\ApplicationWorkspaceService;
-use Academy\Application\Admissions\DraftApplicationService;
 use Academy\Application\Audit\AuditRedactor;
 use Academy\Application\Audit\AuditService;
 use Academy\Application\Branding\AcademyBranding;
+use Academy\Application\Certificates\CertificateIssuanceService;
+use Academy\Application\Certificates\CertificateQueryService;
 use Academy\Application\Courses\AssignCourseAdminScopeService;
 use Academy\Application\Courses\CatalogueService;
 use Academy\Application\Courses\CloneCourseVersionService;
@@ -35,8 +35,6 @@ use Academy\Application\Credentials\DocumentScanWorker;
 use Academy\Application\Credentials\DocumentUploadService;
 use Academy\Application\Credentials\StuckScanWatchService;
 use Academy\Application\Dashboard\LearnerDashboardQueryService;
-use Academy\Application\Learning\LearnerPlayerQueryService;
-use Academy\Application\Learning\MarkContentCompleteService;
 use Academy\Application\Dashboard\LearnerStatusPresenter;
 use Academy\Application\Identity\CompositeTokenConsumedHandler;
 use Academy\Application\Identity\EmailVerificationResendService;
@@ -58,6 +56,10 @@ use Academy\Application\Identity\TokenConfirmationCleanupService;
 use Academy\Application\Identity\TokenConfirmationService;
 use Academy\Application\Identity\VerificationChallengeIssuer;
 use Academy\Application\Identity\VerificationTokenIssuer;
+use Academy\Application\Learning\LearnerPlayerQueryService;
+use Academy\Application\Learning\LearningMediaAccessService;
+use Academy\Application\Learning\LearningMediaIngestService;
+use Academy\Application\Learning\MarkContentCompleteService;
 use Academy\Application\Notifications\AdminNotificationQueryService;
 use Academy\Application\Notifications\AdminNotificationRetryService;
 use Academy\Application\Notifications\DeliveryFinaliser;
@@ -74,8 +76,8 @@ use Academy\Application\Ops\EnvironmentCapability;
 use Academy\Application\Ops\ReadinessProbe;
 use Academy\Application\Ops\UatResetService;
 use Academy\Application\Ops\UatSeedService;
-use Academy\Application\Payments\DemoPaymentSimulationService;
 use Academy\Application\Outbox\OutboxRelayService;
+use Academy\Application\Payments\DemoPaymentSimulationService;
 use Academy\Application\Payments\FinancePaymentQueryService;
 use Academy\Application\Payments\FinanceReconciliationQueryService;
 use Academy\Application\Payments\PaymentCheckoutService;
@@ -108,21 +110,21 @@ use Academy\Domain\Assessments\AssessmentQuestionLinkRepository;
 use Academy\Domain\Assessments\AssessmentRepository;
 use Academy\Domain\Assessments\AssessmentResponseRepository;
 use Academy\Domain\Assessments\AttemptScoringService;
-use Academy\Domain\Certificates\CertificateEventRepository;
-use Academy\Domain\Certificates\CertificateLearnerNameResolver;
-use Academy\Domain\Certificates\CertificateRepository;
-use Academy\Domain\Certificates\CompletionEligibilityPolicy;
 use Academy\Domain\Assessments\QuestionBankRepository;
 use Academy\Domain\Assessments\QuestionOptionRepository;
 use Academy\Domain\Assessments\QuestionRepository;
 use Academy\Domain\Audit\AuditWriter;
+use Academy\Domain\Certificates\CertificateEventRepository;
+use Academy\Domain\Certificates\CertificateLearnerNameResolver;
+use Academy\Domain\Certificates\CertificateRepository;
+use Academy\Domain\Certificates\CompletionEligibilityPolicy;
 use Academy\Domain\Courses\BatchAvailabilityEvaluator;
 use Academy\Domain\Courses\BatchDateValidator;
 use Academy\Domain\Courses\BatchRepository;
 use Academy\Domain\Courses\ContentItemRepository;
-use Academy\Domain\Courses\CourseDocumentRequirementRepository;
 use Academy\Domain\Courses\CourseAdminScopeAssignmentRepository;
 use Academy\Domain\Courses\CourseAdminScopePolicy;
+use Academy\Domain\Courses\CourseDocumentRequirementRepository;
 use Academy\Domain\Courses\CourseRepository;
 use Academy\Domain\Courses\CourseVersionImmutabilityGuard;
 use Academy\Domain\Courses\CourseVersionPublishValidator;
@@ -130,6 +132,7 @@ use Academy\Domain\Courses\CourseVersionRepository;
 use Academy\Domain\Courses\CourseVersionStateMachine;
 use Academy\Domain\Courses\CourseVersionStatusHistoryRepository;
 use Academy\Domain\Courses\EligibilityRuleRepository;
+use Academy\Domain\Courses\LearningMediaPolicy;
 use Academy\Domain\Courses\ModuleRepository;
 use Academy\Domain\Credentials\DocumentFileValidator;
 use Academy\Domain\Credentials\DocumentObjectKeyGenerator;
@@ -195,21 +198,21 @@ use Academy\Domain\Storage\ObjectStorage;
 use Academy\Http\Controllers\AdminNotificationController;
 use Academy\Http\Controllers\ApplicationController;
 use Academy\Http\Controllers\AssessmentAttemptController;
-use Academy\Http\Controllers\CertificateController;
 use Academy\Http\Controllers\AssessmentConfigController;
 use Academy\Http\Controllers\BatchController;
+use Academy\Http\Controllers\CertificateController;
 use Academy\Http\Controllers\CourseAdminController;
 use Academy\Http\Controllers\CourseCatalogueController;
 use Academy\Http\Controllers\CourseCurriculumController;
 use Academy\Http\Controllers\CourseVersionLifecycleController;
 use Academy\Http\Controllers\DashboardController;
-use Academy\Http\Controllers\LearnerPlayerController;
 use Academy\Http\Controllers\DocumentController;
 use Academy\Http\Controllers\EmailVerificationController;
 use Academy\Http\Controllers\FinancePaymentController;
 use Academy\Http\Controllers\ForgotPasswordController;
 use Academy\Http\Controllers\HealthController;
-use Academy\Http\Controllers\HomeController;
+use Academy\Http\Controllers\LearnerPlayerController;
+use Academy\Http\Controllers\LearningLocalStorageDownloadController;
 use Academy\Http\Controllers\LocalStorageDownloadController;
 use Academy\Http\Controllers\LocalUploadController;
 use Academy\Http\Controllers\LoginController;
@@ -244,19 +247,19 @@ use Academy\Http\Security\TokenPageHeaderPolicy;
 use Academy\Http\View\CurrentAuth;
 use Academy\Http\View\CurrentCsrfToken;
 use Academy\Infrastructure\Admissions\PdoApplicationRepository;
-use Academy\Infrastructure\Audit\PdoAuditWriter;
 use Academy\Infrastructure\Assessments\PdoAssessmentAttemptQuestionRepository;
 use Academy\Infrastructure\Assessments\PdoAssessmentAttemptRepository;
 use Academy\Infrastructure\Assessments\PdoAssessmentAttemptStatusHistoryRepository;
 use Academy\Infrastructure\Assessments\PdoAssessmentQuestionLinkRepository;
 use Academy\Infrastructure\Assessments\PdoAssessmentRepository;
 use Academy\Infrastructure\Assessments\PdoAssessmentResponseRepository;
-use Academy\Infrastructure\Certificates\PdoCertificateEventRepository;
-use Academy\Infrastructure\Certificates\PdoCertificateRepository;
-use Academy\Infrastructure\Certificates\SimpleCertificatePdfRenderer;
 use Academy\Infrastructure\Assessments\PdoQuestionBankRepository;
 use Academy\Infrastructure\Assessments\PdoQuestionOptionRepository;
 use Academy\Infrastructure\Assessments\PdoQuestionRepository;
+use Academy\Infrastructure\Audit\PdoAuditWriter;
+use Academy\Infrastructure\Certificates\PdoCertificateEventRepository;
+use Academy\Infrastructure\Certificates\PdoCertificateRepository;
+use Academy\Infrastructure\Certificates\SimpleCertificatePdfRenderer;
 use Academy\Infrastructure\Courses\PdoBatchRepository;
 use Academy\Infrastructure\Courses\PdoContentItemRepository;
 use Academy\Infrastructure\Courses\PdoCourseAdminScopeAssignmentRepository;
@@ -291,6 +294,7 @@ use Academy\Infrastructure\Notifications\PdoNotificationDeliveryRepository;
 use Academy\Infrastructure\Notifications\RecordingEmailAdapter;
 use Academy\Infrastructure\Notifications\RecordingSmsAdapter;
 use Academy\Infrastructure\Notifications\SealedSecretBox;
+use Academy\Infrastructure\Notifications\SmtpEmailAdapter;
 use Academy\Infrastructure\Notifications\UnavailableEmailAdapter;
 use Academy\Infrastructure\Notifications\UnavailableSmsAdapter;
 use Academy\Infrastructure\Outbox\InMemoryOutboxTransport;
@@ -314,7 +318,10 @@ use Academy\Infrastructure\Review\PdoReviewerScopeAssignmentRepository;
 use Academy\Infrastructure\Review\PdoVerificationAuditLogRepository;
 use Academy\Infrastructure\Scheduler\PdoSchedulerLock;
 use Academy\Infrastructure\Session\PdoSessionRepository;
+use Academy\Infrastructure\Storage\LearningLocalObjectStorage;
+use Academy\Infrastructure\Storage\LearningMediaStorage;
 use Academy\Infrastructure\Storage\LocalObjectStorage;
+use Academy\Infrastructure\Storage\S3ObjectStorage;
 use Academy\Infrastructure\Storage\UnconfiguredObjectStorage;
 use Academy\Infrastructure\View\Escaper;
 use Academy\Infrastructure\View\PhpRenderer;
@@ -410,8 +417,21 @@ return static function (): ContainerInterface {
         SecurityHeaderPolicy::class => static function (ContainerInterface $c): SecurityHeaderPolicy {
             /** @var array{force_https: bool} $security */
             $security = $c->get('config.security');
+            $branding = $c->get(AcademyBranding::class);
+            /** @var array{learning_media: array{driver: string, s3_bucket: string, s3_region: string, s3_endpoint: string}} $securityFull */
+            $securityFull = $c->get('config.security');
+            $mediaHost = null;
+            $learning = $securityFull['learning_media'];
+            if ($learning['driver'] === 's3' && $learning['s3_bucket'] !== '' && $learning['s3_region'] !== '') {
+                if ($learning['s3_endpoint'] !== '') {
+                    $host = parse_url($learning['s3_endpoint'], PHP_URL_HOST);
+                    $mediaHost = is_string($host) && $host !== '' ? $host : null;
+                } else {
+                    $mediaHost = $learning['s3_bucket'] . '.s3.' . $learning['s3_region'] . '.amazonaws.com';
+                }
+            }
 
-            return new SecurityHeaderPolicy($security['force_https']);
+            return new SecurityHeaderPolicy($security['force_https'], $branding->logoUrl, $mediaHost);
         },
 
         SessionRepository::class => static fn (ContainerInterface $c): SessionRepository => new PdoSessionRepository(
@@ -741,6 +761,7 @@ return static function (): ContainerInterface {
             $c->get(CertificateLearnerNameResolver::class),
             $c->get(ConnectionFactory::class),
             $c->get(AuditService::class),
+            $c->get(OutboxWriter::class),
         ),
         CertificateQueryService::class => static fn (ContainerInterface $c): CertificateQueryService => new CertificateQueryService(
             $c->get(AuthorizationService::class),
@@ -760,6 +781,8 @@ return static function (): ContainerInterface {
             $c->get(AssessmentAttemptQuestionRepository::class),
             $c->get(AssessmentResponseRepository::class),
             $c->get(AssessmentRepository::class),
+            $c->get(CertificateIssuanceService::class),
+            $c->get(CertificateRepository::class),
         ),
         BatchRepository::class => static fn (ContainerInterface $c): BatchRepository => new PdoBatchRepository(
             $c->get(ConnectionFactory::class),
@@ -1056,6 +1079,76 @@ return static function (): ContainerInterface {
 
             return new UnconfiguredObjectStorage();
         },
+        LearningMediaPolicy::class => static function (ContainerInterface $c): LearningMediaPolicy {
+            /** @var array{learning_media: array{max_bytes: int}} $security */
+            $security = $c->get('config.security');
+
+            return new LearningMediaPolicy($security['learning_media']['max_bytes']);
+        },
+        LearningLocalObjectStorage::class => static function (ContainerInterface $c): LearningLocalObjectStorage {
+            /** @var array{root: string} $paths */
+            $paths = $c->get('config.paths');
+            /** @var array{learning_media: array{local_base_path: string, local_signing_secret: string}} $security */
+            $security = $c->get('config.security');
+            $learning = $security['learning_media'];
+            $basePath = $learning['local_base_path'];
+            $absoluteBasePath = ($basePath !== '' && $basePath[0] === '/')
+                ? $basePath
+                : rtrim($paths['root'], '/') . '/' . ltrim($basePath, '/');
+
+            return new LearningLocalObjectStorage($absoluteBasePath, $learning['local_signing_secret']);
+        },
+        LearningMediaStorage::class => static function (ContainerInterface $c): LearningMediaStorage {
+            /** @var array{learning_media: array{
+             *   driver: string,
+             *   s3_bucket: string,
+             *   s3_region: string,
+             *   s3_access_key_id: string,
+             *   s3_secret_access_key: string,
+             *   s3_endpoint: string
+             * }} $security */
+            $security = $c->get('config.security');
+            $learning = $security['learning_media'];
+            $driver = $learning['driver'] === '' ? 'local' : $learning['driver'];
+            if ($driver === 'local') {
+                return new LearningMediaStorage($c->get(LearningLocalObjectStorage::class), $c->get(LearningMediaPolicy::class));
+            }
+            if ($driver === 's3'
+                && $learning['s3_bucket'] !== ''
+                && $learning['s3_region'] !== ''
+                && $learning['s3_access_key_id'] !== ''
+                && $learning['s3_secret_access_key'] !== ''
+            ) {
+                $endpoint = $learning['s3_endpoint'] !== '' ? $learning['s3_endpoint'] : null;
+
+                return new LearningMediaStorage(
+                    new S3ObjectStorage(
+                        $learning['s3_bucket'],
+                        $learning['s3_region'],
+                        $learning['s3_access_key_id'],
+                        $learning['s3_secret_access_key'],
+                        $endpoint,
+                    ),
+                    $c->get(LearningMediaPolicy::class),
+                );
+            }
+
+            return new LearningMediaStorage(new UnconfiguredObjectStorage(), $c->get(LearningMediaPolicy::class));
+        },
+        LearningMediaIngestService::class => static fn (ContainerInterface $c): LearningMediaIngestService => new LearningMediaIngestService(
+            $c->get(LearningMediaStorage::class),
+            $c->get(LearningMediaPolicy::class),
+        ),
+        LearningMediaAccessService::class => static fn (ContainerInterface $c): LearningMediaAccessService => new LearningMediaAccessService(
+            $c->get(AuthorizationService::class),
+            $c->get(\Academy\Domain\Learning\EnrolmentRepository::class),
+            $c->get(\Academy\Domain\Courses\ModuleRepository::class),
+            $c->get(\Academy\Domain\Courses\ContentItemRepository::class),
+            $c->get(\Academy\Domain\Learning\ContentProgressRepository::class),
+            $c->get(\Academy\Domain\Learning\PlayerAccessPolicy::class),
+            $c->get(\Academy\Domain\Learning\ModuleReleasePolicy::class),
+            $c->get(LearningMediaStorage::class),
+        ),
         MalwareScanner::class => static function (ContainerInterface $c): MalwareScanner {
             /** @var array{env: string} $app */
             $app = $c->get('config.app');
@@ -1475,7 +1568,22 @@ return static function (): ContainerInterface {
         RecordingEmailAdapter::class => static fn (): RecordingEmailAdapter => new RecordingEmailAdapter(),
         RecordingSmsAdapter::class => static fn (): RecordingSmsAdapter => new RecordingSmsAdapter(),
         EmailDeliveryPort::class => static function (ContainerInterface $c): EmailDeliveryPort {
-            /** @var array{notifications: array{email_adapter: string, local_mail_path: string}} $security */
+            /** @var array{
+             *   notifications: array{
+             *     email_adapter: string,
+             *     local_mail_path: string,
+             *     mail: array{
+             *       host: string,
+             *       port: int,
+             *       username: string,
+             *       password: string,
+             *       from_address: string,
+             *       from_name: string,
+             *       encryption: string
+             *     }
+             *   }
+             * } $security
+             */
             $security = $c->get('config.security');
             $adapter = $security['notifications']['email_adapter'];
             if ($adapter === 'recording') {
@@ -1495,6 +1603,19 @@ return static function (): ContainerInterface {
 
                 return new LocalFileEmailAdapter($directory);
             }
+            if ($adapter === 'smtp') {
+                $mail = $security['notifications']['mail'];
+
+                return new SmtpEmailAdapter(
+                    $mail['host'],
+                    $mail['port'],
+                    $mail['username'],
+                    $mail['password'],
+                    $mail['from_address'],
+                    $mail['from_name'],
+                    $mail['encryption'],
+                );
+            }
 
             return new UnavailableEmailAdapter();
         },
@@ -1513,7 +1634,7 @@ return static function (): ContainerInterface {
             $security = $c->get('config.security');
 
             return NotificationCapability::fromEnvFlags(
-                $security['notifications']['email_adapter'] !== 'unavailable',
+                in_array($security['notifications']['email_adapter'], ['recording', 'local_file', 'smtp'], true),
                 $security['notifications']['sms_adapter'] !== 'unavailable',
             );
         },
@@ -2097,6 +2218,12 @@ return static function (): ContainerInterface {
                     'document.upload_own',
                 );
                 $router->get('/__local-storage/documents/download', [LocalStorageDownloadController::class, 'download']);
+            }
+
+            /** @var array{learning_media: array{driver: string}} $securityAll */
+            $securityAll = $c->get('config.security');
+            if (($securityAll['learning_media']['driver'] === '' ? 'local' : $securityAll['learning_media']['driver']) === 'local') {
+                $router->get('/__local-storage/learning/download', [LearningLocalStorageDownloadController::class, 'download']);
             }
 
             if ($app['env'] === 'testing') {

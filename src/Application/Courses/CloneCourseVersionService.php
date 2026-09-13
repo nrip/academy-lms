@@ -147,8 +147,22 @@ final class CloneCourseVersionService
                         'title' => $item->title,
                         'body_text' => $item->bodyText,
                         'object_key' => $item->objectKey,
+                        'video_url' => $item->videoUrl,
+                        'video_delivery_mode' => $item->videoDeliveryMode,
+                        'video_provider' => $item->videoProvider,
                         'mandatory_flag' => $item->mandatoryFlag,
                         'completion_rule' => $item->completionRule,
+                        'original_filename' => $item->delivery->originalFilename,
+                        'media_mime' => $item->delivery->mediaMime,
+                        'media_bytes' => $item->delivery->mediaBytes,
+                        'media_sha256' => $item->delivery->mediaSha256,
+                        'podcast_url' => $item->delivery->podcastUrl,
+                        'live_join_url' => $item->delivery->liveJoinUrl,
+                        'live_starts_at' => $item->delivery->liveStartsAt,
+                        'live_ends_at' => $item->delivery->liveEndsAt,
+                        'live_provider' => $item->delivery->liveProvider,
+                        'live_recording_url' => $item->delivery->liveRecordingUrl,
+                        'live_external_meeting_id' => $item->delivery->liveExternalMeetingId,
                     ]);
 
                     if ($item->contentType !== ContentItemType::MCQ_ASSESSMENT) {

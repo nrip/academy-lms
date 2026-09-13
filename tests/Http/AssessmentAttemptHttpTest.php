@@ -39,6 +39,7 @@ final class AssessmentAttemptHttpTest extends TestCase
     public function testStartAnswerSubmitPassMarksContentComplete(): void
     {
         $learner = DatabaseTestCase::applicantFixture();
+        DatabaseTestCase::setLearnerCertificateName($learner['user_id']);
         $boot = DatabaseTestCase::bindSessionForUser($learner['user_id'], $learner['auth_version'], AuthStage::FULLY_AUTHENTICATED);
         $course = DatabaseTestCase::seedPublishedCourseWithMcqAssessment([
             'question_count' => 2,
@@ -97,6 +98,8 @@ final class AssessmentAttemptHttpTest extends TestCase
         $resultHtml = (string) $result->getBody();
         self::assertStringContainsString('Passed.', $resultHtml);
         self::assertStringContainsString('Score:', $resultHtml);
+        self::assertStringContainsString('View certificate', $resultHtml);
+        self::assertStringContainsString('completion certificate is ready', $resultHtml);
 
         $progress = $pdo->prepare(
             'SELECT completion_status, completion_source FROM content_progress

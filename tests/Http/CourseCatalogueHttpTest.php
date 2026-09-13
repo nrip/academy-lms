@@ -55,6 +55,40 @@ final class CourseCatalogueHttpTest extends TestCase
         self::assertStringNotContainsString('HTTP Retired Course', (string) $response->getBody());
     }
 
+    public function testAnonymousCourseIndexExposesRegistrationLink(): void
+    {
+        $response = ApplicationFactory::handle(
+            new ServerRequest([], [], 'http://localhost/courses', 'GET'),
+        );
+
+        $html = (string) $response->getBody();
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString('href="/register"', $html);
+        self::assertMatchesRegularExpression(
+            '#<a[^>]+href="/register"[^>]*>\s*Create account\s*</a>#',
+            $html,
+        );
+        self::assertStringContainsString('href="/login"', $html);
+    }
+
+    public function testAnonymousCourseDetailOffersRegisterThenApplyPath(): void
+    {
+        $seeded = DatabaseTestCase::seedPublishedCourse(['slug' => 'http-guest-acquire', 'title' => 'HTTP Guest Acquire']);
+        DatabaseTestCase::seedBatch($seeded['version_id']);
+
+        $response = ApplicationFactory::handle(
+            new ServerRequest([], [], 'http://localhost/courses/http-guest-acquire', 'GET'),
+        );
+
+        $html = (string) $response->getBody();
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString('HTTP Guest Acquire', $html);
+        self::assertStringContainsString('href="/register"', $html);
+        self::assertStringContainsString('Create account', $html);
+        self::assertStringContainsString('Sign in to apply', $html);
+        self::assertStringContainsString('/login?return_to=', $html);
+    }
+
     public function testShowReturnsCourseDetail(): void
     {
         $seeded = DatabaseTestCase::seedPublishedCourse(['slug' => 'http-show-course', 'title' => 'HTTP Show Course']);

@@ -120,6 +120,16 @@ final class TransactionalNotificationTemplateRegistry
                 . "Status: {{status_label}}. Course access follows your enrolment status — payment alone is not enough.\n\n"
                 . "{{dashboard_link}}\n",
             ),
+            TransactionalNotificationEventTypes::CERTIFICATE_ISSUED => $this->def(
+                'certificate_issued',
+                1,
+                'Certificate issued — {{course_title}}',
+                "Hello {{learner_display_name}},\n\n"
+                . "Your certificate for {{course_title}} is ready.\n\n"
+                . "View or download your certificate: {{certificate_link}}\n\n"
+                . "{{dashboard_link}}\n",
+                ['certificate_link'],
+            ),
         ];
     }
 

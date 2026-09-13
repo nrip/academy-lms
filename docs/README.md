@@ -90,6 +90,8 @@ If documents conflict, stop and identify the conflict. Do not resolve by assumpt
 | Document | Description |
 |---|---|
 | [RAZORPAY_CONFIGURATION.md](./deployment/RAZORPAY_CONFIGURATION.md) | Razorpay env vars, webhook setup, local testing |
+| [EMAIL_ARCHITECTURE_REVIEW.md](./deployment/EMAIL_ARCHITECTURE_REVIEW.md) | Notification/outbox/email inventory; production provider path |
+| [EMAIL_CONFIGURATION.md](./deployment/EMAIL_CONFIGURATION.md) | SMTP/SES env vars, workers, certificate email, testing |
 
 ## Releases
 

@@ -22,8 +22,8 @@ final class ModuleReleasePolicyTest extends TestCase
     {
         $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
         $module = new Module(1, 10, 1, 'M1', 'd', true, ModuleReleaseRule::IMMEDIATE, null, $now, $now);
-        $item1 = new ContentItem(1, 1, 1, ContentItemType::TEXT_LESSON, 'A', 'body', null, true, ContentCompletionRule::MARK_COMPLETE, $now, $now);
-        $item2 = new ContentItem(2, 1, 2, ContentItemType::TEXT_LESSON, 'B', 'body', null, true, ContentCompletionRule::MARK_COMPLETE, $now, $now);
+        $item1 = new ContentItem(1, 1, 1, ContentItemType::TEXT_LESSON, 'A', 'body', null, null, null, null, true, ContentCompletionRule::MARK_COMPLETE, $now, $now);
+        $item2 = new ContentItem(2, 1, 2, ContentItemType::TEXT_LESSON, 'B', 'body', null, null, null, null, true, ContentCompletionRule::MARK_COMPLETE, $now, $now);
         $policy = new ModuleReleasePolicy();
 
         self::assertTrue($policy->isContentAccessible($item1, [$module], [$item1, $item2], []));
@@ -53,8 +53,8 @@ final class ModuleReleasePolicyTest extends TestCase
         $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
         $m1 = new Module(1, 10, 1, 'M1', 'd', true, ModuleReleaseRule::IMMEDIATE, null, $now, $now);
         $m2 = new Module(2, 10, 2, 'M2', 'd', true, ModuleReleaseRule::SEQUENTIAL, 1, $now, $now);
-        $i1 = new ContentItem(1, 1, 1, ContentItemType::TEXT_LESSON, 'A', 'body', null, true, ContentCompletionRule::MARK_COMPLETE, $now, $now);
-        $i2 = new ContentItem(2, 2, 1, ContentItemType::TEXT_LESSON, 'B', 'body', null, true, ContentCompletionRule::MARK_COMPLETE, $now, $now);
+        $i1 = new ContentItem(1, 1, 1, ContentItemType::TEXT_LESSON, 'A', 'body', null, null, null, null, true, ContentCompletionRule::MARK_COMPLETE, $now, $now);
+        $i2 = new ContentItem(2, 2, 1, ContentItemType::TEXT_LESSON, 'B', 'body', null, null, null, null, true, ContentCompletionRule::MARK_COMPLETE, $now, $now);
         $policy = new ModuleReleasePolicy();
 
         self::assertFalse($policy->isModuleUnlocked($m2, [$m1, $m2], [$i1, $i2], []));

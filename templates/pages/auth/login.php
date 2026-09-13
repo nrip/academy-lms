@@ -36,6 +36,10 @@ ob_start();
         <button type="submit" class="btn btn-primary w-100"><?= $e->html('Sign in') ?></button>
     </form>
     <p class="mt-3 mb-0"><a href="/forgot-password"><?= $e->html('Forgot password?') ?></a></p>
+    <p class="mt-2 mb-0">
+        <?= $e->html('New here?') ?>
+        <a href="/register"><?= $e->html('Create an account') ?></a>
+    </p>
     <?php if ($branding->supportEmail !== ''): ?>
         <p class="mt-2 mb-0 small text-muted">
             <?= $e->html('Need help? Contact ') ?>

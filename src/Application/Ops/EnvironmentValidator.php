@@ -73,6 +73,18 @@ final class EnvironmentValidator
             if ($smsAdapter === 'recording') {
                 $errors[] = 'Recording SMS adapters are forbidden in staging/production.';
             }
+            if ($emailAdapter === 'smtp') {
+                $mail = is_array($notifications['mail'] ?? null) ? $notifications['mail'] : [];
+                if (trim((string) ($mail['host'] ?? '')) === '') {
+                    $errors[] = 'MAIL_HOST is required when using SMTP email delivery.';
+                }
+                if (trim((string) ($mail['from_address'] ?? '')) === '') {
+                    $errors[] = 'MAIL_FROM_ADDRESS is required when using SMTP email delivery.';
+                }
+            }
+            if ($emailAdapter === '' || $emailAdapter === 'unavailable') {
+                $warnings[] = 'Email adapter is unavailable; transactional and identity email will fail closed until MAIL_DRIVER=smtp/ses is configured.';
+            }
         } elseif (in_array($emailAdapter, ['recording', 'local_file'], true)
             && !$capability->allowsFakeOrLocalAdapters()
         ) {

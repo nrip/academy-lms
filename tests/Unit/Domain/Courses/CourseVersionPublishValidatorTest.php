@@ -6,9 +6,9 @@ namespace Academy\Tests\Unit\Domain\Courses;
 
 use Academy\Domain\Assessments\Assessment;
 use Academy\Domain\Assessments\AssessmentQuestionLink;
+use Academy\Domain\Courses\ContentCompletionRule;
 use Academy\Domain\Courses\ContentItem;
 use Academy\Domain\Courses\ContentItemType;
-use Academy\Domain\Courses\ContentCompletionRule;
 use Academy\Domain\Courses\CourseVersion;
 use Academy\Domain\Courses\CourseVersionPublishValidator;
 use Academy\Domain\Courses\CourseVersionStatus;
@@ -32,6 +32,9 @@ final class CourseVersionPublishValidatorTest extends TestCase
             ContentItemType::TEXT_LESSON,
             'Lesson',
             'Body',
+            null,
+            null,
+            null,
             null,
             true,
             ContentCompletionRule::MARK_COMPLETE,
@@ -88,6 +91,9 @@ final class CourseVersionPublishValidatorTest extends TestCase
             1,
             ContentItemType::MCQ_ASSESSMENT,
             'Final quiz',
+            null,
+            null,
+            null,
             null,
             null,
             true,

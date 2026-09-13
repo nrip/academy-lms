@@ -54,6 +54,36 @@ ob_start();
                 <p class="text-muted"><?= $e->html('No attempts remaining.') ?></p>
             <?php endif; ?>
         <?php endif; ?>
+    <?php elseif ($detail->item->contentType === 'video'): ?>
+        <?php if ($detail->item->bodyText !== null && $detail->item->bodyText !== ''): ?>
+            <div class="acad-lesson-body mb-3">
+                <?= nl2br($e->html($detail->item->bodyText)) ?>
+            </div>
+        <?php endif; ?>
+        <?php if ($detail->videoEmbedUrl !== null): ?>
+            <div class="ratio ratio-16x9 mb-4">
+                <iframe
+                    src="<?= $e->attr($detail->videoEmbedUrl) ?>"
+                    title="<?= $e->attr($detail->item->title) ?>"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen
+                    referrerpolicy="strict-origin-when-cross-origin"
+                    loading="lazy"></iframe>
+            </div>
+        <?php elseif ($detail->videoWatchUrl !== null): ?>
+            <p class="mb-4">
+                <a class="btn btn-primary"
+                   href="<?= $e->attr($detail->videoWatchUrl) ?>"
+                   target="_blank"
+                   rel="noopener noreferrer">
+                    <?= $e->html('Watch Video') ?>
+                </a>
+            </p>
+        <?php else: ?>
+            <div class="alert alert-warning mb-4">
+                <?= $e->html('This video lesson is not available to play right now.') ?>
+            </div>
+        <?php endif; ?>
     <?php elseif ($detail->item->bodyText !== null && $detail->item->bodyText !== ''): ?>
         <div class="acad-lesson-body mb-4">
             <?= nl2br($e->html($detail->item->bodyText)) ?>

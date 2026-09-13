@@ -166,6 +166,20 @@ ob_start();
                         <?php if ($item->contentType === 'text_lesson' && $item->bodyText !== null): ?>
                             <div class="small mt-1 text-break"><?= $e->html($item->bodyText) ?></div>
                         <?php endif; ?>
+                        <?php if ($item->contentType === 'video'): ?>
+                            <?php if ($item->bodyText !== null && $item->bodyText !== ''): ?>
+                                <div class="small mt-1 text-break"><?= $e->html($item->bodyText) ?></div>
+                            <?php endif; ?>
+                            <div class="small text-muted mt-1">
+                                <?= $e->html('Delivery: ' . (string) $item->videoDeliveryMode) ?>
+                                <?php if ($item->videoProvider !== null): ?>
+                                    · <?= $e->html('Provider: ' . $item->videoProvider) ?>
+                                <?php endif; ?>
+                            </div>
+                            <?php if ($item->videoUrl !== null): ?>
+                                <div class="small text-break mt-1"><?= $e->html($item->videoUrl) ?></div>
+                            <?php endif; ?>
+                        <?php endif; ?>
                         <?php if ($item->contentType === 'pdf' && $item->objectKey !== null): ?>
                             <div class="small text-muted mt-1"><?= $e->html('Object key: ' . $item->objectKey) ?></div>
                         <?php endif; ?>
@@ -200,6 +214,41 @@ ob_start();
                                         <input class="form-control form-control-sm" name="object_key" required
                                                value="<?= $e->attr((string) $item->objectKey) ?>">
                                     </div>
+                                <?php elseif ($item->contentType === 'video'): ?>
+                                    <div class="col-12">
+                                        <label class="form-label"><?= $e->html('Description') ?></label>
+                                        <textarea class="form-control form-control-sm" name="body_text" rows="3"><?= $e->html((string) $item->bodyText) ?></textarea>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label"><?= $e->html('Video URL') ?></label>
+                                        <input class="form-control form-control-sm" name="video_url" required
+                                               value="<?= $e->attr((string) $item->videoUrl) ?>"
+                                               placeholder="https://…">
+                                    </div>
+                                    <div class="col-12">
+                                        <span class="form-label d-block"><?= $e->html('Delivery mode') ?></span>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="video_delivery_mode"
+                                                   id="vd_emb_<?= $e->attr((string) $item->contentId) ?>"
+                                                   value="embedded"
+                                                   <?= $item->videoDeliveryMode === 'embedded' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="vd_emb_<?= $e->attr((string) $item->contentId) ?>">
+                                                <?= $e->html('Embedded Player') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="video_delivery_mode"
+                                                   id="vd_ext_<?= $e->attr((string) $item->contentId) ?>"
+                                                   value="external_link"
+                                                   <?= $item->videoDeliveryMode === 'external_link' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="vd_ext_<?= $e->attr((string) $item->contentId) ?>">
+                                                <?= $e->html('External Link') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text">
+                                            <?= $e->html('Embedded Player supports YouTube, YouTube no-cookie, and Vimeo only.') ?>
+                                        </div>
+                                    </div>
                                 <?php else: ?>
                                     <input type="hidden" name="completion_rule" value="assessment_passed">
                                     <div class="col-12 small text-muted">
@@ -231,6 +280,7 @@ ob_start();
                         <select class="form-select form-select-sm" id="ctype_<?= $e->attr((string) $module->moduleId) ?>" name="content_type">
                             <option value="text_lesson" selected><?= $e->html('Text lesson') ?></option>
                             <option value="pdf"><?= $e->html('PDF') ?></option>
+                            <option value="video"><?= $e->html('Video') ?></option>
                             <option value="mcq_assessment"><?= $e->html('MCQ assessment') ?></option>
                         </select>
                     </div>
@@ -241,15 +291,42 @@ ob_start();
                                placeholder="e.g. Understanding Obesity">
                     </div>
                     <div class="col-12">
-                        <label class="form-label" for="cbody_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Lesson body (text lessons)') ?></label>
+                        <label class="form-label" for="cbody_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Description / lesson body') ?></label>
                         <textarea class="form-control form-control-sm" id="cbody_<?= $e->attr((string) $module->moduleId) ?>"
                                   name="body_text" rows="3"
-                                  placeholder="Learner-facing lesson text…"></textarea>
+                                  placeholder="Learner-facing text or video description…"></textarea>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label" for="ckey_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Object key (PDF only)') ?></label>
                         <input class="form-control form-control-sm" id="ckey_<?= $e->attr((string) $module->moduleId) ?>"
                                name="object_key" placeholder="s3-object-key-or-demo-ref">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="cvurl_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Video URL') ?></label>
+                        <input class="form-control form-control-sm" id="cvurl_<?= $e->attr((string) $module->moduleId) ?>"
+                               name="video_url" placeholder="https://www.youtube.com/watch?v=…">
+                    </div>
+                    <div class="col-12">
+                        <span class="form-label d-block"><?= $e->html('Video delivery mode') ?></span>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="video_delivery_mode"
+                                   id="cvemb_<?= $e->attr((string) $module->moduleId) ?>"
+                                   value="embedded" checked>
+                            <label class="form-check-label" for="cvemb_<?= $e->attr((string) $module->moduleId) ?>">
+                                <?= $e->html('Embedded Player') ?>
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="video_delivery_mode"
+                                   id="cvext_<?= $e->attr((string) $module->moduleId) ?>"
+                                   value="external_link">
+                            <label class="form-check-label" for="cvext_<?= $e->attr((string) $module->moduleId) ?>">
+                                <?= $e->html('External Link') ?>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            <?= $e->html('Required for Video. Embedded Player: YouTube / YouTube no-cookie / Vimeo. External Link: any HTTPS URL.') ?>
+                        </div>
                     </div>
                     <div class="col-12">
                         <button class="btn btn-primary btn-sm" type="submit"><?= $e->html('Add content') ?></button>

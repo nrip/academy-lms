@@ -72,8 +72,8 @@ final class MarkContentCompleteService
             throw new NotFoundException('Content item not found on this CourseVersion.');
         }
 
-        if (!in_array($target->contentType, [ContentItemType::TEXT_LESSON, ContentItemType::PDF], true)) {
-            throw new DomainRuleException('Only text lessons and PDFs can be marked complete here.');
+        if (!in_array($target->contentType, ContentItemType::learnerMarkCompleteTypes(), true)) {
+            throw new DomainRuleException('This lesson cannot be marked complete here.');
         }
         if ($target->completionRule !== ContentCompletionRule::MARK_COMPLETE) {
             throw new DomainRuleException('This content item does not use mark-complete completion.');
@@ -112,8 +112,9 @@ final class MarkContentCompleteService
                     previous: [
                         'enrolment_id' => $enrolmentId,
                         'content_id' => $contentId,
-                        'completion_status' => $existing?->completionStatus
-                            ?? ContentProgressCompletionStatus::NOT_STARTED,
+                        'completion_status' => $existing === null
+                            ? ContentProgressCompletionStatus::NOT_STARTED
+                            : $existing->completionStatus,
                     ],
                     next: [
                         'enrolment_id' => $enrolmentId,
@@ -130,7 +131,7 @@ final class MarkContentCompleteService
                 source: 'learner_player',
             );
 
-            $this->certificates->issueCompletionIfEligible($enrolmentId, $userId);
+            $this->certificates->issueCompletionIfEligible($enrolmentId, $userId, true);
 
             $pdo->commit();
         } catch (Throwable $exception) {

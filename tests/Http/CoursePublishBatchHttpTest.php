@@ -176,7 +176,9 @@ final class CoursePublishBatchHttpTest extends TestCase
         self::assertSame(200, $batchesPage->getStatusCode());
         $batchesHtml = (string) $batchesPage->getBody();
         self::assertStringContainsString($batchName, $batchesHtml);
-        self::assertStringContainsString('Log in to apply', $batchesHtml);
+        self::assertStringContainsString('Create account', $batchesHtml);
+        self::assertStringContainsString('href="/register"', $batchesHtml);
+        self::assertStringContainsString('Sign in', $batchesHtml);
 
         $clone = $this->request('POST', '/admin/courses/' . $courseId . '/versions/' . $versionId . '/clone', $boot);
         self::assertSame(303, $clone->getStatusCode());

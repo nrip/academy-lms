@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Academy\Tests\Unit\Application\Ops;
 
+use Academy\Application\Credentials\DocumentScanWorker;
+use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
+use Academy\Application\Notifications\TransactionalNotificationDeliveryWorker;
 use Academy\Application\Ops\DemoPrepareService;
 use Academy\Application\Ops\DemoProcessService;
 use Academy\Application\Ops\EnvironmentCapability;
 use Academy\Application\Ops\UatSeedService;
-use Academy\Application\Credentials\DocumentScanWorker;
-use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
-use Academy\Application\Notifications\TransactionalNotificationDeliveryWorker;
 use Academy\Application\Outbox\OutboxRelayService;
 use Academy\Application\Payments\PaymentReconciliationService;
 use Academy\Application\Payments\PaymentWebhookProcessor;

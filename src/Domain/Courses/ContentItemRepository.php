@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Academy\Domain\Courses;
 
+use DateTimeImmutable;
+
 interface ContentItemRepository
 {
     public function findById(int $contentId): ?ContentItem;
@@ -26,8 +28,22 @@ interface ContentItemRepository
      *   title: string,
      *   body_text: ?string,
      *   object_key: ?string,
+     *   video_url: ?string,
+     *   video_delivery_mode: ?string,
+     *   video_provider: ?string,
      *   mandatory_flag: bool,
-     *   completion_rule: string
+     *   completion_rule: string,
+     *   original_filename: ?string,
+     *   media_mime: ?string,
+     *   media_bytes: ?int,
+     *   media_sha256: ?string,
+     *   podcast_url: ?string,
+     *   live_join_url: ?string,
+     *   live_starts_at: ?DateTimeImmutable,
+     *   live_ends_at: ?DateTimeImmutable,
+     *   live_provider: ?string,
+     *   live_recording_url: ?string,
+     *   live_external_meeting_id: ?string
      * } $data
      */
     public function insert(array $data): int;
@@ -37,8 +53,22 @@ interface ContentItemRepository
      *   title: string,
      *   body_text: ?string,
      *   object_key: ?string,
+     *   video_url: ?string,
+     *   video_delivery_mode: ?string,
+     *   video_provider: ?string,
      *   mandatory_flag: bool,
-     *   completion_rule: string
+     *   completion_rule: string,
+     *   original_filename: ?string,
+     *   media_mime: ?string,
+     *   media_bytes: ?int,
+     *   media_sha256: ?string,
+     *   podcast_url: ?string,
+     *   live_join_url: ?string,
+     *   live_starts_at: ?DateTimeImmutable,
+     *   live_ends_at: ?DateTimeImmutable,
+     *   live_provider: ?string,
+     *   live_recording_url: ?string,
+     *   live_external_meeting_id: ?string
      * } $data
      */
     public function update(int $contentId, array $data): bool;

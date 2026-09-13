@@ -31,4 +31,23 @@ final class SecurityHeadersMiddlewareTest extends TestCase
         self::assertNotSame('', $response->getHeaderLine('Content-Security-Policy'));
         self::assertSame('', $response->getHeaderLine('Strict-Transport-Security'));
     }
+
+    public function testAllowsConfiguredHttpsLogoHostInImgSrc(): void
+    {
+        $middleware = new SecurityHeadersMiddleware(
+            new \Academy\Http\Security\SecurityHeaderPolicy(
+                false,
+                'https://cdn.example.test/brand/logo.svg',
+            ),
+        );
+        $handler = new class () implements RequestHandlerInterface {
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                return new Response();
+            }
+        };
+
+        $csp = $middleware->process(new ServerRequest(), $handler)->getHeaderLine('Content-Security-Policy');
+        self::assertStringContainsString("img-src 'self' data: https://cdn.example.test;", $csp);
+    }
 }

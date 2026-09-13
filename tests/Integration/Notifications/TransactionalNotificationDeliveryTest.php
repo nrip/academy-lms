@@ -36,8 +36,19 @@ final class TransactionalNotificationDeliveryTest extends TestCase
         putenv('APP_ENV=testing');
         $_ENV['APP_ENV'] = 'testing';
         $_SERVER['APP_ENV'] = 'testing';
+        putenv('NOTIFICATION_EMAIL_ADAPTER=recording');
+        $_ENV['NOTIFICATION_EMAIL_ADAPTER'] = 'recording';
+        putenv('MAIL_DRIVER');
+        unset($_ENV['MAIL_DRIVER'], $_SERVER['MAIL_DRIVER']);
         DatabaseTestCase::migrate();
         DatabaseTestCase::truncateAllTestTables();
+    }
+
+    protected function tearDown(): void
+    {
+        putenv('NOTIFICATION_EMAIL_ADAPTER');
+        unset($_ENV['NOTIFICATION_EMAIL_ADAPTER'], $_SERVER['NOTIFICATION_EMAIL_ADAPTER']);
+        parent::tearDown();
     }
 
     public function testWorkerDeliversApplicationApprovedFromPaymentPendingFixture(): void

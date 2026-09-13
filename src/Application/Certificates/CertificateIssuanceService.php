@@ -9,6 +9,7 @@ use Academy\Domain\Audit\LearningAuditPayload;
 use Academy\Domain\Certificates\Certificate;
 use Academy\Domain\Certificates\CertificateEventRepository;
 use Academy\Domain\Certificates\CertificateLearnerNameResolver;
+use Academy\Domain\Certificates\CertificateOutboxEventTypes;
 use Academy\Domain\Certificates\CertificateRepository;
 use Academy\Domain\Certificates\CertificateStatus;
 use Academy\Domain\Certificates\CertificateType;
@@ -22,6 +23,8 @@ use Academy\Domain\Exception\NotFoundException;
 use Academy\Domain\Identity\LearnerProfileRepository;
 use Academy\Domain\Learning\ContentProgressRepository;
 use Academy\Domain\Learning\EnrolmentRepository;
+use Academy\Domain\Notifications\TransactionalNotificationEventTypes;
+use Academy\Domain\Outbox\OutboxWriter;
 use Academy\Domain\Security\AuthContext;
 use Academy\Infrastructure\Database\ConnectionFactory;
 use DateTimeImmutable;
@@ -44,14 +47,20 @@ final class CertificateIssuanceService
         private readonly CertificateLearnerNameResolver $nameResolver,
         private readonly ConnectionFactory $connections,
         private readonly AuditService $audit,
+        private readonly OutboxWriter $outbox,
     ) {
     }
 
     /**
      * Idempotent: returns existing current certificate or issues one when eligible.
      * Returns null when not yet eligible or learner name cannot be resolved.
+     * Pass joinExistingTransaction when the caller already holds the database transaction.
      */
-    public function issueCompletionIfEligible(int $enrolmentId, ?int $actorUserId = null): ?Certificate
+    public function issueCompletionIfEligible(
+        int $enrolmentId,
+        ?int $actorUserId = null,
+        bool $joinExistingTransaction = false,
+    ): ?Certificate
     {
         $enrolment = $this->enrolments->findById($enrolmentId);
         if ($enrolment === null) {
@@ -91,8 +100,7 @@ final class CertificateIssuanceService
         $number = $this->allocateNumber();
         $hash = bin2hex(random_bytes(16));
         $pdo = $this->connections->connection();
-        $ownsTransaction = !$pdo->inTransaction();
-        if ($ownsTransaction) {
+        if (!$joinExistingTransaction) {
             $pdo->beginTransaction();
         }
 
@@ -103,7 +111,7 @@ final class CertificateIssuanceService
                 CertificateType::COMPLETION,
             );
             if ($again !== null) {
-                if ($ownsTransaction) {
+                if (!$joinExistingTransaction) {
                     $pdo->commit();
                 }
 
@@ -128,6 +136,22 @@ final class CertificateIssuanceService
 
             $this->events->append($certificateId, 'issued', $actorUserId, 'completion_eligible', $at);
 
+            $this->outbox->enqueue(
+                TransactionalNotificationEventTypes::CERTIFICATE_ISSUED,
+                'certificate',
+                (string) $certificateId,
+                [
+                    'certificate_id' => $certificateId,
+                    'enrolment_id' => $enrolmentId,
+                    'application_id' => $enrolment->applicationId,
+                    'user_id' => $enrolment->userId,
+                    'learner_name' => $learnerName,
+                    'course_title' => $course->masterTitle,
+                    'certificate_number' => $number,
+                ],
+                CertificateOutboxEventTypes::ISSUED . ':' . $certificateId,
+            );
+
             $this->audit->record(
                 new LearningAuditPayload(
                     action: 'certificate.issued',
@@ -148,13 +172,11 @@ final class CertificateIssuanceService
                 source: 'certificate_issuance',
             );
 
-            if ($ownsTransaction) {
+            if (!$joinExistingTransaction) {
                 $pdo->commit();
             }
         } catch (PDOException $exception) {
-            if ($ownsTransaction && $pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
+            $this->rollbackIssuedTransaction($pdo, $joinExistingTransaction);
             if ($exception->getCode() === '23000' || str_contains($exception->getMessage(), 'Duplicate')) {
                 return $this->certificates->findCurrentByEnrolmentAndType(
                     $enrolmentId,
@@ -163,13 +185,20 @@ final class CertificateIssuanceService
             }
             throw $exception;
         } catch (Throwable $exception) {
-            if ($ownsTransaction && $pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
+            $this->rollbackIssuedTransaction($pdo, $joinExistingTransaction);
             throw $exception;
         }
 
         return $this->certificates->findById($certificateId);
+    }
+
+    private function rollbackIssuedTransaction(\PDO $pdo, bool $joinExistingTransaction): void
+    {
+        if ($joinExistingTransaction || !$pdo->inTransaction()) {
+            return;
+        }
+
+        $pdo->rollBack();
     }
 
     public function requireOwnedEnrolment(AuthContext $auth, int $enrolmentId): void

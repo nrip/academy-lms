@@ -70,6 +70,21 @@ body {
   color: var(--acad-teal);
 }
 
+.acad-shell__nav-link--cta {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--bs-border-radius);
+  background: var(--acad-teal);
+  color: #fff;
+  font-weight: 600;
+}
+
+.acad-shell__nav-link--cta:hover {
+  background: var(--acad-teal-dk);
+  color: #fff;
+}
+
 .acad-shell__nav-form {
   display: inline;
   margin: 0;
