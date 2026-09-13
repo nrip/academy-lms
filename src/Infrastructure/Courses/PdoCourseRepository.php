@@ -14,7 +14,8 @@ use PDO;
 final class PdoCourseRepository implements CourseRepository
 {
     private const COLUMNS = 'course_id, course_code, slug, master_title, status,
-        current_published_version_id, created_at, updated_at';
+        current_published_version_id, cover_object_key, cover_filename, cover_mime, cover_bytes,
+        created_at, updated_at';
 
     public function __construct(
         private readonly ConnectionFactory $connections,
@@ -135,6 +136,33 @@ final class PdoCourseRepository implements CourseRepository
         ]);
     }
 
+    public function updateCover(
+        int $courseId,
+        ?string $objectKey,
+        ?string $filename,
+        ?string $mime,
+        ?int $bytes,
+    ): void {
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'UPDATE courses SET
+                cover_object_key = :object_key,
+                cover_filename = :filename,
+                cover_mime = :mime,
+                cover_bytes = :bytes,
+                updated_at = :updated_at
+             WHERE course_id = :course_id',
+        );
+        $stmt->execute([
+            'object_key' => $objectKey,
+            'filename' => $filename,
+            'mime' => $mime,
+            'bytes' => $bytes,
+            'updated_at' => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u'),
+            'course_id' => $courseId,
+        ]);
+    }
+
     /**
      * @param array<string, mixed> $row
      */
@@ -153,6 +181,10 @@ final class PdoCourseRepository implements CourseRepository
                 : (int) $row['current_published_version_id'],
             createdAt: new DateTimeImmutable((string) $row['created_at'], $utc),
             updatedAt: new DateTimeImmutable((string) $row['updated_at'], $utc),
+            coverObjectKey: $row['cover_object_key'] !== null ? (string) $row['cover_object_key'] : null,
+            coverFilename: $row['cover_filename'] !== null ? (string) $row['cover_filename'] : null,
+            coverMime: $row['cover_mime'] !== null ? (string) $row['cover_mime'] : null,
+            coverBytes: $row['cover_bytes'] !== null ? (int) $row['cover_bytes'] : null,
         );
     }
 }

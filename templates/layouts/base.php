@@ -53,7 +53,7 @@ if (!$authenticated) {
     }
 }
 
-$brandHref = $authenticated ? '/dashboard' : '/courses';
+$brandHref = $authenticated ? '/dashboard' : '/';
 
 ?><!DOCTYPE html>
 <html lang="en">

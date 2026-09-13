@@ -151,7 +151,8 @@ final class LearningLocalObjectStorage implements ObjectStorage
             || str_contains($objectKey, '..')
             || str_starts_with($objectKey, '/')
             || str_contains($objectKey, "\0")
-            || !str_starts_with($objectKey, 'learning/media/')
+            || (!str_starts_with($objectKey, 'learning/media/')
+                && !str_starts_with($objectKey, 'learning/catalogue/'))
         ) {
             throw new ValidationException('Invalid object key.', ['object_key' => ['Learning media key prefix is invalid.']]);
         }

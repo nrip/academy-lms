@@ -6,8 +6,10 @@ namespace Academy\Http\Controllers;
 
 use Academy\Application\Courses\AssignCourseAdminScopeService;
 use Academy\Application\Courses\CourseAdminQueryService;
+use Academy\Application\Courses\CourseCoverService;
 use Academy\Application\Courses\CreateCourseService;
 use Academy\Application\Courses\UpdateDraftCourseVersionService;
+use Academy\Application\RBAC\AuthorizationService;
 use Academy\Domain\Courses\BatchRepository;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\AuthorizationException;
@@ -18,10 +20,14 @@ use Academy\Domain\Security\AuthContext;
 use Academy\Http\Middleware\AuthenticationMiddleware;
 use Academy\Http\Middleware\SessionMiddleware;
 use Academy\Infrastructure\View\PhpRenderer;
+use Laminas\Diactoros\Response;
+use Laminas\Diactoros\Response\EmptyResponse;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\Diactoros\Stream;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\UploadedFileInterface;
 
 final class CourseAdminController
 {
@@ -31,6 +37,8 @@ final class CourseAdminController
         private readonly UpdateDraftCourseVersionService $updateDraft,
         private readonly AssignCourseAdminScopeService $assignScope,
         private readonly BatchRepository $batches,
+        private readonly CourseCoverService $covers,
+        private readonly AuthorizationService $authorization,
         private readonly PhpRenderer $renderer,
     ) {
     }
@@ -104,15 +112,78 @@ final class CourseAdminController
     public function showCourse(ServerRequestInterface $request, array $args): ResponseInterface
     {
         $courseId = (int) ($args['courseId'] ?? 0);
-        $detail = $this->query->courseDetail($this->auth($request), $courseId);
+        $auth = $this->auth($request);
+        $detail = $this->query->courseDetail($auth, $courseId);
         $html = $this->renderer->render('pages/admin/courses/show', [
             'title' => $detail->course->masterTitle,
             'csrf' => $this->csrf($request),
             'detail' => $detail,
             'flash' => $this->flash($request),
+            'error' => null,
+            'canUploadCover' => $this->authorization->check($auth, 'course.version.edit'),
+            'coverLimit' => $this->covers->limitMegabytes(),
         ]);
 
         return new HtmlResponse($html);
+    }
+
+    /**
+     * @param array<string, string> $args
+     */
+    public function cover(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        try {
+            $image = $this->covers->readForAdmin($this->auth($request), (int) ($args['courseId'] ?? 0));
+        } catch (NotFoundException) {
+            return new EmptyResponse(404);
+        }
+
+        return $this->imageResponse($image['bytes'], $image['mime']);
+    }
+
+    /**
+     * @param array<string, string> $args
+     */
+    public function updateCover(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        $courseId = (int) ($args['courseId'] ?? 0);
+        try {
+            $uploaded = $request->getUploadedFiles()['cover_image'] ?? null;
+            if (!$uploaded instanceof UploadedFileInterface || $uploaded->getError() === UPLOAD_ERR_NO_FILE) {
+                throw new ValidationException('Choose an image to upload.');
+            }
+            $error = $uploaded->getError();
+            if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+                throw new ValidationException(
+                    'The file is larger than the server can accept. ' . $this->covers->uploadLimitMessage(),
+                );
+            }
+            if ($error !== UPLOAD_ERR_OK) {
+                throw new ValidationException('The image could not be read. Please try again.');
+            }
+            $this->covers->replace(
+                $this->auth($request),
+                $courseId,
+                $uploaded->getStream()->getContents(),
+                $uploaded->getClientFilename(),
+            );
+        } catch (ValidationException $exception) {
+            $auth = $this->auth($request);
+            $detail = $this->query->courseDetail($auth, $courseId);
+            $html = $this->renderer->render('pages/admin/courses/show', [
+                'title' => $detail->course->masterTitle,
+                'csrf' => $this->csrf($request),
+                'detail' => $detail,
+                'flash' => null,
+                'error' => $exception->getMessage(),
+                'canUploadCover' => $this->authorization->check($auth, 'course.version.edit'),
+                'coverLimit' => $this->covers->limitMegabytes(),
+            ]);
+
+            return new HtmlResponse($html, 422);
+        }
+
+        return new RedirectResponse('/admin/courses/' . $courseId . '?cover_saved=1', 303);
     }
 
     /**
@@ -251,6 +322,21 @@ final class CourseAdminController
         return $auth;
     }
 
+    private function imageResponse(string $bytes, string $mime): ResponseInterface
+    {
+        $stream = new Stream('php://temp', 'wb+');
+        $stream->write($bytes);
+        $stream->rewind();
+
+        return new Response($stream, 200, [
+            'Content-Type' => $mime,
+            'Content-Length' => (string) strlen($bytes),
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store',
+            'Content-Disposition' => 'inline',
+        ]);
+    }
+
     private function csrf(ServerRequestInterface $request): string
     {
         return (string) $request->getAttribute(SessionMiddleware::ATTR_RAW_CSRF, '');
@@ -259,6 +345,9 @@ final class CourseAdminController
     private function flash(ServerRequestInterface $request): ?string
     {
         $params = $request->getQueryParams();
+        if (isset($params['cover_saved'])) {
+            return 'Course image saved. It appears on the public course page when the course is published.';
+        }
         if (isset($params['saved'])) {
             return 'Draft version saved.';
         }

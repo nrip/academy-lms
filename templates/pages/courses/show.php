@@ -36,18 +36,26 @@ ob_start();
     <p class="acad-eyebrow mb-2"><a href="/courses"><?= $e->html('Courses') ?></a></p>
 
     <div class="acad-course-hero mb-4">
+        <?php if ($course->hasCover()): ?>
+            <div class="acad-course-hero__media">
+                <img src="<?= $e->attr('/courses/' . $course->slug . '/cover') ?>" alt="">
+            </div>
+        <?php endif; ?>
         <div class="acad-course-hero__main">
             <h1 class="acad-course-hero__title"><?= $e->html($version->title) ?></h1>
             <p class="acad-course-hero__meta text-muted mb-3">
-                <?= $e->html($course->courseCode) ?>
-                &middot; <?= $e->html($version->deliveryType) ?>
-                &middot; <?= $e->html($version->durationText) ?>
+                <?= $e->html($version->durationText) ?>
+                <?php if ($version->deliveryType !== ''): ?>
+                    &middot; <?= $e->html($version->deliveryType) ?>
+                <?php endif; ?>
+                <?php if ($version->certificateType !== ''): ?>
+                    &middot; <?= $e->html($version->certificateType) ?>
+                <?php endif; ?>
             </p>
             <p class="acad-course-hero__fee mb-0">
                 <span class="acad-course-hero__fee-amount"><?= $e->html($feeLabel) ?></span>
                 <span class="text-muted small"><?= $e->html('GST inclusive') ?></span>
             </p>
-            <p class="text-muted small mb-0 mt-1"><?= $e->html('Certificate: ' . $version->certificateType) ?></p>
         </div>
         <div class="acad-course-hero__cta">
             <?php if ($hasSelectableBatch): ?>
@@ -72,7 +80,7 @@ ob_start();
 
     <div class="acad-panel mb-4">
         <p><?= $e->html($version->description) ?></p>
-        <h2 class="h6 mt-3"><?= $e->html('Learning objectives') ?></h2>
+        <h2 class="h6 mt-3"><?= $e->html('What you will learn') ?></h2>
         <p><?= $e->html($version->learningObjectives) ?></p>
         <h2 class="h6 mt-3"><?= $e->html('Who should attend') ?></h2>
         <p><?= $e->html($version->intendedAudience) ?></p>
@@ -109,7 +117,7 @@ ob_start();
 
     <div class="acad-panel" id="batches">
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-            <h2 class="h5 mb-0"><?= $e->html('Batches — apply here') ?></h2>
+            <h2 class="h5 mb-0"><?= $e->html('Choose a start date') ?></h2>
             <a class="small" href="/courses/<?= $e->attr($course->slug) ?>/batches"><?= $e->html('View all batches') ?></a>
         </div>
         <?php if ($batches === []): ?>

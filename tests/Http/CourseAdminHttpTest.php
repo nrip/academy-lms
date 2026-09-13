@@ -10,6 +10,8 @@ use Academy\Infrastructure\RBAC\PdoPermissionRepository;
 use Academy\Tests\Support\ApplicationFactory;
 use Academy\Tests\Support\DatabaseTestCase;
 use Laminas\Diactoros\ServerRequest;
+use Laminas\Diactoros\Stream;
+use Laminas\Diactoros\UploadedFile;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 
@@ -133,6 +135,75 @@ final class CourseAdminHttpTest extends TestCase
         self::assertStringContainsString('immutable', (string) $response->getBody());
     }
 
+    public function testCoverIsPublicOnlyAfterPublishAndNeverExposesTheStorageKey(): void
+    {
+        $admin = DatabaseTestCase::courseAdminFixture();
+        $boot = DatabaseTestCase::bindSessionForUser($admin['user_id'], $admin['auth_version'], AuthStage::FULLY_AUTHENTICATED);
+        $png = base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+            true,
+        );
+        self::assertIsString($png);
+
+        $suffix = bin2hex(random_bytes(3));
+        $create = $this->request('POST', '/admin/courses', $boot, [
+            'course_code' => 'CV-' . strtoupper($suffix),
+            'slug' => 'cover-draft-' . $suffix,
+            'master_title' => 'Cover Draft ' . $suffix,
+        ]);
+        self::assertSame(303, $create->getStatusCode());
+        preg_match('#^/admin/courses/(\d+)/versions/#', $create->getHeaderLine('Location'), $m);
+        $draftId = (int) $m[1];
+
+        $uploadDraft = $this->request('POST', '/admin/courses/' . $draftId . '/cover', $boot, [], $png);
+        self::assertSame(303, $uploadDraft->getStatusCode());
+
+        $hidden = ApplicationFactory::handle(new ServerRequest([], [], 'http://localhost/courses/cover-draft-' . $suffix . '/cover', 'GET'));
+        self::assertSame(404, $hidden->getStatusCode());
+
+        $preview = $this->request('GET', '/admin/courses/' . $draftId . '/cover', $boot);
+        self::assertSame(200, $preview->getStatusCode());
+        self::assertSame('image/png', $preview->getHeaderLine('Content-Type'));
+
+        $published = DatabaseTestCase::seedPublishedCourse([
+            'slug' => 'cover-live-' . $suffix,
+            'title' => 'Cover Live ' . $suffix,
+        ]);
+        $pdo = DatabaseTestCase::pdo();
+        $now = gmdate('Y-m-d H:i:s.u');
+        $pdo->prepare(
+            'INSERT INTO course_admin_scope_assignments (
+                admin_user_id, scope_type, course_id, course_version_id, include_future_versions,
+                effective_from, effective_to, created_by_user_id, created_at, updated_at
+             ) VALUES (
+                :admin, :type, :course_id, NULL, 1, :from, NULL, :admin2, :created, :updated
+             )',
+        )->execute([
+            'admin' => $admin['user_id'],
+            'type' => 'course',
+            'course_id' => $published['course_id'],
+            'from' => $now,
+            'admin2' => $admin['user_id'],
+            'created' => $now,
+            'updated' => $now,
+        ]);
+
+        $upload = $this->request('POST', '/admin/courses/' . $published['course_id'] . '/cover', $boot, [], $png);
+        self::assertSame(303, $upload->getStatusCode());
+
+        $public = ApplicationFactory::handle(
+            new ServerRequest([], [], 'http://localhost/courses/cover-live-' . $suffix . '/cover', 'GET'),
+        );
+        self::assertSame(200, $public->getStatusCode());
+        self::assertSame('image/png', $public->getHeaderLine('Content-Type'));
+        self::assertSame($png, (string) $public->getBody());
+
+        $catalogue = ApplicationFactory::handle(new ServerRequest([], [], 'http://localhost/courses', 'GET'));
+        $html = (string) $catalogue->getBody();
+        self::assertStringContainsString('/courses/cover-live-' . $suffix . '/cover', $html);
+        self::assertStringNotContainsString('learning/catalogue/', $html);
+    }
+
     public function testCourseAdminRoleLacksDocumentAndRefundPermissions(): void
     {
         $repo = new PdoPermissionRepository(DatabaseTestCase::connectionFactory());
@@ -149,7 +220,7 @@ final class CourseAdminHttpTest extends TestCase
      * @param array{session: string, csrf: string} $boot
      * @param array<string, string> $body
      */
-    private function request(string $method, string $path, array $boot, array $body = []): ResponseInterface
+    private function request(string $method, string $path, array $boot, array $body = [], ?string $coverBytes = null): ResponseInterface
     {
         $request = (new ServerRequest([], [], 'http://localhost' . $path, $method))
             ->withCookieParams([
@@ -158,6 +229,14 @@ final class CourseAdminHttpTest extends TestCase
             ]);
         if ($method !== 'GET') {
             $request = $request->withParsedBody($body + ['_csrf' => $boot['csrf']]);
+        }
+        if ($coverBytes !== null) {
+            $stream = new Stream('php://temp', 'wb+');
+            $stream->write($coverBytes);
+            $stream->rewind();
+            $request = $request->withUploadedFiles([
+                'cover_image' => new UploadedFile($stream, strlen($coverBytes), UPLOAD_ERR_OK, 'cover.png', 'image/png'),
+            ]);
         }
 
         return ApplicationFactory::handle($request);

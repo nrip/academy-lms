@@ -254,6 +254,7 @@ return static function (
             'pdf_max_bytes' => $int('LEARNING_MEDIA_PDF_MAX_BYTES', \Academy\Domain\Courses\LearningMediaPolicy::DEFAULT_PDF_MAX_BYTES),
             'audio_max_bytes' => $int('LEARNING_MEDIA_AUDIO_MAX_BYTES', \Academy\Domain\Courses\LearningMediaPolicy::DEFAULT_AUDIO_MAX_BYTES),
             'video_max_bytes' => $int('LEARNING_MEDIA_VIDEO_MAX_BYTES', \Academy\Domain\Courses\LearningMediaPolicy::DEFAULT_VIDEO_MAX_BYTES),
+            'cover_max_bytes' => $int('COURSE_COVER_MAX_BYTES', \Academy\Domain\Courses\CourseCoverPolicy::DEFAULT_MAX_BYTES),
             's3_bucket' => $string('LEARNING_S3_BUCKET', ''),
             's3_region' => $string('LEARNING_S3_REGION', ''),
             's3_access_key_id' => $string('LEARNING_S3_ACCESS_KEY_ID', ''),

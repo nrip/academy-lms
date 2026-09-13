@@ -20,6 +20,7 @@ use Academy\Application\Certificates\CertificateIssuanceService;
 use Academy\Application\Certificates\CertificateQueryService;
 use Academy\Application\Courses\AssignCourseAdminScopeService;
 use Academy\Application\Courses\CatalogueService;
+use Academy\Application\Courses\CourseCoverService;
 use Academy\Application\Courses\CloneCourseVersionService;
 use Academy\Application\Courses\ContentItemCommandService;
 use Academy\Application\Courses\CourseAdminAccessGuard;
@@ -132,6 +133,7 @@ use Academy\Domain\Courses\CourseVersionRepository;
 use Academy\Domain\Courses\CourseVersionStateMachine;
 use Academy\Domain\Courses\CourseVersionStatusHistoryRepository;
 use Academy\Domain\Courses\EligibilityRuleRepository;
+use Academy\Domain\Courses\CourseCoverPolicy;
 use Academy\Domain\Courses\LearningMediaPolicy;
 use Academy\Domain\Courses\ModuleRepository;
 use Academy\Domain\Credentials\DocumentFileValidator;
@@ -319,6 +321,7 @@ use Academy\Infrastructure\Review\PdoVerificationAuditLogRepository;
 use Academy\Infrastructure\Scheduler\PdoSchedulerLock;
 use Academy\Infrastructure\Session\PdoSessionRepository;
 use Academy\Infrastructure\Storage\LearningLocalObjectStorage;
+use Academy\Infrastructure\Storage\CourseCoverStorage;
 use Academy\Infrastructure\Storage\LearningMediaStorage;
 use Academy\Infrastructure\Storage\LocalObjectStorage;
 use Academy\Infrastructure\Storage\S3ObjectStorage;
@@ -1139,6 +1142,58 @@ return static function (): ContainerInterface {
 
             return new LearningMediaStorage(new UnconfiguredObjectStorage(), $c->get(LearningMediaPolicy::class));
         },
+        CourseCoverPolicy::class => static function (ContainerInterface $c): CourseCoverPolicy {
+            /** @var array{learning_media: array{cover_max_bytes: int}} $security */
+            $security = $c->get('config.security');
+
+            return new CourseCoverPolicy($security['learning_media']['cover_max_bytes']);
+        },
+        CourseCoverStorage::class => static function (ContainerInterface $c): CourseCoverStorage {
+            /** @var array{learning_media: array{
+             *   driver: string,
+             *   s3_bucket: string,
+             *   s3_region: string,
+             *   s3_access_key_id: string,
+             *   s3_secret_access_key: string,
+             *   s3_endpoint: string
+             * }} $security */
+            $security = $c->get('config.security');
+            $learning = $security['learning_media'];
+            $policy = $c->get(CourseCoverPolicy::class);
+            $driver = $learning['driver'] === '' ? 'local' : $learning['driver'];
+            if ($driver === 'local') {
+                return new CourseCoverStorage($c->get(LearningLocalObjectStorage::class), $policy);
+            }
+            if ($driver === 's3'
+                && $learning['s3_bucket'] !== ''
+                && $learning['s3_region'] !== ''
+                && $learning['s3_access_key_id'] !== ''
+                && $learning['s3_secret_access_key'] !== ''
+            ) {
+                $endpoint = $learning['s3_endpoint'] !== '' ? $learning['s3_endpoint'] : null;
+
+                return new CourseCoverStorage(
+                    new S3ObjectStorage(
+                        $learning['s3_bucket'],
+                        $learning['s3_region'],
+                        $learning['s3_access_key_id'],
+                        $learning['s3_secret_access_key'],
+                        $endpoint,
+                    ),
+                    $policy,
+                );
+            }
+
+            return new CourseCoverStorage(new UnconfiguredObjectStorage(), $policy);
+        },
+        CourseCoverService::class => static fn (ContainerInterface $c): CourseCoverService => new CourseCoverService(
+            $c->get(\Academy\Application\Courses\CourseAdminAccessGuard::class),
+            $c->get(CatalogueService::class),
+            $c->get(\Academy\Domain\Courses\CourseRepository::class),
+            $c->get(CourseCoverStorage::class),
+            $c->get(CourseCoverPolicy::class),
+            $c->get(AuditService::class),
+        ),
         LearningMediaIngestService::class => static fn (ContainerInterface $c): LearningMediaIngestService => new LearningMediaIngestService(
             $c->get(LearningMediaStorage::class),
             $c->get(LearningMediaPolicy::class),
@@ -1874,7 +1929,9 @@ return static function (): ContainerInterface {
             );
 
             // Public catalogue + course detail + batch list (WP-02) — no auth gate.
+            $router->get('/', [CourseCatalogueController::class, 'home']);
             $router->get('/courses', [CourseCatalogueController::class, 'index']);
+            $router->get('/courses/{slug}/cover', [CourseCatalogueController::class, 'cover']);
             $router->get('/courses/{slug}', [CourseCatalogueController::class, 'show']);
             $router->get('/courses/{slug}/batches', [CourseCatalogueController::class, 'batches']);
             $router->get('/batches/{batchId}', [BatchController::class, 'show']);
@@ -1974,6 +2031,14 @@ return static function (): ContainerInterface {
             $courseAdminAccess->requirePermission(
                 $router->get('/admin/courses/{courseId}', [CourseAdminController::class, 'showCourse']),
                 'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/cover', [CourseAdminController::class, 'cover']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/cover', [CourseAdminController::class, 'updateCover']),
+                'course.version.edit',
             );
             $courseAdminAccess->requirePermission(
                 $router->get('/admin/courses/{courseId}/versions/{versionId}', [CourseAdminController::class, 'showVersion']),
@@ -2377,6 +2442,7 @@ return static function (): ContainerInterface {
         ),
         CourseCatalogueController::class => static fn (ContainerInterface $c): CourseCatalogueController => new CourseCatalogueController(
             $c->get(CatalogueService::class),
+            $c->get(CourseCoverService::class),
             $c->get(PhpRenderer::class),
         ),
         BatchController::class => static fn (ContainerInterface $c): BatchController => new BatchController(
@@ -2460,6 +2526,8 @@ return static function (): ContainerInterface {
             $c->get(UpdateDraftCourseVersionService::class),
             $c->get(AssignCourseAdminScopeService::class),
             $c->get(BatchRepository::class),
+            $c->get(CourseCoverService::class),
+            $c->get(AuthorizationService::class),
             $c->get(PhpRenderer::class),
         ),
         CourseVersionLifecycleController::class => static fn (ContainerInterface $c): CourseVersionLifecycleController => new CourseVersionLifecycleController(

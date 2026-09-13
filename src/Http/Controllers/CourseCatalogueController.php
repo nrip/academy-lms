@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace Academy\Http\Controllers;
 
 use Academy\Application\Courses\CatalogueService;
+use Academy\Application\Courses\CourseCoverService;
+use Academy\Domain\Exception\NotFoundException;
 use Academy\Domain\Security\AuthContext;
 use Academy\Http\Middleware\AuthenticationMiddleware;
 use Academy\Http\Middleware\SessionMiddleware;
 use Academy\Infrastructure\View\PhpRenderer;
+use Laminas\Diactoros\Response;
+use Laminas\Diactoros\Response\EmptyResponse;
 use Laminas\Diactoros\Response\HtmlResponse;
+use Laminas\Diactoros\Stream;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -21,8 +26,20 @@ final class CourseCatalogueController
 {
     public function __construct(
         private readonly CatalogueService $catalogue,
+        private readonly CourseCoverService $covers,
         private readonly PhpRenderer $renderer,
     ) {
+    }
+
+    public function home(ServerRequestInterface $request): ResponseInterface
+    {
+        $html = $this->renderer->render('pages/home', [
+            'title' => 'Learn from experts',
+            'courses' => $this->catalogue->listPublishedCourses(),
+            'auth' => $this->optionalAuth($request),
+        ]);
+
+        return new HtmlResponse($html);
     }
 
     public function index(ServerRequestInterface $request): ResponseInterface
@@ -78,6 +95,22 @@ final class CourseCatalogueController
         return new HtmlResponse($html);
     }
 
+    /**
+     * Same-origin cover. The storage key is never placed in HTML.
+     *
+     * @param array<string, string> $args
+     */
+    public function cover(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        try {
+            $image = $this->covers->readPublic((string) ($args['slug'] ?? ''));
+        } catch (NotFoundException) {
+            return new EmptyResponse(404);
+        }
+
+        return $this->imageResponse($image['bytes'], $image['mime']);
+    }
+
     private function optionalAuth(ServerRequestInterface $request): ?AuthContext
     {
         $auth = $request->getAttribute(AuthenticationMiddleware::ATTR_AUTH);
@@ -88,5 +121,20 @@ final class CourseCatalogueController
     private function csrf(ServerRequestInterface $request): string
     {
         return (string) $request->getAttribute(SessionMiddleware::ATTR_RAW_CSRF, '');
+    }
+
+    private function imageResponse(string $bytes, string $mime): ResponseInterface
+    {
+        $stream = new Stream('php://temp', 'wb+');
+        $stream->write($bytes);
+        $stream->rewind();
+
+        return new Response($stream, 200, [
+            'Content-Type' => $mime,
+            'Content-Length' => (string) strlen($bytes),
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store',
+            'Content-Disposition' => 'inline',
+        ]);
     }
 }

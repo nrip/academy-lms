@@ -17,11 +17,20 @@ final class Course
         public readonly ?int $currentPublishedVersionId,
         public readonly DateTimeImmutable $createdAt,
         public readonly DateTimeImmutable $updatedAt,
+        public readonly ?string $coverObjectKey = null,
+        public readonly ?string $coverFilename = null,
+        public readonly ?string $coverMime = null,
+        public readonly ?int $coverBytes = null,
     ) {
     }
 
     public function isActive(): bool
     {
         return $this->status === CourseStatus::ACTIVE;
+    }
+
+    public function hasCover(): bool
+    {
+        return $this->coverObjectKey !== null && $this->coverObjectKey !== '';
     }
 }

@@ -7,6 +7,9 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var \Academy\Application\Courses\CourseAdminCourseDetail $detail */
 /** @var ?string $flash */
+/** @var ?string $error */
+/** @var bool $canUploadCover */
+/** @var string $coverLimit */
 
 ob_start();
 $course = $detail->course;
@@ -14,7 +17,28 @@ $course = $detail->course;
 <div class="acad-admin-course-show">
     <p class="mb-2"><a href="/admin/courses"><?= $e->html('← Course administration') ?></a></p>
     <h1 class="h3 mb-1"><?= $e->html($course->masterTitle) ?></h1>
-    <p class="text-muted"><?= $e->html($course->courseCode) ?> · <?= $e->html($course->slug) ?></p>
+    <p class="text-muted"><?= $e->html($course->courseCode) ?></p>
+    <?php if ($error !== null): ?>
+        <div class="alert alert-danger"><?= $e->html($error) ?></div>
+    <?php endif; ?>
+    <section class="acad-panel mb-4">
+        <h2 class="h5"><?= $e->html('Course image') ?></h2>
+        <?php if ($detail->course->hasCover()): ?>
+            <img class="acad-cover-preview mb-3" src="<?= $e->attr('/admin/courses/' . (string) $course->courseId . '/cover') ?>" alt="">
+        <?php else: ?>
+            <p class="text-muted"><?= $e->html('No image yet. The public page shows a letter until you add one.') ?></p>
+        <?php endif; ?>
+        <?php if ($canUploadCover): ?>
+            <form method="post" enctype="multipart/form-data"
+                  action="<?= $e->attr('/admin/courses/' . (string) $course->courseId . '/cover') ?>">
+                <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+                <label class="form-label" for="cover_image"><?= $e->html('JPG, PNG, or WebP') ?></label>
+                <input class="form-control mb-2" id="cover_image" name="cover_image" type="file" accept="image/jpeg,image/png,image/webp" required>
+                <p class="form-text"><?= $e->html('Maximum ' . $coverLimit . ' MB. Replacing the image does not change a published course edition.') ?></p>
+                <button class="btn btn-primary btn-sm" type="submit"><?= $e->html('Save image') ?></button>
+            </form>
+        <?php endif; ?>
+    </section>
     <p class="mb-3">
         <a class="btn btn-outline-primary btn-sm"
            href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/question-bank">

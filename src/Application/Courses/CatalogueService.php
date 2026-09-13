@@ -35,7 +35,7 @@ final class CatalogueService
     }
 
     /**
-     * @return list<array{course: Course, version: CourseVersion}>
+     * @return list<array{course: Course, version: CourseVersion, nextBatchName: ?string}>
      */
     public function listPublishedCourses(): array
     {
@@ -45,7 +45,11 @@ final class CatalogueService
             if ($version === null) {
                 continue;
             }
-            $result[] = ['course' => $course, 'version' => $version];
+            $result[] = [
+                'course' => $course,
+                'version' => $version,
+                'nextBatchName' => $this->nextOpenBatchName($course, $version),
+            ];
         }
 
         return $result;
@@ -174,5 +178,16 @@ final class CatalogueService
         }
 
         return $result;
+    }
+
+    private function nextOpenBatchName(Course $course, CourseVersion $version): ?string
+    {
+        foreach ($this->batchesWithAvailability($course, $version) as $entry) {
+            if ($entry['availability']->selectable) {
+                return $entry['batch']->name;
+            }
+        }
+
+        return null;
     }
 }

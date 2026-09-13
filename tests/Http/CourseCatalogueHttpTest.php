@@ -39,6 +39,23 @@ final class CourseCatalogueHttpTest extends TestCase
         self::assertStringContainsString('HTTP Index Course', (string) $response->getBody());
     }
 
+    public function testHomepageListsPublishedCourseWithoutStorageLanguage(): void
+    {
+        $seeded = DatabaseTestCase::seedPublishedCourse(['slug' => 'http-home-course', 'title' => 'Homepage Course']);
+        DatabaseTestCase::seedBatch($seeded['version_id'], ['name' => 'April intake']);
+
+        $home = ApplicationFactory::handle(new ServerRequest([], [], 'http://localhost/', 'GET'));
+        $html = (string) $home->getBody();
+
+        self::assertSame(200, $home->getStatusCode());
+        self::assertStringContainsString('Learn from experts', $html);
+        self::assertStringContainsString('Homepage Course', $html);
+        self::assertStringContainsString('Next intake: April intake', $html);
+        self::assertStringContainsString('Browse courses', $html);
+        self::assertStringNotContainsString('learning/catalogue/', $html);
+        self::assertStringNotContainsString('object_key', $html);
+    }
+
     public function testIndexOmitsRetiredCourse(): void
     {
         DatabaseTestCase::seedPublishedCourse([

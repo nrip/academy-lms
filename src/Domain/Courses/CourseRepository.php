@@ -29,4 +29,12 @@ interface CourseRepository
     public function insert(string $courseCode, string $slug, string $masterTitle, string $status): array;
 
     public function setCurrentPublishedVersionId(int $courseId, int $versionId): void;
+
+    public function updateCover(
+        int $courseId,
+        ?string $objectKey,
+        ?string $filename,
+        ?string $mime,
+        ?int $bytes,
+    ): void;
 }
