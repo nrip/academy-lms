@@ -6,9 +6,9 @@ namespace Academy\Tests\Unit\Domain\Courses;
 
 use Academy\Domain\Assessments\Assessment;
 use Academy\Domain\Assessments\AssessmentQuestionLink;
+use Academy\Domain\Courses\ContentCompletionRule;
 use Academy\Domain\Courses\ContentItem;
 use Academy\Domain\Courses\ContentItemType;
-use Academy\Domain\Courses\ContentCompletionRule;
 use Academy\Domain\Courses\CourseVersion;
 use Academy\Domain\Courses\CourseVersionPublishValidator;
 use Academy\Domain\Courses\CourseVersionStatus;

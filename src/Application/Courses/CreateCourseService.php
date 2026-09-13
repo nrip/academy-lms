@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Academy\Application\Courses;
 
-use Academy\Application\Audit\AuditService;
 use Academy\Application\Assessments\QuestionBankService;
+use Academy\Application\Audit\AuditService;
 use Academy\Domain\Audit\CoursesAuditPayload;
 use Academy\Domain\Courses\Course;
 use Academy\Domain\Courses\CourseAdminScopeAssignmentRepository;
@@ -18,7 +18,6 @@ use Academy\Domain\Security\AuthContext;
 use Academy\Infrastructure\Database\ConnectionFactory;
 use DateTimeImmutable;
 use DateTimeZone;
-use PDO;
 use PDOException;
 use Throwable;
 
