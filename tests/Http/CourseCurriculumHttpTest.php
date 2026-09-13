@@ -122,6 +122,11 @@ final class CourseCurriculumHttpTest extends TestCase
         self::assertStringContainsString('Clinical Assessment', $html);
         self::assertStringContainsString('Module 1', $html);
         self::assertStringContainsString('Module 2', $html);
+        self::assertStringContainsString('Video upload', $html);
+        self::assertStringContainsString('Live session', $html);
+        self::assertStringContainsString('Audio upload', $html);
+        self::assertStringNotContainsString('Object key', $html);
+        self::assertStringNotContainsString('video_delivery_mode', $html);
     }
 
     public function testCurriculumMutationBlockedOnLockedVersion(): void

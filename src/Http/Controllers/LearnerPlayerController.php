@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Academy\Http\Controllers;
 
+use Academy\Application\Learning\LearnerPlayerItemDetailView;
 use Academy\Application\Learning\LearnerPlayerQueryService;
+use Academy\Application\Learning\LearningMediaAccessService;
 use Academy\Application\Learning\MarkContentCompleteService;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\AuthorizationException;
@@ -15,6 +17,7 @@ use Academy\Domain\Exception\ValidationException;
 use Academy\Domain\Security\AuthContext;
 use Academy\Http\Middleware\AuthenticationMiddleware;
 use Academy\Http\Middleware\SessionMiddleware;
+use Academy\Http\Security\SecurityHeaderPolicy;
 use Academy\Infrastructure\View\PhpRenderer;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
@@ -26,6 +29,7 @@ final class LearnerPlayerController
     public function __construct(
         private readonly LearnerPlayerQueryService $query,
         private readonly MarkContentCompleteService $markComplete,
+        private readonly LearningMediaAccessService $media,
         private readonly PhpRenderer $renderer,
     ) {
     }
@@ -83,7 +87,7 @@ final class LearnerPlayerController
             'error' => null,
         ]);
 
-        return new HtmlResponse($html);
+        return $this->withPodcastMediaHost(new HtmlResponse($html), $detail);
     }
 
     /**
@@ -106,9 +110,12 @@ final class LearnerPlayerController
                     'error' => $exception->getMessage(),
                 ]);
 
-                return new HtmlResponse(
-                    $html,
-                    $exception instanceof ConflictException ? 409 : 422,
+                return $this->withPodcastMediaHost(
+                    new HtmlResponse(
+                        $html,
+                        $exception instanceof ConflictException ? 409 : 422,
+                    ),
+                    $detail,
                 );
             } catch (NotFoundException | ConflictException | AuthorizationException) {
                 throw $exception;
@@ -119,6 +126,32 @@ final class LearnerPlayerController
             '/learning/enrolments/' . $enrolmentId . '?completed=1',
             303,
         );
+    }
+
+    /**
+     * @param array<string, string> $args
+     */
+    public function media(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        $enrolmentId = (int) ($args['enrolmentId'] ?? 0);
+        $contentId = (int) ($args['contentId'] ?? 0);
+        $issued = $this->media->issuePlaybackUrl($this->auth($request), $enrolmentId, $contentId);
+
+        return new RedirectResponse($issued['download_url'], 302);
+    }
+
+    private function withPodcastMediaHost(HtmlResponse $response, LearnerPlayerItemDetailView $detail): HtmlResponse
+    {
+        if (!$detail->podcastDirect) {
+            return $response;
+        }
+        $url = $detail->item->delivery->podcastUrl;
+        $host = is_string($url) ? parse_url($url, PHP_URL_HOST) : null;
+        if (!is_string($host) || $host === '') {
+            return $response;
+        }
+
+        return $response->withHeader(SecurityHeaderPolicy::EXTRA_MEDIA_SRC_HEADER, strtolower($host));
     }
 
     private function auth(ServerRequestInterface $request): AuthContext

@@ -1893,6 +1893,10 @@ return static function (): ContainerInterface {
                 'learning.content.access',
             );
             $learningAccess->requirePermission(
+                $router->get('/learning/enrolments/{enrolmentId}/items/{contentId}/media', [LearnerPlayerController::class, 'media']),
+                'learning.content.access',
+            );
+            $learningAccess->requirePermission(
                 $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/complete', [LearnerPlayerController::class, 'complete']),
                 'learning.content.access',
             );
@@ -2421,6 +2425,7 @@ return static function (): ContainerInterface {
         LearnerPlayerController::class => static fn (ContainerInterface $c): LearnerPlayerController => new LearnerPlayerController(
             $c->get(LearnerPlayerQueryService::class),
             $c->get(MarkContentCompleteService::class),
+            $c->get(LearningMediaAccessService::class),
             $c->get(PhpRenderer::class),
         ),
         AssessmentAttemptController::class => static fn (ContainerInterface $c): AssessmentAttemptController => new AssessmentAttemptController(
@@ -2461,6 +2466,7 @@ return static function (): ContainerInterface {
             $c->get(CurriculumQueryService::class),
             $c->get(ModuleCommandService::class),
             $c->get(ContentItemCommandService::class),
+            $c->get(LearningMediaIngestService::class),
             $c->get(PhpRenderer::class),
         ),
         QuestionBankController::class => static fn (ContainerInterface $c): QuestionBankController => new QuestionBankController(

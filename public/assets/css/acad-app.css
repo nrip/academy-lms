@@ -241,3 +241,45 @@ body {
   font-weight: 600;
   flex: 1 1 12rem;
 }
+
+.acad-lesson-stage {
+  background: var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  padding: var(--acad-sp-5);
+  box-shadow: var(--bs-box-shadow-sm);
+  margin-bottom: var(--acad-sp-4);
+}
+
+.acad-lesson-stage__media {
+  display: block;
+  width: 100%;
+  max-height: 32rem;
+  border-radius: var(--bs-border-radius);
+  background: #111;
+}
+
+.acad-lesson-body {
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.acad-lesson-body :first-child {
+  margin-top: 0;
+}
+
+.acad-lesson-body :last-child {
+  margin-bottom: 0;
+}
+
+.acad-live-card {
+  background: var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-left: 4px solid var(--acad-teal);
+  border-radius: var(--bs-border-radius-lg);
+  padding: var(--acad-sp-5);
+}
+
+[data-acad-lesson-panel][hidden] {
+  display: none !important;
+}

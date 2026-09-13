@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Academy\Domain\Courses\LessonKind;
+
 /** @var \Academy\Infrastructure\View\Escaper $e */
 /** @var string $title */
 /** @var string $csrf */
@@ -54,13 +56,13 @@ ob_start();
                             <div class="small text-muted"><?= $e->html($module->description) ?></div>
                         <?php endif; ?>
                         <?php if ($node['content_items'] === []): ?>
-                            <div class="small text-muted mt-1"><?= $e->html('No content items yet.') ?></div>
+                            <div class="small text-muted mt-1"><?= $e->html('No lessons yet.') ?></div>
                         <?php else: ?>
                             <ul class="mt-2 mb-0">
                                 <?php foreach ($node['content_items'] as $item): ?>
                                     <li>
                                         <?= $e->html($item->title) ?>
-                                        <span class="text-muted small">(<?= $e->html($item->contentType) ?>)</span>
+                                        <span class="text-muted small">(<?= $e->html(LessonKind::labelForItem($item)) ?>)</span>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
@@ -148,123 +150,61 @@ ob_start();
                     </div>
                 </form>
                 <form method="post" action="<?= $e->attr($modulePath . '/delete') ?>" class="mb-4"
-                      onsubmit="return confirm('Delete this module? It must have no content items.');">
+                      onsubmit="return confirm('Delete this module? It must have no lessons.');">
                     <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
                     <button class="btn btn-outline-danger btn-sm" type="submit"><?= $e->html('Delete module') ?></button>
                 </form>
             <?php endif; ?>
 
-            <h3 class="h6"><?= $e->html('Content items') ?></h3>
+            <h3 class="h6"><?= $e->html('Lessons') ?></h3>
             <?php if ($node['content_items'] === []): ?>
                 <p class="text-muted small"><?= $e->html('No lessons in this module yet.') ?></p>
             <?php else: ?>
                 <?php foreach ($node['content_items'] as $item): ?>
+                    <?php $kind = LessonKind::fromItem($item); ?>
                     <div class="border-start border-3 ps-3 mb-3">
                         <div class="fw-semibold"><?= $e->html($item->title) ?>
-                            <span class="badge text-bg-light"><?= $e->html($item->contentType) ?></span>
+                            <span class="badge text-bg-light"><?= $e->html(LessonKind::labelForItem($item)) ?></span>
                         </div>
-                        <?php if ($item->contentType === 'text_lesson' && $item->bodyText !== null): ?>
-                            <div class="small mt-1 text-break"><?= $e->html($item->bodyText) ?></div>
-                        <?php endif; ?>
-                        <?php if ($item->contentType === 'video'): ?>
-                            <?php if ($item->bodyText !== null && $item->bodyText !== ''): ?>
-                                <div class="small mt-1 text-break"><?= $e->html($item->bodyText) ?></div>
-                            <?php endif; ?>
-                            <div class="small text-muted mt-1">
-                                <?= $e->html('Delivery: ' . (string) $item->videoDeliveryMode) ?>
-                                <?php if ($item->videoProvider !== null): ?>
-                                    · <?= $e->html('Provider: ' . $item->videoProvider) ?>
-                                <?php endif; ?>
-                            </div>
-                            <?php if ($item->videoUrl !== null): ?>
-                                <div class="small text-break mt-1"><?= $e->html($item->videoUrl) ?></div>
-                            <?php endif; ?>
-                        <?php endif; ?>
-                        <?php if ($item->contentType === 'pdf' && $item->objectKey !== null): ?>
-                            <div class="small text-muted mt-1"><?= $e->html('Object key: ' . $item->objectKey) ?></div>
-                        <?php endif; ?>
                         <?php if ($item->contentType === 'mcq_assessment'): ?>
                             <div class="mt-1">
                                 <a class="btn btn-outline-secondary btn-sm"
                                    href="/admin/content-items/<?= $e->attr((string) $item->contentId) ?>/assessment">
-                                    <?= $e->html('Configure assessment') ?>
+                                    <?= $e->html('Edit quiz') ?>
                                 </a>
                             </div>
                         <?php endif; ?>
 
                         <?php if ($editable): ?>
-                            <form method="post"
+                            <form method="post" enctype="multipart/form-data"
                                   action="<?= $e->attr($modulePath . '/content/' . $item->contentId) ?>"
-                                  class="row g-2 mt-2">
+                                  class="row g-2 mt-2" data-acad-lesson-form>
                                 <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
-                                <input type="hidden" name="content_type" value="<?= $e->attr($item->contentType) ?>">
                                 <div class="col-md-6">
                                     <label class="form-label"><?= $e->html('Title') ?></label>
                                     <input class="form-control form-control-sm" name="title" required
                                            value="<?= $e->attr($item->title) ?>">
                                 </div>
-                                <?php if ($item->contentType === 'text_lesson'): ?>
-                                    <div class="col-12">
-                                        <label class="form-label"><?= $e->html('Lesson body') ?></label>
-                                        <textarea class="form-control form-control-sm" name="body_text" rows="4" required><?= $e->html((string) $item->bodyText) ?></textarea>
-                                    </div>
-                                <?php elseif ($item->contentType === 'pdf'): ?>
-                                    <div class="col-md-6">
-                                        <label class="form-label"><?= $e->html('Object key') ?></label>
-                                        <input class="form-control form-control-sm" name="object_key" required
-                                               value="<?= $e->attr((string) $item->objectKey) ?>">
-                                    </div>
-                                <?php elseif ($item->contentType === 'video'): ?>
-                                    <div class="col-12">
-                                        <label class="form-label"><?= $e->html('Description') ?></label>
-                                        <textarea class="form-control form-control-sm" name="body_text" rows="3"><?= $e->html((string) $item->bodyText) ?></textarea>
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label"><?= $e->html('Video URL') ?></label>
-                                        <input class="form-control form-control-sm" name="video_url" required
-                                               value="<?= $e->attr((string) $item->videoUrl) ?>"
-                                               placeholder="https://…">
-                                    </div>
-                                    <div class="col-12">
-                                        <span class="form-label d-block"><?= $e->html('Delivery mode') ?></span>
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="radio" name="video_delivery_mode"
-                                                   id="vd_emb_<?= $e->attr((string) $item->contentId) ?>"
-                                                   value="embedded"
-                                                   <?= $item->videoDeliveryMode === 'embedded' ? 'checked' : '' ?>>
-                                            <label class="form-check-label" for="vd_emb_<?= $e->attr((string) $item->contentId) ?>">
-                                                <?= $e->html('Embedded Player') ?>
-                                            </label>
-                                        </div>
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="radio" name="video_delivery_mode"
-                                                   id="vd_ext_<?= $e->attr((string) $item->contentId) ?>"
-                                                   value="external_link"
-                                                   <?= $item->videoDeliveryMode === 'external_link' ? 'checked' : '' ?>>
-                                            <label class="form-check-label" for="vd_ext_<?= $e->attr((string) $item->contentId) ?>">
-                                                <?= $e->html('External Link') ?>
-                                            </label>
-                                        </div>
-                                        <div class="form-text">
-                                            <?= $e->html('Embedded Player supports YouTube, YouTube no-cookie, and Vimeo only.') ?>
-                                        </div>
-                                    </div>
-                                <?php else: ?>
-                                    <input type="hidden" name="completion_rule" value="assessment_passed">
-                                    <div class="col-12 small text-muted">
-                                        <?= $e->html('MCQ assessment settings are managed on the assessment configuration screen.') ?>
-                                    </div>
-                                <?php endif; ?>
+                                <div class="col-md-6 d-flex align-items-end">
+                                    <p class="small text-muted mb-2"><?= $e->html(LessonKind::labelForItem($item)) ?></p>
+                                </div>
+                                <?php
+                                $idSuffix = 'edit-' . (string) $item->contentId;
+                                $selectedKind = $kind;
+                                $lesson = $item;
+                                $lockedKind = true;
+                                require __DIR__ . '/_lesson_fields.php';
+                                ?>
                                 <div class="col-12 d-flex gap-2">
-                                    <button class="btn btn-outline-primary btn-sm" type="submit"><?= $e->html('Save content') ?></button>
+                                    <button class="btn btn-outline-primary btn-sm" type="submit"><?= $e->html('Save lesson') ?></button>
                                 </div>
                             </form>
                             <form method="post"
                                   action="<?= $e->attr($modulePath . '/content/' . $item->contentId . '/delete') ?>"
                                   class="mt-1"
-                                  onsubmit="return confirm('Delete this content item?');">
+                                  onsubmit="return confirm('Delete this lesson?');">
                                 <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
-                                <button class="btn btn-outline-danger btn-sm" type="submit"><?= $e->html('Delete content') ?></button>
+                                <button class="btn btn-outline-danger btn-sm" type="submit"><?= $e->html('Delete lesson') ?></button>
                             </form>
                         <?php endif; ?>
                     </div>
@@ -272,64 +212,35 @@ ob_start();
             <?php endif; ?>
 
             <?php if ($editable): ?>
-                <form method="post" action="<?= $e->attr($modulePath . '/content') ?>" class="row g-2 mt-3 bg-light p-3 rounded">
+                <form method="post" enctype="multipart/form-data"
+                      action="<?= $e->attr($modulePath . '/content') ?>" class="row g-2 mt-3 bg-light p-3 rounded"
+                      data-acad-lesson-form>
                     <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
-                    <div class="col-12"><strong><?= $e->html('Add content item') ?></strong></div>
-                    <div class="col-md-3">
-                        <label class="form-label" for="ctype_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Type') ?></label>
-                        <select class="form-select form-select-sm" id="ctype_<?= $e->attr((string) $module->moduleId) ?>" name="content_type">
-                            <option value="text_lesson" selected><?= $e->html('Text lesson') ?></option>
-                            <option value="pdf"><?= $e->html('PDF') ?></option>
-                            <option value="video"><?= $e->html('Video') ?></option>
-                            <option value="mcq_assessment"><?= $e->html('MCQ assessment') ?></option>
+                    <div class="col-12"><strong><?= $e->html('Add lesson') ?></strong></div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="kind_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Lesson type') ?></label>
+                        <select class="form-select form-select-sm" id="kind_<?= $e->attr((string) $module->moduleId) ?>"
+                                name="lesson_kind" data-acad-lesson-kind>
+                            <?php foreach (LessonKind::labels() as $value => $label): ?>
+                                <option value="<?= $e->attr($value) ?>" <?= $value === LessonKind::TEXT ? 'selected' : '' ?>><?= $e->html($label) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-5">
+                    <div class="col-md-8">
                         <label class="form-label" for="ctitle_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Title') ?></label>
                         <input class="form-control form-control-sm" id="ctitle_<?= $e->attr((string) $module->moduleId) ?>"
                                name="title" required maxlength="255"
                                placeholder="e.g. Understanding Obesity">
                     </div>
+                    <?php
+                    $idSuffix = 'new-' . (string) $module->moduleId;
+                    $selectedKind = LessonKind::TEXT;
+                    $lesson = null;
+                    $lockedKind = false;
+                    require __DIR__ . '/_lesson_fields.php';
+                    ?>
                     <div class="col-12">
-                        <label class="form-label" for="cbody_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Description / lesson body') ?></label>
-                        <textarea class="form-control form-control-sm" id="cbody_<?= $e->attr((string) $module->moduleId) ?>"
-                                  name="body_text" rows="3"
-                                  placeholder="Learner-facing text or video description…"></textarea>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="ckey_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Object key (PDF only)') ?></label>
-                        <input class="form-control form-control-sm" id="ckey_<?= $e->attr((string) $module->moduleId) ?>"
-                               name="object_key" placeholder="s3-object-key-or-demo-ref">
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label" for="cvurl_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Video URL') ?></label>
-                        <input class="form-control form-control-sm" id="cvurl_<?= $e->attr((string) $module->moduleId) ?>"
-                               name="video_url" placeholder="https://www.youtube.com/watch?v=…">
-                    </div>
-                    <div class="col-12">
-                        <span class="form-label d-block"><?= $e->html('Video delivery mode') ?></span>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="video_delivery_mode"
-                                   id="cvemb_<?= $e->attr((string) $module->moduleId) ?>"
-                                   value="embedded" checked>
-                            <label class="form-check-label" for="cvemb_<?= $e->attr((string) $module->moduleId) ?>">
-                                <?= $e->html('Embedded Player') ?>
-                            </label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="video_delivery_mode"
-                                   id="cvext_<?= $e->attr((string) $module->moduleId) ?>"
-                                   value="external_link">
-                            <label class="form-check-label" for="cvext_<?= $e->attr((string) $module->moduleId) ?>">
-                                <?= $e->html('External Link') ?>
-                            </label>
-                        </div>
-                        <div class="form-text">
-                            <?= $e->html('Required for Video. Embedded Player: YouTube / YouTube no-cookie / Vimeo. External Link: any HTTPS URL.') ?>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <button class="btn btn-primary btn-sm" type="submit"><?= $e->html('Add content') ?></button>
+                        <button class="btn btn-primary btn-sm" type="submit"><?= $e->html('Add lesson') ?></button>
                     </div>
                 </form>
             <?php endif; ?>

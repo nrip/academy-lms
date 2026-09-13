@@ -142,7 +142,7 @@ final class ModuleCommandService
 
         $before = $this->requireModuleForVersion($moduleId, $versionId);
         if ($this->modules->countContentItems($moduleId) > 0) {
-            throw new ConflictException('Remove content items from this module before deleting it.');
+            throw new ConflictException('Remove lessons from this module before deleting it.');
         }
 
         $pdo = $this->connections->connection();

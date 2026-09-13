@@ -64,6 +64,15 @@ final class LearningMediaPolicy
         return $mime;
     }
 
+    public function storedMime(string $bytes): ?string
+    {
+        try {
+            return $this->detectMime($bytes);
+        } catch (ValidationException) {
+            return null;
+        }
+    }
+
     public function displayFilename(?string $originalFilename): ?string
     {
         if ($originalFilename === null || trim($originalFilename) === '') {

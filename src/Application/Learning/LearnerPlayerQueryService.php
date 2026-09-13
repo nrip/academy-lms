@@ -11,7 +11,10 @@ use Academy\Domain\Courses\ContentItemRepository;
 use Academy\Domain\Courses\ContentItemType;
 use Academy\Domain\Courses\CourseRepository;
 use Academy\Domain\Courses\CourseVersionRepository;
+use Academy\Domain\Courses\LiveSessionProvider;
 use Academy\Domain\Courses\ModuleRepository;
+use Academy\Domain\Courses\PodcastUrlPolicy;
+use Academy\Domain\Courses\RestrictedHtmlSanitiser;
 use Academy\Domain\Courses\SafeVideoEmbedBuilder;
 use Academy\Domain\Courses\VideoDeliveryMode;
 use Academy\Domain\Exception\AuthenticationException;
@@ -42,6 +45,7 @@ final class LearnerPlayerQueryService
         private readonly AssessmentRepository $assessments,
         private readonly AssessmentAttemptRepository $assessmentAttempts,
         private readonly SafeVideoEmbedBuilder $videoEmbeds = new SafeVideoEmbedBuilder(),
+        private readonly RestrictedHtmlSanitiser $html = new RestrictedHtmlSanitiser(),
     ) {
     }
 
@@ -228,6 +232,33 @@ final class LearnerPlayerQueryService
             }
         }
 
+        $richTextHtml = null;
+        if ($target->contentType === ContentItemType::RICH_TEXT && $target->bodyText !== null) {
+            try {
+                $richTextHtml = $this->html->sanitise($target->bodyText);
+            } catch (\Throwable) {
+                $richTextHtml = null;
+            }
+        }
+
+        $podcastDirect = $target->contentType === ContentItemType::PODCAST
+            && $target->delivery->podcastUrl !== null
+            && PodcastUrlPolicy::isDirectAudioFile($target->delivery->podcastUrl);
+
+        $mediaPath = null;
+        if (in_array($target->contentType, [ContentItemType::PDF, ContentItemType::AUDIO], true)
+            || ($target->contentType === ContentItemType::VIDEO && $target->videoDeliveryMode === VideoDeliveryMode::UPLOAD)
+        ) {
+            if ($target->objectKey !== null && str_starts_with($target->objectKey, 'learning/media/')) {
+                $mediaPath = '/learning/enrolments/' . $enrolmentId . '/items/' . $contentId . '/media';
+            }
+        }
+
+        $liveProviderLabel = null;
+        if ($target->contentType === ContentItemType::LIVE_SESSION && $target->delivery->liveProvider !== null) {
+            $liveProviderLabel = LiveSessionProvider::label($target->delivery->liveProvider);
+        }
+
         return new LearnerPlayerItemDetailView(
             enrolment: $enrolment,
             courseTitle: $course->masterTitle,
@@ -244,6 +275,10 @@ final class LearnerPlayerQueryService
             assessmentAttemptsUsed: $attemptsUsed,
             videoEmbedUrl: $videoEmbedUrl,
             videoWatchUrl: $videoWatchUrl,
+            richTextHtml: $richTextHtml,
+            podcastDirect: $podcastDirect,
+            mediaPath: $mediaPath,
+            liveProviderLabel: $liveProviderLabel,
         );
     }
 

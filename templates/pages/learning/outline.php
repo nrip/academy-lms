@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use Academy\Domain\Courses\LessonKind;
+use Academy\Domain\Learning\ContentProgressCompletionStatus;
+
 /** @var \Academy\Infrastructure\View\Escaper $e */
 /** @var string $title */
 /** @var string $csrf */
@@ -40,6 +43,28 @@ ob_start();
         </div>
     </div>
 
+    <?php
+    $continueId = null;
+    foreach ($outline->modules as $moduleView) {
+        if (!$moduleView->unlocked) {
+            continue;
+        }
+        foreach ($moduleView->items as $itemView) {
+            if ($itemView->accessible && !$itemView->completed) {
+                $continueId = $itemView->item->contentId;
+                break 2;
+            }
+        }
+    }
+    ?>
+    <?php if ($continueId !== null && $outline->contentAccessible): ?>
+        <p class="mb-4">
+            <a class="btn btn-primary" href="<?= $e->attr($base . '/items/' . (string) $continueId) ?>">
+                <?= $e->html('Continue') ?>
+            </a>
+        </p>
+    <?php endif; ?>
+
     <?php if ($flash !== null): ?>
         <div class="alert alert-success"><?= $e->html($flash) ?></div>
     <?php endif; ?>
@@ -77,10 +102,17 @@ ob_start();
                                 <span class="text-muted"><?= $e->html($itemView->item->title) ?></span>
                                 <span class="badge text-bg-light border ms-1"><?= $e->html('Locked') ?></span>
                             <?php endif; ?>
-                            <div class="small text-muted"><?= $e->html($itemView->item->contentType) ?></div>
+                            <div class="small text-muted"><?= $e->html(LessonKind::labelForItem($itemView->item)) ?></div>
                         </div>
                         <span class="badge text-bg-<?= $e->attr($itemView->completed ? 'success' : 'secondary') ?>">
-                            <?= $e->html($itemView->completed ? 'Completed' : str_replace('_', ' ', $itemView->completionStatus)) ?>
+                            <?php
+                            $statusLabel = match ($itemView->completionStatus) {
+                                ContentProgressCompletionStatus::COMPLETED => 'Completed',
+                                ContentProgressCompletionStatus::IN_PROGRESS => 'In progress',
+                                default => 'Not started',
+                            };
+                            ?>
+                            <?= $e->html($statusLabel) ?>
                         </span>
                     </li>
                 <?php endforeach; ?>
