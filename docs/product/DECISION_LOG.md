@@ -92,3 +92,9 @@ Recorded at Phase 0 install time on `foundation/repository-scaffold`. Constraint
 | --- | --- | --- |
 | bootstrap | 5.3.3 | 5.3.3 |
 | jquery | 3.7.1 | 3.7.1 |
+
+## Learning media — video storage
+
+| ID | Date | Decision | Status | Notes |
+| --- | --- | --- | --- | --- |
+| LX-VID-STORAGE-1 | 2026-09-13 | Course video files are **not** self-hosted on the application server and are **not** served from `public/`. Immediate learner video is YouTube/Vimeo embed and external HTTPS links only, with provider validation. Uploaded or “locally hosted” video is deferred until a later Decision Log choice of **Mux**, **Cloudflare Stream**, or private object storage with short-lived playback URLs (10–15 minutes). No HTML5 upload player, no VPS transcode, and no public video URLs in the current pack. Learning PDFs are not public files either: they use the existing `ObjectStorage` port and signed URLs. Production-like environments that lack a private storage driver stay unconfigured — they must not fall back to a world-readable path. | **Approved — Product Owner (Nrip Nihalani), 2026-09-13** | Aligns Technical Architecture v1.1 (Mux or Cloudflare Stream preferred; no self-hosting) with the creator menu in `LEARNING_EXPERIENCE_ROADMAP.md`. Implementation sequence: `CONTENT_MEDIA_IMPLEMENTATION_PLAN.md`. Does not approve an S3 or Mux adapter. |
