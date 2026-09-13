@@ -75,7 +75,7 @@ final class AssessmentAttemptStateMachine
                 if ($from === $to) {
                     continue;
                 }
-                if (!in_array($to, self::ALLOWED[$from] ?? [], true)) {
+                if (!in_array($to, self::ALLOWED[$from], true)) {
                     $disallowed[] = [$from, $to];
                 }
             }

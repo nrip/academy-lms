@@ -220,7 +220,7 @@ final class PdoContentItemRepository implements ContentItemRepository
             delivery: new ContentDelivery(
                 originalFilename: $this->nullableString($row, 'original_filename'),
                 mediaMime: $this->nullableString($row, 'media_mime'),
-                mediaBytes: isset($row['media_bytes']) && $row['media_bytes'] !== null ? (int) $row['media_bytes'] : null,
+                mediaBytes: isset($row['media_bytes']) ? (int) $row['media_bytes'] : null,
                 mediaSha256: $this->nullableString($row, 'media_sha256'),
                 podcastUrl: $this->nullableString($row, 'podcast_url'),
                 liveJoinUrl: $this->nullableString($row, 'live_join_url'),

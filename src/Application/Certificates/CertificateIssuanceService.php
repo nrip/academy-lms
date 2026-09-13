@@ -54,8 +54,13 @@ final class CertificateIssuanceService
     /**
      * Idempotent: returns existing current certificate or issues one when eligible.
      * Returns null when not yet eligible or learner name cannot be resolved.
+     * Pass joinExistingTransaction when the caller already holds the database transaction.
      */
-    public function issueCompletionIfEligible(int $enrolmentId, ?int $actorUserId = null): ?Certificate
+    public function issueCompletionIfEligible(
+        int $enrolmentId,
+        ?int $actorUserId = null,
+        bool $joinExistingTransaction = false,
+    ): ?Certificate
     {
         $enrolment = $this->enrolments->findById($enrolmentId);
         if ($enrolment === null) {
@@ -95,8 +100,7 @@ final class CertificateIssuanceService
         $number = $this->allocateNumber();
         $hash = bin2hex(random_bytes(16));
         $pdo = $this->connections->connection();
-        $ownsTransaction = !$pdo->inTransaction();
-        if ($ownsTransaction) {
+        if (!$joinExistingTransaction) {
             $pdo->beginTransaction();
         }
 
@@ -107,7 +111,7 @@ final class CertificateIssuanceService
                 CertificateType::COMPLETION,
             );
             if ($again !== null) {
-                if ($ownsTransaction) {
+                if (!$joinExistingTransaction) {
                     $pdo->commit();
                 }
 
@@ -168,13 +172,11 @@ final class CertificateIssuanceService
                 source: 'certificate_issuance',
             );
 
-            if ($ownsTransaction) {
+            if (!$joinExistingTransaction) {
                 $pdo->commit();
             }
         } catch (PDOException $exception) {
-            if ($ownsTransaction && $pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
+            $this->rollbackIssuedTransaction($pdo, $joinExistingTransaction);
             if ($exception->getCode() === '23000' || str_contains($exception->getMessage(), 'Duplicate')) {
                 return $this->certificates->findCurrentByEnrolmentAndType(
                     $enrolmentId,
@@ -183,13 +185,20 @@ final class CertificateIssuanceService
             }
             throw $exception;
         } catch (Throwable $exception) {
-            if ($ownsTransaction && $pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
+            $this->rollbackIssuedTransaction($pdo, $joinExistingTransaction);
             throw $exception;
         }
 
         return $this->certificates->findById($certificateId);
+    }
+
+    private function rollbackIssuedTransaction(\PDO $pdo, bool $joinExistingTransaction): void
+    {
+        if ($joinExistingTransaction || !$pdo->inTransaction()) {
+            return;
+        }
+
+        $pdo->rollBack();
     }
 
     public function requireOwnedEnrolment(AuthContext $auth, int $enrolmentId): void

@@ -16,7 +16,7 @@ use Academy\Domain\Notifications\ProviderReceipt;
 final class SmtpEmailAdapter implements EmailDeliveryPort
 {
     /**
-     * @param (callable(string,int,float):resource)|null $socketFactory
+     * @param (callable(string,float):resource)|null $socketFactory
      *        Optional override for unit tests: (remote, timeout) → socket resource.
      */
     public function __construct(

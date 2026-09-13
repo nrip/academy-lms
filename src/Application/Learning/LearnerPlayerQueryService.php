@@ -94,7 +94,9 @@ final class LearnerPlayerQueryService
                 $itemViews[] = new LearnerPlayerItemView(
                     item: $item,
                     accessible: $accessible,
-                    completionStatus: $progress?->completionStatus ?? ContentProgressCompletionStatus::NOT_STARTED,
+                    completionStatus: $progress === null
+                        ? ContentProgressCompletionStatus::NOT_STARTED
+                        : $progress->completionStatus,
                     completed: $completed,
                 );
             }

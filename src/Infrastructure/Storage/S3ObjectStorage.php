@@ -186,19 +186,22 @@ final class S3ObjectStorage implements ObjectStorage
         }
 
         $url = 'https://' . $host . $this->canonicalUri($objectKey);
+        if ($method === '') {
+            throw new ExternalServiceException('Learning media storage could not be reached.');
+        }
         $ch = curl_init($url);
         if ($ch === false) {
             throw new ExternalServiceException('Learning media storage could not be reached.');
         }
-        curl_setopt_array($ch, [
-            CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_HTTPHEADER => $headerLines,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HEADER => true,
-            CURLOPT_POSTFIELDS => $method === 'PUT' ? $body : null,
-            CURLOPT_NOBODY => $method === 'HEAD',
-            CURLOPT_TIMEOUT => 30,
-        ]);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headerLines);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HEADER, true);
+        if ($method === 'PUT') {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        }
+        curl_setopt($ch, CURLOPT_NOBODY, $method === 'HEAD');
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         $raw = curl_exec($ch);
         if ($raw === false) {
             curl_close($ch);

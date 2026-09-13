@@ -112,8 +112,9 @@ final class MarkContentCompleteService
                     previous: [
                         'enrolment_id' => $enrolmentId,
                         'content_id' => $contentId,
-                        'completion_status' => $existing?->completionStatus
-                            ?? ContentProgressCompletionStatus::NOT_STARTED,
+                        'completion_status' => $existing === null
+                            ? ContentProgressCompletionStatus::NOT_STARTED
+                            : $existing->completionStatus,
                     ],
                     next: [
                         'enrolment_id' => $enrolmentId,
@@ -130,7 +131,7 @@ final class MarkContentCompleteService
                 source: 'learner_player',
             );
 
-            $this->certificates->issueCompletionIfEligible($enrolmentId, $userId);
+            $this->certificates->issueCompletionIfEligible($enrolmentId, $userId, true);
 
             $pdo->commit();
         } catch (Throwable $exception) {

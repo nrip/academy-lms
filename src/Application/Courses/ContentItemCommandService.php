@@ -37,14 +37,34 @@ final class ContentItemCommandService
         $this->access->requireVersionMutableWithPermission($auth, $courseId, $versionId, 'content.manage', $at);
         $this->requireModuleForVersion($moduleId, $versionId);
 
-        $fields = $this->normalizeCreate($input);
+        $fields = $this->drafts->normalize($input);
 
         $pdo = $this->connections->connection();
         $pdo->beginTransaction();
         try {
-            $contentId = $this->contentItems->insert($fields + [
+            $contentId = $this->contentItems->insert([
                 'module_id' => $moduleId,
                 'sequence' => $this->contentItems->nextSequence($moduleId),
+                'content_type' => $fields['content_type'],
+                'title' => $fields['title'],
+                'body_text' => $fields['body_text'],
+                'object_key' => $fields['object_key'],
+                'video_url' => $fields['video_url'],
+                'video_delivery_mode' => $fields['video_delivery_mode'],
+                'video_provider' => $fields['video_provider'],
+                'mandatory_flag' => $fields['mandatory_flag'],
+                'completion_rule' => $fields['completion_rule'],
+                'original_filename' => $fields['original_filename'],
+                'media_mime' => $fields['media_mime'],
+                'media_bytes' => $fields['media_bytes'],
+                'media_sha256' => $fields['media_sha256'],
+                'podcast_url' => $fields['podcast_url'],
+                'live_join_url' => $fields['live_join_url'],
+                'live_starts_at' => $fields['live_starts_at'],
+                'live_ends_at' => $fields['live_ends_at'],
+                'live_provider' => $fields['live_provider'],
+                'live_recording_url' => $fields['live_recording_url'],
+                'live_external_meeting_id' => $fields['live_external_meeting_id'],
             ]);
 
             $this->audit->record(
@@ -99,12 +119,32 @@ final class ContentItemCommandService
         $this->requireModuleForVersion($moduleId, $versionId);
 
         $before = $this->requireContentForModule($contentId, $moduleId);
-        $fields = $this->normalizeUpdate($input, $before->contentType);
+        $fields = $this->drafts->normalize($input + ['content_type' => $before->contentType]);
 
         $pdo = $this->connections->connection();
         $pdo->beginTransaction();
         try {
-            $updated = $this->contentItems->update($contentId, $fields);
+            $updated = $this->contentItems->update($contentId, [
+                'title' => $fields['title'],
+                'body_text' => $fields['body_text'],
+                'object_key' => $fields['object_key'],
+                'video_url' => $fields['video_url'],
+                'video_delivery_mode' => $fields['video_delivery_mode'],
+                'video_provider' => $fields['video_provider'],
+                'mandatory_flag' => $fields['mandatory_flag'],
+                'completion_rule' => $fields['completion_rule'],
+                'original_filename' => $fields['original_filename'],
+                'media_mime' => $fields['media_mime'],
+                'media_bytes' => $fields['media_bytes'],
+                'media_sha256' => $fields['media_sha256'],
+                'podcast_url' => $fields['podcast_url'],
+                'live_join_url' => $fields['live_join_url'],
+                'live_starts_at' => $fields['live_starts_at'],
+                'live_ends_at' => $fields['live_ends_at'],
+                'live_provider' => $fields['live_provider'],
+                'live_recording_url' => $fields['live_recording_url'],
+                'live_external_meeting_id' => $fields['live_external_meeting_id'],
+            ]);
             if (!$updated) {
                 throw new ConflictException(
                     'This CourseVersion is locked and immutable. Create Version N+1 to make changes.',
@@ -194,27 +234,6 @@ final class ContentItemCommandService
             }
             throw $exception;
         }
-    }
-
-    /**
-     * @param array<string, mixed> $input
-     * @return array<string, mixed>
-     */
-    private function normalizeCreate(array $input): array
-    {
-        return $this->drafts->normalize($input);
-    }
-
-    /**
-     * @param array<string, mixed> $input
-     * @return array<string, mixed>
-     */
-    private function normalizeUpdate(array $input, string $existingType): array
-    {
-        $merged = $this->drafts->normalize($input + ['content_type' => $existingType]);
-        unset($merged['content_type']);
-
-        return $merged;
     }
 
     private function requireModuleForVersion(int $moduleId, int $versionId): void
