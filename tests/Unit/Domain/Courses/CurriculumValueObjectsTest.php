@@ -25,6 +25,14 @@ final class CurriculumValueObjectsTest extends TestCase
         ModuleReleaseRule::assertValid('date_based');
     }
 
+    public function testVideoIsCreatable(): void
+    {
+        self::assertSame(
+            ContentItemType::VIDEO,
+            ContentItemType::assertCreatable(ContentItemType::VIDEO),
+        );
+    }
+
     public function testTextLessonIsCreatable(): void
     {
         self::assertSame(

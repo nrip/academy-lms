@@ -72,8 +72,8 @@ final class MarkContentCompleteService
             throw new NotFoundException('Content item not found on this CourseVersion.');
         }
 
-        if (!in_array($target->contentType, [ContentItemType::TEXT_LESSON, ContentItemType::PDF], true)) {
-            throw new DomainRuleException('Only text lessons and PDFs can be marked complete here.');
+        if (!in_array($target->contentType, ContentItemType::learnerMarkCompleteTypes(), true)) {
+            throw new DomainRuleException('This lesson cannot be marked complete here.');
         }
         if ($target->completionRule !== ContentCompletionRule::MARK_COMPLETE) {
             throw new DomainRuleException('This content item does not use mark-complete completion.');

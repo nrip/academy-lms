@@ -45,7 +45,7 @@ ob_start();
     <?php if ($payment->status === PaymentStatus::PENDING && $payment->providerOrderId !== null): ?>
         <?php if ($demoPaymentAvailable): ?>
             <div class="alert alert-info" role="status">
-                <?= $e->html('Demo mode: use the button below to simulate a successful Razorpay capture. You will first see “Confirming payment…”. Then run demo:process (or wait for workers) for admission — the browser never marks payment successful by itself.') ?>
+                <?= $e->html('Demo mode: use the button below to simulate a successful Razorpay capture. You will see “Confirming payment…” briefly; the server then verifies via the same webhook path used in production. The browser never marks payment successful by itself.') ?>
             </div>
             <form method="post" action="/applications/<?= $e->attr($application->applicationId) ?>/payments/<?= $e->attr($payment->paymentId) ?>/demo-capture" class="mb-3">
                 <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">

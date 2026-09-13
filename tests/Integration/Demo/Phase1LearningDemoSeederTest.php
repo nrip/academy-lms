@@ -51,7 +51,7 @@ final class Phase1LearningDemoSeederTest extends TestCase
              WHERE c.course_code = \'PHASE1-DEMO-CME-101\'
              ORDER BY m.sequence, ci.sequence',
         )->fetchAll(\PDO::FETCH_COLUMN);
-        self::assertSame(['text_lesson', 'text_lesson', 'mcq_assessment'], $contentTypes);
+        self::assertSame(['video', 'text_lesson', 'mcq_assessment'], $contentTypes);
 
         $assessmentLinks = (int) $pdo->query(
             'SELECT COUNT(*) FROM assessment_question_links aql
@@ -74,6 +74,7 @@ final class Phase1LearningDemoSeederTest extends TestCase
         $result = $seed->seed();
         self::assertTrue($result['catalogue']);
         self::assertContains('phase1:learner-active-enrolment=ok', $result['summary']);
+        self::assertContains('phase1:learner-progress=ready-for-video', $result['summary']);
         self::assertContains('phase1:certificate-scenario=issued', $result['summary']);
 
         $learnerId = (int) $pdo->query(
@@ -93,7 +94,7 @@ final class Phase1LearningDemoSeederTest extends TestCase
              WHERE enrolment_id = ' . (int) $enrolment['enrolment_id'] . "
                AND completion_status = 'completed'",
         )->fetchColumn();
-        self::assertSame(1, $completed);
+        self::assertSame(0, $completed);
 
         $certNumber = $pdo->query(
             "SELECT c.certificate_number FROM certificates c

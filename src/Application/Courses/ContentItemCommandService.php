@@ -6,14 +6,12 @@ namespace Academy\Application\Courses;
 
 use Academy\Application\Audit\AuditService;
 use Academy\Domain\Audit\CoursesAuditPayload;
-use Academy\Domain\Courses\ContentCompletionRule;
 use Academy\Domain\Courses\ContentItem;
+use Academy\Domain\Courses\ContentItemDraftNormalizer;
 use Academy\Domain\Courses\ContentItemRepository;
-use Academy\Domain\Courses\ContentItemType;
 use Academy\Domain\Courses\ModuleRepository;
 use Academy\Domain\Exception\ConflictException;
 use Academy\Domain\Exception\NotFoundException;
-use Academy\Domain\Exception\ValidationException;
 use Academy\Domain\Security\AuthContext;
 use Academy\Infrastructure\Database\ConnectionFactory;
 
@@ -25,6 +23,7 @@ final class ContentItemCommandService
         private readonly ContentItemRepository $contentItems,
         private readonly ConnectionFactory $connections,
         private readonly AuditService $audit,
+        private readonly ContentItemDraftNormalizer $drafts = new ContentItemDraftNormalizer(),
     ) {
     }
 
@@ -43,15 +42,9 @@ final class ContentItemCommandService
         $pdo = $this->connections->connection();
         $pdo->beginTransaction();
         try {
-            $contentId = $this->contentItems->insert([
+            $contentId = $this->contentItems->insert($fields + [
                 'module_id' => $moduleId,
                 'sequence' => $this->contentItems->nextSequence($moduleId),
-                'content_type' => $fields['content_type'],
-                'title' => $fields['title'],
-                'body_text' => $fields['body_text'],
-                'object_key' => $fields['object_key'],
-                'mandatory_flag' => $fields['mandatory_flag'],
-                'completion_rule' => $fields['completion_rule'],
             ]);
 
             $this->audit->record(
@@ -67,6 +60,10 @@ final class ContentItemCommandService
                         'content_type' => $fields['content_type'],
                         'body_text_length' => $fields['body_text'] === null ? 0 : mb_strlen($fields['body_text']),
                         'object_key_present' => $fields['object_key'] === null ? 0 : 1,
+                        'video_provider' => $fields['video_provider'],
+                        'video_delivery_mode' => $fields['video_delivery_mode'],
+                        'media_mime' => $fields['media_mime'],
+                        'live_provider' => $fields['live_provider'],
                     ],
                 ),
                 actorType: 'user',
@@ -124,12 +121,15 @@ final class ContentItemCommandService
                         'title' => $before->title,
                         'content_type' => $before->contentType,
                         'body_text_length' => $before->bodyText === null ? 0 : mb_strlen($before->bodyText),
+                        'video_provider' => $before->videoProvider,
                     ],
                     next: [
                         'content_id' => $contentId,
                         'title' => $fields['title'],
                         'content_type' => $before->contentType,
                         'body_text_length' => $fields['body_text'] === null ? 0 : mb_strlen($fields['body_text']),
+                        'video_provider' => $fields['video_provider'],
+                        'video_delivery_mode' => $fields['video_delivery_mode'],
                     ],
                 ),
                 actorType: 'user',
@@ -198,96 +198,23 @@ final class ContentItemCommandService
 
     /**
      * @param array<string, mixed> $input
-     * @return array{
-     *   content_type: string,
-     *   title: string,
-     *   body_text: ?string,
-     *   object_key: ?string,
-     *   mandatory_flag: bool,
-     *   completion_rule: string
-     * }
+     * @return array<string, mixed>
      */
     private function normalizeCreate(array $input): array
     {
-        $type = ContentItemType::assertCreatable(
-            trim((string) ($input['content_type'] ?? ContentItemType::TEXT_LESSON)),
-        );
-        $title = trim((string) ($input['title'] ?? ''));
-        if ($title === '') {
-            throw new ValidationException('Content title is required.');
-        }
-        if (mb_strlen($title) > 255) {
-            throw new ValidationException('Content title must be 255 characters or fewer.');
-        }
-
-        $body = trim((string) ($input['body_text'] ?? ''));
-        $objectKey = trim((string) ($input['object_key'] ?? ''));
-        $bodyText = $body === '' ? null : $body;
-        $objectKeyValue = $objectKey === '' ? null : $objectKey;
-
-        if ($type === ContentItemType::TEXT_LESSON && $bodyText === null) {
-            throw new ValidationException('Text lesson body is required.');
-        }
-        if ($type === ContentItemType::PDF && $objectKeyValue === null) {
-            throw new ValidationException('PDF content requires an object key (storage reference).');
-        }
-        if ($type === ContentItemType::TEXT_LESSON) {
-            $objectKeyValue = null;
-        }
-        if ($type === ContentItemType::PDF) {
-            $bodyText = null;
-        }
-        if ($type === ContentItemType::MCQ_ASSESSMENT) {
-            $bodyText = null;
-            $objectKeyValue = null;
-        }
-
-        $mandatory = !array_key_exists('mandatory_flag', $input)
-            ? true
-            : (
-                (string) $input['mandatory_flag'] === '1'
-                || $input['mandatory_flag'] === true
-                || $input['mandatory_flag'] === 1
-            );
-
-        $completion = ContentCompletionRule::assertValid(
-            trim((string) ($input['completion_rule'] ?? ContentCompletionRule::defaultForType($type))),
-        );
-        if ($type !== ContentItemType::MCQ_ASSESSMENT && $completion === ContentCompletionRule::ASSESSMENT_PASSED) {
-            throw new ValidationException('assessment_passed is only valid for MCQ assessment content.');
-        }
-
-        return [
-            'content_type' => $type,
-            'title' => $title,
-            'body_text' => $bodyText,
-            'object_key' => $objectKeyValue,
-            'mandatory_flag' => $mandatory,
-            'completion_rule' => $completion,
-        ];
+        return $this->drafts->normalize($input);
     }
 
     /**
      * @param array<string, mixed> $input
-     * @return array{
-     *   title: string,
-     *   body_text: ?string,
-     *   object_key: ?string,
-     *   mandatory_flag: bool,
-     *   completion_rule: string
-     * }
+     * @return array<string, mixed>
      */
     private function normalizeUpdate(array $input, string $existingType): array
     {
-        $merged = $this->normalizeCreate($input + ['content_type' => $existingType]);
+        $merged = $this->drafts->normalize($input + ['content_type' => $existingType]);
+        unset($merged['content_type']);
 
-        return [
-            'title' => $merged['title'],
-            'body_text' => $merged['body_text'],
-            'object_key' => $merged['object_key'],
-            'mandatory_flag' => $merged['mandatory_flag'],
-            'completion_rule' => $merged['completion_rule'],
-        ];
+        return $merged;
     }
 
     private function requireModuleForVersion(int $moduleId, int $versionId): void

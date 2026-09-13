@@ -13,6 +13,10 @@ use Academy\Domain\Courses\FeeDisplay;
 /** @var \Academy\Domain\Security\AuthContext|null $auth */
 /** @var string $csrf */
 
+$coursePath = '/courses/' . $course->slug;
+$loginApplyHref = '/login?return_to=' . rawurlencode($coursePath);
+$registerHref = '/register';
+
 ob_start();
 ?>
 <div class="acad-batch-detail">
@@ -53,7 +57,10 @@ ob_start();
                 <button class="btn btn-primary" type="submit"><?= $e->html('Apply') ?></button>
             </form>
         <?php else: ?>
-            <a class="btn btn-outline-primary" href="/login"><?= $e->html('Log in to apply') ?></a>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-primary" href="<?= $e->attr($registerHref) ?>"><?= $e->html('Create account') ?></a>
+                <a class="btn btn-outline-primary" href="<?= $e->attr($loginApplyHref) ?>"><?= $e->html('Sign in to apply') ?></a>
+            </div>
         <?php endif; ?>
     <?php else: ?>
         <div class="alert alert-secondary" role="status"><?= $e->html($availability->label()) ?></div>

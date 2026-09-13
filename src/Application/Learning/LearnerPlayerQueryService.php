@@ -12,6 +12,8 @@ use Academy\Domain\Courses\ContentItemType;
 use Academy\Domain\Courses\CourseRepository;
 use Academy\Domain\Courses\CourseVersionRepository;
 use Academy\Domain\Courses\ModuleRepository;
+use Academy\Domain\Courses\SafeVideoEmbedBuilder;
+use Academy\Domain\Courses\VideoDeliveryMode;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\NotFoundException;
 use Academy\Domain\Learning\ContentProgress;
@@ -39,6 +41,7 @@ final class LearnerPlayerQueryService
         private readonly ModuleReleasePolicy $releasePolicy,
         private readonly AssessmentRepository $assessments,
         private readonly AssessmentAttemptRepository $assessmentAttempts,
+        private readonly SafeVideoEmbedBuilder $videoEmbeds = new SafeVideoEmbedBuilder(),
     ) {
     }
 
@@ -161,7 +164,7 @@ final class LearnerPlayerQueryService
         $at = new DateTimeImmutable('now', new DateTimeZone('UTC'));
         $progress = $this->progress->recordAccess($enrolmentId, $contentId, $at);
 
-        $canMarkComplete = in_array($target->contentType, [ContentItemType::TEXT_LESSON, ContentItemType::PDF], true)
+        $canMarkComplete = in_array($target->contentType, ContentItemType::learnerMarkCompleteTypes(), true)
             && !$progress->isCompleted();
         $blockedReason = null;
         $assessment = null;
@@ -202,6 +205,27 @@ final class LearnerPlayerQueryService
             }
         }
 
+        $videoEmbedUrl = null;
+        $videoWatchUrl = null;
+        if ($target->contentType === ContentItemType::VIDEO
+            && $target->videoUrl !== null
+            && $target->videoDeliveryMode !== null
+        ) {
+            try {
+                $source = $this->videoEmbeds->build($target->videoUrl, $target->videoDeliveryMode);
+                $videoWatchUrl = $source->sourceUrl;
+                $videoEmbedUrl = $source->embedUrl;
+            } catch (\Throwable) {
+                // Stored rows should already be valid; fall back to raw HTTPS watch URL when re-parse fails.
+                if (str_starts_with($target->videoUrl, 'https://')) {
+                    $videoWatchUrl = $target->videoUrl;
+                }
+            }
+            if ($target->videoDeliveryMode === VideoDeliveryMode::EXTERNAL_LINK) {
+                $videoEmbedUrl = null;
+            }
+        }
+
         return new LearnerPlayerItemDetailView(
             enrolment: $enrolment,
             courseTitle: $course->masterTitle,
@@ -216,6 +240,8 @@ final class LearnerPlayerQueryService
             assessment: $assessment,
             inProgressAttempt: $inProgressAttempt,
             assessmentAttemptsUsed: $attemptsUsed,
+            videoEmbedUrl: $videoEmbedUrl,
+            videoWatchUrl: $videoWatchUrl,
         );
     }
 

@@ -610,10 +610,6 @@ final class UatSeedService
             return;
         }
 
-        $textLessons = array_values(array_filter(
-            $contents,
-            static fn (array $row): bool => (string) $row['content_type'] === 'text_lesson',
-        ));
         $mcqItems = array_values(array_filter(
             $contents,
             static fn (array $row): bool => (string) $row['content_type'] === 'mcq_assessment',
@@ -654,10 +650,9 @@ final class UatSeedService
                 $now,
             );
             $enrolmentId = $this->enrolmentIdForApplication($pdo, $appId);
-            if ($enrolmentId !== null && $textLessons !== []) {
-                $firstLessonId = (int) $textLessons[0]['content_id'];
-                $this->ensureContentCompleted($pdo, $enrolmentId, $firstLessonId, 'learner', $now);
-                $summary[] = 'phase1:learner-progress=lesson1-complete';
+            if ($enrolmentId !== null) {
+                // Leave content progress empty so the Phase 1 video lesson is showcased.
+                $summary[] = 'phase1:learner-progress=ready-for-video';
             }
             $summary[] = 'phase1:learner-active-enrolment=ok';
             if ($mcqItems !== []) {

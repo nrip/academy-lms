@@ -88,17 +88,16 @@ final class ModeADemoSmokeTest extends TestCase
         );
         self::assertTrue($ingress['confirming']);
         self::assertFalse($ingress['duplicate']);
+        self::assertGreaterThan(0, $ingress['processed']);
 
         $pdo = DatabaseTestCase::pdo();
         $stmt = $pdo->prepare('SELECT status FROM payments WHERE payment_id = ?');
         $stmt->execute([$payment->paymentId]);
-        self::assertSame(PaymentStatus::PENDING, $stmt->fetchColumn(), 'Browser demo capture must not mark success');
-
-        $processed = $container->get(DemoProcessService::class)->process('demo-smoke', 25);
-        self::assertNotEmpty($processed['steps']);
-
-        $stmt->execute([$payment->paymentId]);
-        self::assertSame(PaymentStatus::SUCCESSFUL, $stmt->fetchColumn());
+        self::assertSame(
+            PaymentStatus::SUCCESSFUL,
+            $stmt->fetchColumn(),
+            'Fake-gateway demo capture processes the webhook in-process (still not browser-trusted)',
+        );
 
         $stmt = $pdo->prepare('SELECT status FROM applications WHERE application_id = ?');
         $stmt->execute([$fixture['application_id']]);

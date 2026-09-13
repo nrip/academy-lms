@@ -110,7 +110,12 @@ return static function (
 
     $emailAdapter = $string('NOTIFICATION_EMAIL_ADAPTER', '');
     $smsAdapter = $string('NOTIFICATION_SMS_ADAPTER', '');
-    if ($emailAdapter === '') {
+    $mailDriver = strtolower(trim($string('MAIL_DRIVER', '')));
+    if (in_array($mailDriver, ['smtp', 'ses'], true)) {
+        $emailAdapter = 'smtp';
+    } elseif ($mailDriver !== '') {
+        $emailAdapter = $mailDriver;
+    } elseif ($emailAdapter === '') {
         $emailAdapter = $capability->defaultEmailAdapter();
     }
     if ($smsAdapter === '') {
@@ -127,6 +132,35 @@ return static function (
         && in_array($emailAdapter, ['recording', 'local_file'], true)
     ) {
         throw new InvalidArgumentException('Recording/local email adapters are not permitted in this environment.');
+    }
+
+    $mailPort = $int('MAIL_PORT', 587);
+    $mailEncryption = strtolower(trim($string('MAIL_ENCRYPTION', '')));
+    if ($mailEncryption === '') {
+        $mailEncryption = match (true) {
+            $mailPort === 465 => 'ssl',
+            $mailPort === 587 => 'tls',
+            default => 'none',
+        };
+    }
+    if (!in_array($mailEncryption, ['tls', 'ssl', 'none'], true)) {
+        throw new InvalidArgumentException('MAIL_ENCRYPTION must be tls, ssl, or none.');
+    }
+
+    $mailConfig = [
+        'driver' => $mailDriver !== '' ? $mailDriver : $emailAdapter,
+        'host' => $string('MAIL_HOST', ''),
+        'port' => $mailPort,
+        'username' => $string('MAIL_USERNAME', ''),
+        'password' => $string('MAIL_PASSWORD', ''),
+        'from_address' => $string('MAIL_FROM_ADDRESS', ''),
+        'from_name' => $string('MAIL_FROM_NAME', $string('APP_NAME', 'Academy LMS')),
+        'encryption' => $mailEncryption,
+    ];
+    if ($emailAdapter === 'smtp') {
+        if (trim($mailConfig['host']) === '' || trim($mailConfig['from_address']) === '') {
+            throw new InvalidArgumentException('MAIL_HOST and MAIL_FROM_ADDRESS are required when MAIL_DRIVER is smtp/ses.');
+        }
     }
 
     return [
@@ -180,6 +214,7 @@ return static function (
             'email_adapter' => $emailAdapter,
             'sms_adapter' => $smsAdapter,
             'local_mail_path' => $string('NOTIFICATION_LOCAL_MAIL_PATH', 'storage/mail'),
+            'mail' => $mailConfig,
         ],
         'legal' => [
             'terms_version' => $string('TERMS_VERSION', '2026-07-22'),
@@ -203,6 +238,25 @@ return static function (
                 return $secret;
             })(),
             'fake_scanner_enabled' => $bool('DOCUMENTS_FAKE_SCANNER', $capability->defaultFakeScannerEnabled()),
+        ],
+        'learning_media' => [
+            'driver' => $string('LEARNING_STORAGE_DRIVER', 'local'),
+            'local_base_path' => $string('LEARNING_LOCAL_BASE_PATH', 'storage/learning-media'),
+            'local_signing_secret' => (static function () use ($string, $softSecretsAllowed): string {
+                $secret = $string('LEARNING_LOCAL_SIGNING_SECRET', '');
+                if ($secret === '' && $softSecretsAllowed) {
+                    return 'local-ci-learning-media-signing-secret-not-for-production';
+                }
+
+                return $secret;
+            })(),
+            // Platform downloadable-resource cap. Do not raise this for lecture video until product confirms a number.
+            'max_bytes' => $int('LEARNING_MEDIA_MAX_BYTES', 104857600),
+            's3_bucket' => $string('LEARNING_S3_BUCKET', ''),
+            's3_region' => $string('LEARNING_S3_REGION', ''),
+            's3_access_key_id' => $string('LEARNING_S3_ACCESS_KEY_ID', ''),
+            's3_secret_access_key' => $string('LEARNING_S3_SECRET_ACCESS_KEY', ''),
+            's3_endpoint' => $string('LEARNING_S3_ENDPOINT', ''),
         ],
         'payments' => (static function () use ($capability, $bool, $string, $int): array {
             $fakeGatewayEnabled = $bool('PAYMENTS_FAKE_GATEWAY', $capability->defaultFakePaymentGatewayEnabled());

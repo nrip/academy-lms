@@ -10,6 +10,7 @@ use Academy\Domain\Admissions\ApplicationStatus;
 use Academy\Domain\Exception\DomainRuleException;
 use Academy\Domain\Learning\EnrolmentRepository;
 use Academy\Domain\Notifications\NotificationFailureCategory;
+use Academy\Domain\Notifications\TransactionalNotificationEventTypes;
 use Academy\Domain\Outbox\OutboxMessage;
 use Academy\Domain\Payments\PaymentRepository;
 use Academy\Infrastructure\Database\ConnectionFactory;
@@ -119,10 +120,8 @@ final class NotificationContextResolver
         if ($application->status === ApplicationStatus::RESUBMISSION_REQUESTED) {
             $safeReason = 'Please correct the requested documents and resubmit.';
         }
-        if (isset($payload['status']) && is_string($payload['status'])) {
-            // Prefer live DB status labels over raw payload strings.
-            unset($payload);
-        }
+        // Prefer live DB status labels over raw payload status strings.
+        unset($payload['status']);
 
         $displayName = $recipient['display_name'];
         $profileName = $this->preferredDisplayName($application->userId);
@@ -130,18 +129,40 @@ final class NotificationContextResolver
             $displayName = $profileName;
         }
 
+        $courseTitle = $labels['course_title'];
+        $certificateLink = '';
+        if ($message->eventType === TransactionalNotificationEventTypes::CERTIFICATE_ISSUED) {
+            $certificateId = isset($payload['certificate_id']) ? (int) $payload['certificate_id'] : 0;
+            if ($certificateId <= 0) {
+                throw new DomainRuleException(NotificationFailureCategory::CONTEXT_MISSING);
+            }
+            if (isset($payload['learner_name']) && is_string($payload['learner_name']) && trim($payload['learner_name']) !== '') {
+                $displayName = trim($payload['learner_name']);
+            }
+            if (isset($payload['course_title']) && is_string($payload['course_title']) && trim($payload['course_title']) !== '') {
+                $courseTitle = trim($payload['course_title']);
+            }
+            $certificateLink = rtrim($this->appUrl, '/') . '/certificates/' . $certificateId;
+            $statusLabel = 'Issued';
+        }
+
+        $variables = [
+            'learner_display_name' => $displayName,
+            'application_number' => $application->applicationNumber,
+            'course_title' => $courseTitle,
+            'batch_name' => $labels['batch_name'],
+            'status_label' => $statusLabel,
+            'safe_reason' => $safeReason,
+            'dashboard_link' => rtrim($this->appUrl, '/') . '/dashboard',
+        ];
+        if ($certificateLink !== '') {
+            $variables['certificate_link'] = $certificateLink;
+        }
+
         return [
             'user_id' => $application->userId,
             'recipient' => array_merge($recipient, ['display_name' => $displayName]),
-            'variables' => [
-                'learner_display_name' => $displayName,
-                'application_number' => $application->applicationNumber,
-                'course_title' => $labels['course_title'],
-                'batch_name' => $labels['batch_name'],
-                'status_label' => $statusLabel,
-                'safe_reason' => $safeReason,
-                'dashboard_link' => rtrim($this->appUrl, '/') . '/dashboard',
-            ],
+            'variables' => $variables,
         ];
     }
 

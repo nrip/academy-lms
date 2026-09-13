@@ -106,10 +106,10 @@ final class Wp02DemoCatalogueSeeder extends AbstractSeed
             $this->setCoursePublishedVersion($pdo, $courseId, $versionId, $now);
 
             $this->insertBatchIfMissing($pdo, $versionId, 'WP02-DEMO-OBESITY-101-OPEN', [
-                'name' => 'March 2027 cohort (open for applications)',
-                'starts_at' => $this->daysFromNow(45),
-                'ends_at' => $this->daysFromNow(87),
-                'applications_open_at' => $this->daysFromNow(-5),
+                'name' => 'Current cohort (open for applications)',
+                'starts_at' => $this->daysFromNow(-7),
+                'ends_at' => $this->daysFromNow(60),
+                'applications_open_at' => $this->daysFromNow(-30),
                 'applications_close_at' => $this->daysFromNow(30),
                 'min_capacity' => 10,
                 'max_capacity' => 60,
@@ -173,6 +173,31 @@ final class Wp02DemoCatalogueSeeder extends AbstractSeed
                 'access_expires_at' => null,
             ], $now);
         }
+
+        // Trial path: open-batch admits must land on Active enrolment + course player.
+        $this->ensureObesityOpenBatchStarted($pdo, $now);
+    }
+
+    private function ensureObesityOpenBatchStarted(PDO $pdo, string $now): void
+    {
+        $stmt = $pdo->prepare(
+            'UPDATE batches
+             SET name = :name,
+                 starts_at = :starts_at,
+                 ends_at = :ends_at,
+                 applications_open_at = :applications_open_at,
+                 updated_at = :updated_at
+             WHERE batch_code = :batch_code
+               AND starts_at > UTC_TIMESTAMP(6)',
+        );
+        $stmt->execute([
+            'name' => 'Current cohort (open for applications)',
+            'starts_at' => $this->daysFromNow(-7),
+            'ends_at' => $this->daysFromNow(60),
+            'applications_open_at' => $this->daysFromNow(-30),
+            'updated_at' => $now,
+            'batch_code' => 'WP02-DEMO-OBESITY-101-OPEN',
+        ]);
     }
 
     private function seedMetabolicHealthCourse(PDO $pdo, string $now): void

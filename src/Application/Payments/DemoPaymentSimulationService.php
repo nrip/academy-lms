@@ -47,10 +47,12 @@ final class DemoPaymentSimulationService
     }
 
     /**
-     * Browser path: record checkout return (confirming) + ingress webhook.
-     * Does not run the webhook processor — presenter runs demo:process next.
+     * Browser path: record checkout return (confirming), ingress webhook, then process
+     * pending webhook events in-process for fake-gateway trials.
+     * Still never marks Payment successful from the browser callback itself — the
+     * webhook processor is the source of truth (same path as demo:process).
      *
-     * @return array{payment_id: int, webhook_event_id: int, duplicate: bool, confirming: true}
+     * @return array{payment_id: int, webhook_event_id: int, duplicate: bool, confirming: true, processed: int}
      */
     public function simulateBrowserCapture(AuthContext $auth, int $applicationId, int $paymentId): array
     {
@@ -65,12 +67,14 @@ final class DemoPaymentSimulationService
         }
 
         $ingress = $this->ingressCaptureWebhook($payment, 'demo_browser');
+        $processed = $this->webhookProcessor->run('demo-browser-capture', 25);
 
         return [
             'payment_id' => $payment->paymentId,
             'webhook_event_id' => $ingress['webhook_event_id'],
             'duplicate' => $ingress['duplicate'],
             'confirming' => true,
+            'processed' => $processed,
         ];
     }
 
