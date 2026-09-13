@@ -12,6 +12,7 @@ final class EmailDeliveryMessage
         public readonly string $subject,
         public readonly string $bodyText,
         public readonly string $idempotencyKey,
+        public readonly ?string $bodyHtml = null,
     ) {
     }
 }

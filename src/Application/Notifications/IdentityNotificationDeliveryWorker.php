@@ -31,6 +31,7 @@ final class IdentityNotificationDeliveryWorker
         private readonly VerificationChallengeRepository $challenges,
         private readonly SealedSecretBox $sealedBox,
         private readonly EmailDeliveryPort $emailPort,
+        private readonly AcademyEmailLayout $emails,
         private readonly SmsOtpDeliveryPort $smsPort,
         private readonly DeliveryFinaliser $finaliser,
         private readonly LoggerInterface $logger,
@@ -126,12 +127,16 @@ final class IdentityNotificationDeliveryWorker
             );
             /** @var array{email?: mixed, template?: mixed, link_token?: mixed} $data */
             $data = json_decode($plaintext, true, 512, JSON_THROW_ON_ERROR);
+            $letter = $record->purpose === 'password_reset'
+                ? $this->emails->passwordReset((string) ($data['link_token'] ?? ''))
+                : $this->emails->verification((string) ($data['link_token'] ?? ''));
             $emailMessage = new EmailDeliveryMessage(
                 (string) ($data['email'] ?? ''),
                 (string) ($data['template'] ?? $record->purpose),
-                $record->purpose === 'password_reset' ? 'Password reset' : 'Verify your email',
-                'token=' . (string) ($data['link_token'] ?? ''),
+                $letter['subject'],
+                $letter['text'],
                 $message->idempotencyKey,
+                $letter['html'],
             );
 
             // Provider I/O outside any DB transaction.

@@ -34,6 +34,7 @@ final class TransactionalNotificationDeliveryWorker
         private readonly NotificationContextResolver $contextResolver,
         private readonly TransactionalNotificationTemplateRegistry $templates,
         private readonly NotificationTemplateRenderer $renderer,
+        private readonly AcademyEmailLayout $emails,
         private readonly EmailDeliveryPort $emailPort,
         private readonly NotificationRetryPolicy $retryPolicy,
         private readonly TransactionManager $transactions,
@@ -151,12 +152,14 @@ final class TransactionalNotificationDeliveryWorker
             );
         }
 
+        $letter = $this->emails->wrap($template->key, $rendered['body'], $context['variables']);
         $emailMessage = new EmailDeliveryMessage(
             toAddress: $context['recipient']['email'],
             templateKey: $template->key,
             subject: $rendered['subject'],
-            bodyText: $rendered['body'],
+            bodyText: $letter['text'],
             idempotencyKey: 'notif-retry:' . $deliveryId . ':' . $claimedDelivery->attemptCount,
+            bodyHtml: $letter['html'],
         );
 
         try {
@@ -179,6 +182,14 @@ final class TransactionalNotificationDeliveryWorker
             $claimedDelivery->attemptCount,
             null,
             $receipt->providerMessageId,
+            LearnerInboxCopy::fromRender(
+                $context['user_id'],
+                $message->id,
+                $message->eventType,
+                $rendered['subject'],
+                $letter['text'],
+                $context['variables'],
+            ),
         );
     }
 
@@ -189,6 +200,7 @@ final class TransactionalNotificationDeliveryWorker
         int $attemptCount,
         ?string $failureCategory,
         ?string $providerMessageId,
+        ?LearnerInboxCopy $inboxCopy = null,
     ): bool {
         return $this->transactions->run(function () use (
             $deliveryId,
@@ -197,6 +209,7 @@ final class TransactionalNotificationDeliveryWorker
             $attemptCount,
             $failureCategory,
             $providerMessageId,
+            $inboxCopy,
         ): bool {
             $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
             if ($failureCategory === null) {
@@ -225,6 +238,9 @@ final class TransactionalNotificationDeliveryWorker
                     null,
                     'worker',
                 );
+                if ($inboxCopy !== null) {
+                    $this->inbox->record($inboxCopy, $now);
+                }
 
                 return true;
             }
@@ -391,12 +407,14 @@ final class TransactionalNotificationDeliveryWorker
         }
 
         $idempotencyKey = 'notif:' . $message->id . ':' . $template->channel . ':' . $template->key;
+        $letter = $this->emails->wrap($template->key, $rendered['body'], $context['variables']);
         $emailMessage = new EmailDeliveryMessage(
             toAddress: $context['recipient']['email'],
             templateKey: $template->key,
             subject: $rendered['subject'],
-            bodyText: $rendered['body'],
+            bodyText: $letter['text'],
             idempotencyKey: $idempotencyKey,
+            bodyHtml: $letter['html'],
         );
 
         try {
@@ -428,7 +446,7 @@ final class TransactionalNotificationDeliveryWorker
                 $message->id,
                 $message->eventType,
                 $rendered['subject'],
-                $rendered['body'],
+                $letter['text'],
                 $context['variables'],
             ),
         );

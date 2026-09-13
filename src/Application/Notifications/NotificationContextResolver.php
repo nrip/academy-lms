@@ -158,12 +158,27 @@ final class NotificationContextResolver
         if ($certificateLink !== '') {
             $variables['certificate_link'] = $certificateLink;
         }
+        if (
+            $message->eventType === TransactionalNotificationEventTypes::APPLICATION_ADMITTED
+            || $message->eventType === TransactionalNotificationEventTypes::ENROLMENT_CREATED
+        ) {
+            $variables['learning_link'] = $this->learningLink($enrolmentId, $variables['dashboard_link']);
+        }
 
         return [
             'user_id' => $application->userId,
             'recipient' => array_merge($recipient, ['display_name' => $displayName]),
             'variables' => $variables,
         ];
+    }
+
+    private function learningLink(int $enrolmentId, string $dashboardLink): string
+    {
+        if ($enrolmentId > 0 && $this->enrolments->findById($enrolmentId) !== null) {
+            return rtrim($this->appUrl, '/') . '/learning/enrolments/' . $enrolmentId;
+        }
+
+        return $dashboardLink;
     }
 
     /**

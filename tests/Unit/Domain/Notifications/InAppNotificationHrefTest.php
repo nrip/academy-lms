@@ -35,6 +35,16 @@ final class InAppNotificationHrefTest extends TestCase
         self::assertNull(InAppNotificationHref::internalPath('/learning/../.env'));
     }
 
+    public function testAdmissionPrefersTheLearningPath(): void
+    {
+        $href = InAppNotificationHref::fromVariables(
+            TransactionalNotificationEventTypes::APPLICATION_ADMITTED,
+            ['learning_link' => 'https://academy.example/learning/enrolments/9', 'dashboard_link' => 'https://academy.example/dashboard'],
+        );
+
+        self::assertSame('/learning/enrolments/9', $href);
+    }
+
     public function testFallsBackToDashboard(): void
     {
         self::assertSame(

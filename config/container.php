@@ -63,6 +63,7 @@ use Academy\Application\Learning\LearnerPlayerQueryService;
 use Academy\Application\Learning\LearningMediaAccessService;
 use Academy\Application\Learning\LearningMediaIngestService;
 use Academy\Application\Learning\MarkContentCompleteService;
+use Academy\Application\Notifications\AcademyEmailLayout;
 use Academy\Application\Notifications\AdminNotificationQueryService;
 use Academy\Application\Notifications\AdminNotificationRetryService;
 use Academy\Application\Notifications\DeliveryFinaliser;
@@ -1784,6 +1785,12 @@ return static function (): ContainerInterface {
                 hash('sha256', $security['notifications']['delivery_key'] . '|recipient'),
             );
         },
+        AcademyEmailLayout::class => static function (ContainerInterface $c): AcademyEmailLayout {
+            /** @var array{url: string} $app */
+            $app = $c->get('config.app');
+
+            return new AcademyEmailLayout($c->get(AcademyBranding::class), $app['url']);
+        },
         NotificationContextResolver::class => static function (ContainerInterface $c): NotificationContextResolver {
             /** @var array{url: string} $app */
             $app = $c->get('config.app');
@@ -1830,6 +1837,7 @@ return static function (): ContainerInterface {
                 $c->get(NotificationContextResolver::class),
                 $c->get(TransactionalNotificationTemplateRegistry::class),
                 $c->get(NotificationTemplateRenderer::class),
+                $c->get(AcademyEmailLayout::class),
                 $c->get(EmailDeliveryPort::class),
                 $c->get(NotificationRetryPolicy::class),
                 $c->get(TransactionManager::class),
@@ -1849,6 +1857,7 @@ return static function (): ContainerInterface {
                 $c->get(VerificationChallengeRepository::class),
                 $c->get(SealedSecretBox::class),
                 $c->get(EmailDeliveryPort::class),
+                $c->get(AcademyEmailLayout::class),
                 $c->get(SmsOtpDeliveryPort::class),
                 $c->get(DeliveryFinaliser::class),
                 $c->get(LoggerInterface::class),

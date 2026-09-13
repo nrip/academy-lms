@@ -121,7 +121,11 @@ Slice 2 must not invent a second progress formula. Slice 3 must not put payment 
 
 ---
 
-*Slices 1–4 are implemented. Slice 5 is sequenced only.*
+*Slices 1–5 are implemented.*
+
+## Slice 5 — communication
+
+Existing transactional sends keep their events. Verification, application received, admission, and certificate issued use the requested subjects and a branded HTML alternative. Plain text remains the fallback and the learner inbox copy. Verification-token mail is still not copied into the inbox. A failed send does not create an inbox row. A later successful retry records one row, keyed by the outbox message so it cannot duplicate.
 
 ## Slice 4 — eligibility and required documents
 
