@@ -53,6 +53,21 @@ SQL);
 
     public function down(): void
     {
+        // The content-item immutability trigger rejects DELETE while the parent
+        // CourseVersion is locked. Unlock only versions that still own a video
+        // lesson so this rollback can remove the rows it introduced.
+        $this->execute(<<<'SQL'
+UPDATE course_versions cv
+INNER JOIN modules m ON m.course_version_id = cv.version_id
+INNER JOIN content_items ci ON ci.module_id = m.module_id
+SET cv.locked_at = NULL
+WHERE ci.content_type = 'video'
+SQL);
+        $this->execute(<<<'SQL'
+DELETE cp FROM content_progress cp
+INNER JOIN content_items ci ON ci.content_id = cp.content_id
+WHERE ci.content_type = 'video'
+SQL);
         $this->execute(<<<'SQL'
 DELETE FROM content_items WHERE content_type = 'video'
 SQL);

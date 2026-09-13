@@ -54,6 +54,7 @@ jobs:
           extensions: pdo_mysql, mbstring, json, sodium
           coverage: none
           tools: composer:v2
+          ini-values: upload_max_filesize=512M, post_max_size=520M, memory_limit=512M
 
       - name: Setup Node
         uses: actions/setup-node@v4
