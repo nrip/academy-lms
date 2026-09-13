@@ -67,6 +67,18 @@ final class TransactionalNotificationDeliveryTest extends TestCase
         )->fetchColumn();
         self::assertSame(1, $count);
         self::assertNotEmpty($recording->recorded());
+
+        $inbox = (int) $pdo->query(
+            "SELECT COUNT(*) FROM in_app_notifications WHERE source_event_type = 'application.approved'",
+        )->fetchColumn();
+        self::assertSame(1, $inbox);
+        $row = $pdo->query(
+            'SELECT title, href, body FROM in_app_notifications LIMIT 1',
+        )->fetch(\PDO::FETCH_ASSOC);
+        self::assertIsArray($row);
+        self::assertSame('/dashboard', $row['href']);
+        self::assertStringNotContainsString('token=', (string) $row['body']);
+        self::assertStringNotContainsString('learning/', (string) $row['body']);
     }
 
     public function testWorkerIdempotentOnSameOutbox(): void
@@ -83,6 +95,10 @@ final class TransactionalNotificationDeliveryTest extends TestCase
             "SELECT COUNT(*) FROM notification_deliveries WHERE source_event_type = 'application.approved'",
         )->fetchColumn();
         self::assertSame(1, $count);
+        $inbox = (int) $pdo->query(
+            "SELECT COUNT(*) FROM in_app_notifications WHERE source_event_type = 'application.approved'",
+        )->fetchColumn();
+        self::assertSame(1, $inbox);
     }
 
     public function testRecordingAdapterMarksDelivered(): void
@@ -131,6 +147,7 @@ final class TransactionalNotificationDeliveryTest extends TestCase
         self::assertIsArray($row);
         self::assertSame(NotificationDeliveryStatus::DEAD, $row['status']);
         self::assertGreaterThanOrEqual(2, (int) $row['attempt_count']);
+        self::assertSame(0, (int) $pdo->query('SELECT COUNT(*) FROM in_app_notifications')->fetchColumn());
     }
 
     public function testStaleLeaseCannotOverwriteDelivered(): void
@@ -213,6 +230,7 @@ final class TransactionalNotificationDeliveryTest extends TestCase
             $container->get(TransactionManager::class),
             $container->get(AuditService::class),
             $container->get(LoggerInterface::class),
+            $container->get(\Academy\Domain\Notifications\InAppNotificationRepository::class),
             60,
         );
     }

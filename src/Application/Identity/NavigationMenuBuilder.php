@@ -38,6 +38,7 @@ final class NavigationMenuBuilder
             if ($this->authorization->check($auth, 'dashboard.view_own')) {
                 $items[] = ['label' => 'Courses', 'href' => PostLoginDestinationResolver::COURSES];
                 $items[] = ['label' => 'My Applications', 'href' => PostLoginDestinationResolver::LEARNER_DASHBOARD];
+                $items[] = ['label' => 'Updates', 'href' => '/notifications'];
             }
             if ($this->authorization->check($auth, 'profile.personal.view_own')
                 && $this->authorization->check($auth, 'dashboard.view_own')

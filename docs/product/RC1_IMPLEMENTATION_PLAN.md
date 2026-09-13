@@ -121,4 +121,14 @@ Slice 2 must not invent a second progress formula. Slice 3 must not put payment 
 
 ---
 
-*Slice 1 is the only slice this document authorises for immediate implementation.*
+*Slice 1 and slice 2 are implemented. Slices 3–5 are sequenced only.*
+
+---
+
+## Slice 2 — learner experience
+
+Dashboard cards reuse the outline progress formula (`completed / total`, via `OutlineProgress`) and the outline continue target (first accessible incomplete lesson). The bar is not labelled “course complete”. Applications that still need the learner stay as a next-step strip. Version numbers and storage keys stay off the page. Upcoming live sessions use the lesson start time, shown in India time, and link to the lesson. Join URLs are not copied onto the dashboard.
+
+In-app updates are written when an existing transactional email is sent, one row per outbox message. Retries do not duplicate the row. Failed sends do not create a row. The inbox is scoped with `dashboard.view_own` and the learner’s user id. It does not use `notification.view`. Verification-token mail is not copied in. Faculty inbox and reminder emails are still out of this slice.
+
+---

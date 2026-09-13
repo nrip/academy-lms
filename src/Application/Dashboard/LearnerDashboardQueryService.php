@@ -4,13 +4,21 @@ declare(strict_types=1);
 
 namespace Academy\Application\Dashboard;
 
+use Academy\Application\Learning\LearnerPlayerQueryService;
 use Academy\Application\RBAC\AuthorizationService;
+use Academy\Domain\Certificates\CertificateRepository;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\AuthorizationException;
+use Academy\Domain\Exception\DomainRuleException;
+use Academy\Domain\Exception\NotFoundException;
+use Academy\Domain\Learning\EnrolmentLifecycleStatus;
+use Academy\Domain\Notifications\InAppNotificationRepository;
 use Academy\Domain\Payments\PaymentAmountSnapshot;
 use Academy\Domain\Payments\PaymentStatus;
 use Academy\Domain\Security\AuthContext;
 use Academy\Infrastructure\Database\ConnectionFactory;
+use DateTimeImmutable;
+use DateTimeZone;
 use PDO;
 
 /**
@@ -24,6 +32,9 @@ final class LearnerDashboardQueryService
         private readonly AuthorizationService $authorization,
         private readonly ConnectionFactory $connections,
         private readonly LearnerStatusPresenter $presenter,
+        private readonly LearnerPlayerQueryService $player,
+        private readonly CertificateRepository $certificates,
+        private readonly InAppNotificationRepository $inbox,
     ) {
     }
 
@@ -48,6 +59,8 @@ final class LearnerDashboardQueryService
                 a.submitted_at,
                 a.updated_at AS application_updated_at,
                 c.master_title AS course_title,
+                c.slug AS course_slug,
+                CASE WHEN c.cover_object_key IS NOT NULL AND CHAR_LENGTH(c.cover_object_key) > 0 THEN 1 ELSE 0 END AS has_cover,
                 cv.version_number,
                 cv.title AS version_title,
                 b.name AS batch_name,
@@ -82,8 +95,11 @@ final class LearnerDashboardQueryService
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $cards = [];
+        $studyCards = [];
+        $upcomingSessions = [];
         $requiredActions = [];
         $seenActions = [];
+        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
         foreach ($rows as $row) {
             if ((int) $row['application_id'] <= 0) {
@@ -109,6 +125,24 @@ final class LearnerDashboardQueryService
                 ? $this->presenter->enrolmentPresentation($enrolmentStatus)
                 : null;
 
+            $study = $enrolmentId !== null
+                ? $this->studyCard(
+                    $auth,
+                    $enrolmentId,
+                    (string) $row['course_title'],
+                    (string) $row['course_slug'],
+                    (string) $row['has_cover'] === '1',
+                    (string) $row['batch_name'],
+                    $enrolmentPresentation,
+                    $enrolmentStatus,
+                    $now,
+                    $upcomingSessions,
+                )
+                : null;
+            if ($study !== null) {
+                $studyCards[] = $study;
+            }
+
             $primaryAction = $this->resolvePrimaryAction(
                 (int) $row['application_id'],
                 $appPresentation,
@@ -117,6 +151,7 @@ final class LearnerDashboardQueryService
                 $enrolmentId !== null,
                 $enrolmentId,
                 $enrolmentStatus,
+                $study,
             );
 
             if ($primaryAction !== null) {
@@ -168,7 +203,31 @@ final class LearnerDashboardQueryService
             );
         }
 
-        return new LearnerDashboardView($cards, $requiredActions, $total);
+        usort(
+            $upcomingSessions,
+            static fn (LearnerUpcomingSession $left, LearnerUpcomingSession $right): int => $left->startsAt <=> $right->startsAt,
+        );
+
+        $recentUnread = [];
+        foreach ($this->inbox->listForUser($userId, 20) as $update) {
+            if ($update->isRead()) {
+                continue;
+            }
+            $recentUnread[] = $update;
+            if (count($recentUnread) === 3) {
+                break;
+            }
+        }
+
+        return new LearnerDashboardView(
+            $cards,
+            $requiredActions,
+            $total,
+            $studyCards,
+            array_slice($upcomingSessions, 0, 5),
+            $this->inbox->countUnread($userId),
+            $recentUnread,
+        );
     }
 
     /**
@@ -182,13 +241,14 @@ final class LearnerDashboardQueryService
         bool $hasEnrolment,
         ?int $enrolmentId,
         ?string $enrolmentLifecycleStatus,
+        ?LearnerStudyCard $study,
     ): ?array {
         if ($hasEnrolment && $enrolmentId !== null
-            && $enrolmentLifecycleStatus === \Academy\Domain\Learning\EnrolmentLifecycleStatus::ACTIVE
+            && $enrolmentLifecycleStatus === EnrolmentLifecycleStatus::ACTIVE
         ) {
             return [
                 'label' => 'Continue learning',
-                'href' => '/learning/enrolments/' . $enrolmentId,
+                'href' => $study !== null ? $study->continueHref : '/learning/enrolments/' . $enrolmentId,
             ];
         }
 
@@ -221,5 +281,96 @@ final class LearnerDashboardQueryService
                     ]
                     : null),
         };
+    }
+
+    /**
+     * @param list<LearnerUpcomingSession> $upcomingSessions
+     */
+    private function studyCard(
+        AuthContext $auth,
+        int $enrolmentId,
+        string $courseTitle,
+        string $courseSlug,
+        bool $hasCover,
+        string $batchName,
+        ?LearnerStatusView $enrolmentPresentation,
+        ?string $enrolmentStatus,
+        DateTimeImmutable $now,
+        array &$upcomingSessions,
+    ): LearnerStudyCard {
+        $outlineHref = '/learning/enrolments/' . $enrolmentId;
+        $coverPath = $hasCover && $courseSlug !== ''
+            ? '/courses/' . rawurlencode($courseSlug) . '/cover'
+            : null;
+        $completed = 0;
+        $total = 0;
+        $percent = 0;
+        $continueTitle = null;
+        $continueChapter = null;
+        $continueHref = $outlineHref;
+        $accessible = $enrolmentStatus === EnrolmentLifecycleStatus::ACTIVE;
+
+        if ($enrolmentStatus === EnrolmentLifecycleStatus::ACTIVE
+            || $enrolmentStatus === EnrolmentLifecycleStatus::SCHEDULED
+        ) {
+            try {
+                $outline = $this->player->outline($auth, $enrolmentId);
+                $completed = $outline->completedCount;
+                $total = $outline->totalCount;
+                $percent = $outline->progressPercent();
+                $accessible = $outline->contentAccessible;
+                $continue = $outline->continueTarget();
+                if ($continue !== null) {
+                    $continueTitle = $continue['title'];
+                    $continueChapter = $continue['chapterTitle'];
+                    $continueHref = $outlineHref . '/items/' . $continue['contentId'];
+                }
+                if ($outline->hasCover && $outline->courseSlug !== '') {
+                    $coverPath = '/courses/' . rawurlencode($outline->courseSlug) . '/cover';
+                }
+                foreach ($outline->upcomingLiveSessions($now) as $session) {
+                    $upcomingSessions[] = new LearnerUpcomingSession(
+                        courseTitle: $outline->courseTitle,
+                        lessonTitle: $session['title'],
+                        chapterTitle: $session['chapterTitle'],
+                        startsAt: $session['startsAt'],
+                        href: $outlineHref . '/items/' . $session['contentId'],
+                    );
+                }
+            } catch (AuthorizationException | DomainRuleException | NotFoundException) {
+                $accessible = false;
+            }
+        }
+
+        return new LearnerStudyCard(
+            enrolmentId: $enrolmentId,
+            courseTitle: $courseTitle,
+            batchName: $batchName,
+            statusLabel: $enrolmentPresentation !== null ? $enrolmentPresentation->label : 'Enrolled',
+            statusExplanation: $enrolmentPresentation !== null ? $enrolmentPresentation->explanation : '',
+            statusSeverity: $enrolmentPresentation !== null ? $enrolmentPresentation->severity : 'secondary',
+            contentAccessible: $accessible,
+            coverPath: $coverPath,
+            completedCount: $completed,
+            totalCount: $total,
+            progressPercent: $percent,
+            continueTitle: $continueTitle,
+            continueChapterTitle: $continueChapter,
+            continueHref: $continueHref,
+            certificateCount: $this->certificateCount($enrolmentId),
+            certificatesHref: $outlineHref . '/certificates',
+        );
+    }
+
+    private function certificateCount(int $enrolmentId): int
+    {
+        $count = 0;
+        foreach ($this->certificates->listByEnrolmentId($enrolmentId) as $certificate) {
+            if ($certificate->isActive()) {
+                ++$count;
+            }
+        }
+
+        return $count;
     }
 }

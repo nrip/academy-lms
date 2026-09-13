@@ -301,9 +301,46 @@ body {
   border-top: 1px solid var(--acad-line);
 }
 
-.acad-next-step__label {
-  font-weight: 600;
-  flex: 1 1 12rem;
+.acad-study-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+.acad-study-card__media {
+  aspect-ratio: 16 / 9;
+  background: var(--acad-line);
+}
+
+.acad-study-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.acad-study-card__body {
+  padding: var(--acad-sp-4);
+}
+
+.acad-inbox__item {
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  padding: var(--acad-sp-4);
+  margin-bottom: var(--acad-sp-3);
+  background: var(--acad-surface);
+}
+
+.acad-inbox__item--unread {
+  border-left: 4px solid var(--acad-teal);
+}
+
+.acad-inbox__body {
+  white-space: pre-wrap;
 }
 
 .acad-lesson-stage {

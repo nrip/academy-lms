@@ -111,6 +111,8 @@ final class LearnerPlayerQueryService
             enrolment: $enrolment,
             courseTitle: $course->masterTitle,
             versionTitle: $version->title,
+            courseSlug: $course->slug,
+            hasCover: $course->hasCover(),
             contentAccessible: $contentAccessible,
             accessMessage: $accessMessage,
             completedCount: $completedCount,

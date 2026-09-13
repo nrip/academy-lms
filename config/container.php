@@ -65,6 +65,7 @@ use Academy\Application\Notifications\AdminNotificationQueryService;
 use Academy\Application\Notifications\AdminNotificationRetryService;
 use Academy\Application\Notifications\DeliveryFinaliser;
 use Academy\Application\Notifications\IdentityNotificationDeliveryWorker;
+use Academy\Application\Notifications\LearnerInboxQueryService;
 use Academy\Application\Notifications\NotificationCapability;
 use Academy\Application\Notifications\NotificationContextResolver;
 use Academy\Application\Notifications\NotificationRecipientResolver;
@@ -169,6 +170,7 @@ use Academy\Domain\Learning\EnrolmentStatusHistoryRepository;
 use Academy\Domain\Learning\ModuleReleasePolicy;
 use Academy\Domain\Learning\PlayerAccessPolicy;
 use Academy\Domain\Notifications\EmailDeliveryPort;
+use Academy\Domain\Notifications\InAppNotificationRepository;
 use Academy\Domain\Notifications\NotificationDeliveryRepository;
 use Academy\Domain\Notifications\NotificationRetryPolicy;
 use Academy\Domain\Notifications\SmsOtpDeliveryPort;
@@ -208,6 +210,7 @@ use Academy\Http\Controllers\CourseCatalogueController;
 use Academy\Http\Controllers\CourseCurriculumController;
 use Academy\Http\Controllers\CourseVersionLifecycleController;
 use Academy\Http\Controllers\DashboardController;
+use Academy\Http\Controllers\LearnerInboxController;
 use Academy\Http\Controllers\DocumentController;
 use Academy\Http\Controllers\EmailVerificationController;
 use Academy\Http\Controllers\FinancePaymentController;
@@ -292,6 +295,7 @@ use Academy\Infrastructure\Learning\PdoEnrolmentStatusHistoryRepository;
 use Academy\Infrastructure\Logging\LoggerFactory;
 use Academy\Infrastructure\Notifications\LocalFileEmailAdapter;
 use Academy\Infrastructure\Notifications\NotificationKeyMaterial;
+use Academy\Infrastructure\Notifications\PdoInAppNotificationRepository;
 use Academy\Infrastructure\Notifications\PdoNotificationDeliveryRepository;
 use Academy\Infrastructure\Notifications\RecordingEmailAdapter;
 use Academy\Infrastructure\Notifications\RecordingSmsAdapter;
@@ -1734,6 +1738,9 @@ return static function (): ContainerInterface {
                 $security['outbox']['max_attempts'],
             );
         },
+        InAppNotificationRepository::class => static fn (ContainerInterface $c): InAppNotificationRepository => new PdoInAppNotificationRepository(
+            $c->get(ConnectionFactory::class),
+        ),
         NotificationDeliveryRepository::class => static fn (ContainerInterface $c): NotificationDeliveryRepository => new PdoNotificationDeliveryRepository(
             $c->get(ConnectionFactory::class),
         ),
@@ -1777,6 +1784,13 @@ return static function (): ContainerInterface {
             $c->get(AuthorizationService::class),
             $c->get(ConnectionFactory::class),
             $c->get(LearnerStatusPresenter::class),
+            $c->get(LearnerPlayerQueryService::class),
+            $c->get(CertificateRepository::class),
+            $c->get(InAppNotificationRepository::class),
+        ),
+        LearnerInboxQueryService::class => static fn (ContainerInterface $c): LearnerInboxQueryService => new LearnerInboxQueryService(
+            $c->get(AuthorizationService::class),
+            $c->get(InAppNotificationRepository::class),
         ),
         AdminNotificationQueryService::class => static fn (ContainerInterface $c): AdminNotificationQueryService => new AdminNotificationQueryService(
             $c->get(AuthorizationService::class),
@@ -1803,6 +1817,7 @@ return static function (): ContainerInterface {
                 $c->get(TransactionManager::class),
                 $c->get(AuditService::class),
                 $c->get(LoggerInterface::class),
+                $c->get(InAppNotificationRepository::class),
                 $security['outbox']['lease_seconds'],
             );
         },
@@ -1940,6 +1955,14 @@ return static function (): ContainerInterface {
             $dashboardAccess = $c->get(RouteAccess::class);
             $dashboardAccess->requirePermission(
                 $router->get('/dashboard', [DashboardController::class, 'index']),
+                'dashboard.view_own',
+            );
+            $dashboardAccess->requirePermission(
+                $router->get('/notifications', [LearnerInboxController::class, 'index']),
+                'dashboard.view_own',
+            );
+            $dashboardAccess->requirePermission(
+                $router->post('/notifications/{notificationId}/read', [LearnerInboxController::class, 'markRead']),
                 'dashboard.view_own',
             );
 
@@ -2494,6 +2517,10 @@ return static function (): ContainerInterface {
         ),
         DashboardController::class => static fn (ContainerInterface $c): DashboardController => new DashboardController(
             $c->get(LearnerDashboardQueryService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        LearnerInboxController::class => static fn (ContainerInterface $c): LearnerInboxController => new LearnerInboxController(
+            $c->get(LearnerInboxQueryService::class),
             $c->get(PhpRenderer::class),
         ),
         LearnerPlayerController::class => static fn (ContainerInterface $c): LearnerPlayerController => new LearnerPlayerController(

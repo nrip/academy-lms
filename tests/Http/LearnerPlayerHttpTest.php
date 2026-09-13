@@ -52,7 +52,10 @@ final class LearnerPlayerHttpTest extends TestCase
         $dashboard = $this->request('GET', '/dashboard', $boot);
         self::assertSame(200, $dashboard->getStatusCode());
         self::assertStringContainsString('Continue learning', (string) $dashboard->getBody());
-        self::assertStringContainsString('/learning/enrolments/' . $enrolmentId, (string) $dashboard->getBody());
+        self::assertStringContainsString('/learning/enrolments/' . $enrolmentId . '/items/' . $content1, (string) $dashboard->getBody());
+        self::assertStringContainsString('Intro lesson', (string) $dashboard->getBody());
+        self::assertStringContainsString('0 / 2 complete', (string) $dashboard->getBody());
+        self::assertStringNotContainsString('v1 —', (string) $dashboard->getBody());
 
         $outline = $this->request('GET', '/learning/enrolments/' . $enrolmentId, $boot);
         self::assertSame(200, $outline->getStatusCode());
@@ -280,6 +283,15 @@ final class LearnerPlayerHttpTest extends TestCase
         self::assertStringContainsString('Podcast', $outlineHtml);
         self::assertStringContainsString('Continue', $outlineHtml);
         self::assertStringNotContainsString('live_session', $outlineHtml);
+
+        $dashboard = $this->request('GET', '/dashboard', $boot);
+        $dashboardHtml = (string) $dashboard->getBody();
+        self::assertSame(200, $dashboard->getStatusCode());
+        self::assertStringContainsString('Upcoming live sessions', $dashboardHtml);
+        self::assertStringContainsString('Clinic hour', $dashboardHtml);
+        self::assertStringContainsString('IST', $dashboardHtml);
+        self::assertStringNotContainsString('meet.google.com', $dashboardHtml);
+        self::assertStringNotContainsString('learning/media', $dashboardHtml);
 
         $live = $this->request(
             'GET',

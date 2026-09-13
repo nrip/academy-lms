@@ -9,6 +9,8 @@ use Academy\Domain\Audit\NotificationAuditPayload;
 use Academy\Domain\Exception\DomainRuleException;
 use Academy\Domain\Notifications\EmailDeliveryMessage;
 use Academy\Domain\Notifications\EmailDeliveryPort;
+use Academy\Domain\Notifications\InAppNotificationRepository;
+use Academy\Domain\Notifications\LearnerInboxCopy;
 use Academy\Domain\Notifications\NotificationDeliveryRepository;
 use Academy\Domain\Notifications\NotificationDeliveryStatus;
 use Academy\Domain\Notifications\NotificationFailureCategory;
@@ -37,6 +39,7 @@ final class TransactionalNotificationDeliveryWorker
         private readonly TransactionManager $transactions,
         private readonly AuditService $audit,
         private readonly LoggerInterface $logger,
+        private readonly InAppNotificationRepository $inbox,
         private readonly int $leaseSeconds,
     ) {
     }
@@ -420,6 +423,14 @@ final class TransactionalNotificationDeliveryWorker
             $claimedDelivery->attemptCount,
             null,
             $receipt->providerMessageId,
+            LearnerInboxCopy::fromRender(
+                $context['user_id'],
+                $message->id,
+                $message->eventType,
+                $rendered['subject'],
+                $rendered['body'],
+                $context['variables'],
+            ),
         );
     }
 
@@ -431,6 +442,7 @@ final class TransactionalNotificationDeliveryWorker
         int $attemptCount,
         ?string $failureCategory,
         ?string $providerMessageId,
+        ?LearnerInboxCopy $inboxCopy = null,
     ): bool {
         return $this->transactions->run(function () use (
             $message,
@@ -440,6 +452,7 @@ final class TransactionalNotificationDeliveryWorker
             $attemptCount,
             $failureCategory,
             $providerMessageId,
+            $inboxCopy,
         ): bool {
             $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
 
@@ -478,6 +491,9 @@ final class TransactionalNotificationDeliveryWorker
                     null,
                     'worker',
                 );
+                if ($inboxCopy !== null) {
+                    $this->inbox->record($inboxCopy, $now);
+                }
 
                 return true;
             }

@@ -148,6 +148,7 @@ final class DatabaseTestCase
             'content_progress',
             'enrolment_status_history',
             'enrolments',
+            'in_app_notifications',
             'notification_deliveries',
             'payment_status_history',
             'payment_webhook_events',

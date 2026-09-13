@@ -20,7 +20,7 @@ final class NavigationMenuBuilderTest extends TestCase
         $items = $this->builder(['dashboard.view_own', 'profile.personal.view_own'])->build($this->auth());
         $labels = array_column($items, 'label');
 
-        self::assertSame(['Courses', 'My Applications', 'Profile', 'Logout'], $labels);
+        self::assertSame(['Courses', 'My Applications', 'Updates', 'Profile', 'Logout'], $labels);
         self::assertSame(PostLoginDestinationResolver::LEARNER_DASHBOARD, $items[1]['href']);
     }
 

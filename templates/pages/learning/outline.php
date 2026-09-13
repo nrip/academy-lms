@@ -24,43 +24,25 @@ ob_start();
     <h1 class="h3 mb-1"><?= $e->html($outline->courseTitle) ?></h1>
     <p class="text-muted mb-3">
         <?= $e->html($outline->versionTitle) ?>
-        · <?= $e->html('Enrolment ' . $outline->enrolment->publicReference) ?>
-        · <?= $e->html(ucfirst($outline->enrolment->lifecycleStatus)) ?>
+        · <?= $e->html($outline->enrolment->publicReference) ?>
     </p>
 
+    <?php $pct = $outline->progressPercent(); ?>
     <div class="mb-3">
         <div class="d-flex justify-content-between small mb-1">
             <span><?= $e->html('Progress') ?></span>
             <span><?= $e->html((string) $outline->completedCount . ' / ' . (string) $outline->totalCount . ' complete') ?></span>
         </div>
-        <?php
-        $pct = $outline->totalCount === 0
-            ? 0
-            : (int) floor(($outline->completedCount / $outline->totalCount) * 100);
-        ?>
-        <div class="progress" role="progressbar" aria-valuenow="<?= $e->attr((string) $pct) ?>" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress" role="progressbar" aria-valuenow="<?= $e->attr((string) $pct) ?>" aria-valuemin="0" aria-valuemax="100" aria-label="<?= $e->attr('Lesson progress') ?>">
             <div class="progress-bar" style="width: <?= $e->attr((string) $pct) ?>%"></div>
         </div>
     </div>
 
-    <?php
-    $continueId = null;
-    foreach ($outline->modules as $moduleView) {
-        if (!$moduleView->unlocked) {
-            continue;
-        }
-        foreach ($moduleView->items as $itemView) {
-            if ($itemView->accessible && !$itemView->completed) {
-                $continueId = $itemView->item->contentId;
-                break 2;
-            }
-        }
-    }
-    ?>
-    <?php if ($continueId !== null && $outline->contentAccessible): ?>
+    <?php $continue = $outline->continueTarget(); ?>
+    <?php if ($continue !== null): ?>
         <p class="mb-4">
-            <a class="btn btn-primary" href="<?= $e->attr($base . '/items/' . (string) $continueId) ?>">
-                <?= $e->html('Continue') ?>
+            <a class="btn btn-primary" href="<?= $e->attr($base . '/items/' . (string) $continue['contentId']) ?>">
+                <?= $e->html('Continue: ' . $continue['title']) ?>
             </a>
         </p>
     <?php endif; ?>
@@ -81,6 +63,7 @@ ob_start();
 
     <?php foreach ($outline->modules as $moduleView): ?>
         <section class="mb-4">
+            <p class="small text-muted mb-1"><?= $e->html('Chapter') ?></p>
             <h2 class="h5 mb-2">
                 <?= $e->html($moduleView->module->title) ?>
                 <?php if (!$moduleView->unlocked): ?>
