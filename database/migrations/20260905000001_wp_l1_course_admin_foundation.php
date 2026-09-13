@@ -156,6 +156,16 @@ SQL);
             ));
         }
 
+        $this->execute(
+            "DELETE ur FROM user_roles ur
+             INNER JOIN roles r ON r.role_id = ur.role_id
+             WHERE r.role_key = 'course_admin'",
+        );
+        $this->execute(
+            "DELETE rp FROM role_permissions rp
+             INNER JOIN roles r ON r.role_id = rp.role_id
+             WHERE r.role_key = 'course_admin'",
+        );
         $this->execute("DELETE FROM roles WHERE role_key = 'course_admin'");
         $this->execute('DROP TABLE IF EXISTS course_admin_scope_assignments');
     }

@@ -9,17 +9,54 @@ use Academy\Domain\Exception\ValidationException;
 /**
  * Ingest rules for learning media. No transcoding: the file must already be playable.
  *
- * Byte cap defaults to the platform downloadable-resource cap (100 MB). A larger
- * lecture-video cap is not set here until product confirms a number.
+ * Size caps are injected from configuration. Defaults match the approved
+ * learning-media limits and are overridden by LEARNING_MEDIA_*_MAX_BYTES.
  */
 final class LearningMediaPolicy
 {
     public const PREFIX = 'learning/media/';
-    public const PLATFORM_RESOURCE_CAP_BYTES = 104857600;
+
+    /** Approved default when LEARNING_MEDIA_PDF_MAX_BYTES is unset. */
+    public const DEFAULT_PDF_MAX_BYTES = 104857600;
+
+    /** Approved default when LEARNING_MEDIA_AUDIO_MAX_BYTES is unset. */
+    public const DEFAULT_AUDIO_MAX_BYTES = 104857600;
+
+    /** Approved default when LEARNING_MEDIA_VIDEO_MAX_BYTES is unset. */
+    public const DEFAULT_VIDEO_MAX_BYTES = 524288000;
 
     public function __construct(
-        private readonly int $maxBytes = self::PLATFORM_RESOURCE_CAP_BYTES,
+        private readonly int $pdfMaxBytes = self::DEFAULT_PDF_MAX_BYTES,
+        private readonly int $audioMaxBytes = self::DEFAULT_AUDIO_MAX_BYTES,
+        private readonly int $videoMaxBytes = self::DEFAULT_VIDEO_MAX_BYTES,
     ) {
+    }
+
+    public function maxBytesFor(string $kind): int
+    {
+        return match ($kind) {
+            'pdf' => $this->pdfMaxBytes,
+            'audio' => $this->audioMaxBytes,
+            'video' => $this->videoMaxBytes,
+            default => throw new ValidationException('This file type cannot be stored as learning media.'),
+        };
+    }
+
+    public function limitMegabytes(string $kind): string
+    {
+        return $this->formatMegabytes($this->maxBytesFor($kind));
+    }
+
+    public function uploadLimitMessage(string $kind): string
+    {
+        $label = match ($kind) {
+            'pdf' => 'PDF',
+            'audio' => 'audio',
+            'video' => 'video',
+            default => throw new ValidationException('This file type cannot be stored as learning media.'),
+        };
+
+        return 'This ' . $label . ' is larger than the ' . $this->limitMegabytes($kind) . ' MB upload limit.';
     }
 
     public function assertObjectKey(string $objectKey): string
@@ -42,10 +79,8 @@ final class LearningMediaPolicy
         if ($bytes === '') {
             throw new ValidationException('The file is empty.');
         }
-        if (strlen($bytes) > $this->maxBytes) {
-            throw new ValidationException(
-                'The file exceeds the current learning-media size cap. It must already be in a playable format, and the cap has not been raised for lecture video.',
-            );
+        if (strlen($bytes) > $this->maxBytesFor($kind)) {
+            throw new ValidationException($this->uploadLimitMessage($kind));
         }
 
         $mime = $this->detectMime($bytes);
@@ -62,6 +97,15 @@ final class LearningMediaPolicy
         }
 
         return $mime;
+    }
+
+    public function storedMime(string $bytes): ?string
+    {
+        try {
+            return $this->detectMime($bytes);
+        } catch (ValidationException) {
+            return null;
+        }
     }
 
     public function displayFilename(?string $originalFilename): ?string
@@ -118,5 +162,14 @@ final class LearningMediaPolicy
         $second = ord($bytes[1]);
 
         return $first === 0xFF && ($second & 0xE0) === 0xE0;
+    }
+
+    private function formatMegabytes(int $bytes): string
+    {
+        if ($bytes % 1048576 === 0) {
+            return (string) intdiv($bytes, 1048576);
+        }
+
+        return rtrim(rtrim(number_format($bytes / 1048576, 1, '.', ''), '0'), '.');
     }
 }

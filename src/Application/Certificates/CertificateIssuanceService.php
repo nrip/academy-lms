@@ -60,8 +60,7 @@ final class CertificateIssuanceService
         int $enrolmentId,
         ?int $actorUserId = null,
         bool $joinExistingTransaction = false,
-    ): ?Certificate
-    {
+    ): ?Certificate {
         $enrolment = $this->enrolments->findById($enrolmentId);
         if ($enrolment === null) {
             return null;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Academy\Http\Controllers;
 
+use Academy\Domain\Courses\LearningMediaPolicy;
 use Academy\Infrastructure\Storage\LearningLocalObjectStorage;
 use Laminas\Diactoros\Response;
 use Laminas\Diactoros\Response\EmptyResponse;
@@ -47,13 +48,38 @@ final class LearningLocalStorageDownloadController
             return new EmptyResponse(404);
         }
 
-        $response = new Response('php://temp', 200, [
-            'Content-Type' => 'application/octet-stream',
+        $mime = (new LearningMediaPolicy())->storedMime($contents) ?? 'application/octet-stream';
+        $length = strlen($contents);
+        $start = 0;
+        $end = $length - 1;
+        $status = 200;
+        $range = $request->getHeaderLine('Range');
+        if ($range !== '' && preg_match('/^bytes=(\d+)-(\d*)$/', $range, $match) === 1) {
+            $start = (int) $match[1];
+            $end = $match[2] === '' ? $length - 1 : (int) $match[2];
+            if ($start > $end || $start >= $length) {
+                return new Response('php://temp', 416, [
+                    'Content-Range' => 'bytes */' . $length,
+                ]);
+            }
+            $end = min($end, $length - 1);
+            $contents = substr($contents, $start, $end - $start + 1);
+            $status = 206;
+        }
+
+        $headers = [
+            'Content-Type' => $mime,
             'Content-Disposition' => 'inline',
+            'Accept-Ranges' => 'bytes',
             'Cache-Control' => 'private, no-store',
             'Content-Length' => (string) strlen($contents),
             'X-Content-Type-Options' => 'nosniff',
-        ]);
+        ];
+        if ($status === 206) {
+            $headers['Content-Range'] = 'bytes ' . $start . '-' . $end . '/' . $length;
+        }
+
+        $response = new Response('php://temp', $status, $headers);
         $response->getBody()->write($contents);
 
         return $response;

@@ -50,4 +50,24 @@ final class SecurityHeadersMiddlewareTest extends TestCase
         $csp = $middleware->process(new ServerRequest(), $handler)->getHeaderLine('Content-Security-Policy');
         self::assertStringContainsString("img-src 'self' data: https://cdn.example.test;", $csp);
     }
+
+    public function testStripsExtraMediaHostIntoMediaSrc(): void
+    {
+        $middleware = new SecurityHeadersMiddleware(new \Academy\Http\Security\SecurityHeaderPolicy(false));
+        $handler = new class () implements RequestHandlerInterface {
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                return (new Response())->withHeader(
+                    \Academy\Http\Security\SecurityHeaderPolicy::EXTRA_MEDIA_SRC_HEADER,
+                    'cdn.example.test, *, not a host',
+                );
+            }
+        };
+
+        $response = $middleware->process(new ServerRequest(), $handler);
+        $csp = $response->getHeaderLine('Content-Security-Policy');
+        self::assertStringContainsString("media-src 'self' https://cdn.example.test;", $csp);
+        self::assertStringNotContainsString('*', $csp);
+        self::assertSame('', $response->getHeaderLine(\Academy\Http\Security\SecurityHeaderPolicy::EXTRA_MEDIA_SRC_HEADER));
+    }
 }

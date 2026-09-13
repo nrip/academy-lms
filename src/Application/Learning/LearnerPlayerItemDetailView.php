@@ -29,6 +29,10 @@ final class LearnerPlayerItemDetailView
         public readonly int $assessmentAttemptsUsed = 0,
         public readonly ?string $videoEmbedUrl = null,
         public readonly ?string $videoWatchUrl = null,
+        public readonly ?string $richTextHtml = null,
+        public readonly bool $podcastDirect = false,
+        public readonly ?string $mediaPath = null,
+        public readonly ?string $liveProviderLabel = null,
     ) {
     }
 }

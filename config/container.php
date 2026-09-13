@@ -1080,10 +1080,14 @@ return static function (): ContainerInterface {
             return new UnconfiguredObjectStorage();
         },
         LearningMediaPolicy::class => static function (ContainerInterface $c): LearningMediaPolicy {
-            /** @var array{learning_media: array{max_bytes: int}} $security */
+            /** @var array{learning_media: array{pdf_max_bytes: int, audio_max_bytes: int, video_max_bytes: int}} $security */
             $security = $c->get('config.security');
 
-            return new LearningMediaPolicy($security['learning_media']['max_bytes']);
+            return new LearningMediaPolicy(
+                $security['learning_media']['pdf_max_bytes'],
+                $security['learning_media']['audio_max_bytes'],
+                $security['learning_media']['video_max_bytes'],
+            );
         },
         LearningLocalObjectStorage::class => static function (ContainerInterface $c): LearningLocalObjectStorage {
             /** @var array{root: string} $paths */
@@ -1893,6 +1897,14 @@ return static function (): ContainerInterface {
                 'learning.content.access',
             );
             $learningAccess->requirePermission(
+                $router->get('/learning/enrolments/{enrolmentId}/items/{contentId}/media', [LearnerPlayerController::class, 'media']),
+                'learning.content.access',
+            );
+            $learningAccess->requirePermission(
+                $router->get('/learning/enrolments/{enrolmentId}/items/{contentId}/media/file', [LearnerPlayerController::class, 'mediaFile']),
+                'learning.content.access',
+            );
+            $learningAccess->requirePermission(
                 $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/complete', [LearnerPlayerController::class, 'complete']),
                 'learning.content.access',
             );
@@ -2421,6 +2433,7 @@ return static function (): ContainerInterface {
         LearnerPlayerController::class => static fn (ContainerInterface $c): LearnerPlayerController => new LearnerPlayerController(
             $c->get(LearnerPlayerQueryService::class),
             $c->get(MarkContentCompleteService::class),
+            $c->get(LearningMediaAccessService::class),
             $c->get(PhpRenderer::class),
         ),
         AssessmentAttemptController::class => static fn (ContainerInterface $c): AssessmentAttemptController => new AssessmentAttemptController(
@@ -2461,6 +2474,8 @@ return static function (): ContainerInterface {
             $c->get(CurriculumQueryService::class),
             $c->get(ModuleCommandService::class),
             $c->get(ContentItemCommandService::class),
+            $c->get(LearningMediaIngestService::class),
+            $c->get(LearningMediaPolicy::class),
             $c->get(PhpRenderer::class),
         ),
         QuestionBankController::class => static fn (ContainerInterface $c): QuestionBankController => new QuestionBankController(

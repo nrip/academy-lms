@@ -40,6 +40,17 @@ final class LiveSessionProvider
         return self::CUSTOM;
     }
 
+    public static function label(string $provider): string
+    {
+        return match ($provider) {
+            self::GOOGLE_MEET => 'Google Meet',
+            self::ZOOM => 'Zoom',
+            self::TEAMS => 'Microsoft Teams',
+            self::CUSTOM => 'Live class',
+            default => 'Live class',
+        };
+    }
+
     public static function assertHttps(string $url, string $message): string
     {
         $trimmed = trim($url);

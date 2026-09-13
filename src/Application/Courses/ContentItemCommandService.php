@@ -9,7 +9,9 @@ use Academy\Domain\Audit\CoursesAuditPayload;
 use Academy\Domain\Courses\ContentItem;
 use Academy\Domain\Courses\ContentItemDraftNormalizer;
 use Academy\Domain\Courses\ContentItemRepository;
+use Academy\Domain\Courses\ContentItemType;
 use Academy\Domain\Courses\ModuleRepository;
+use Academy\Domain\Courses\VideoDeliveryMode;
 use Academy\Domain\Exception\ConflictException;
 use Academy\Domain\Exception\NotFoundException;
 use Academy\Domain\Security\AuthContext;
@@ -119,7 +121,12 @@ final class ContentItemCommandService
         $this->requireModuleForVersion($moduleId, $versionId);
 
         $before = $this->requireContentForModule($contentId, $moduleId);
-        $fields = $this->drafts->normalize($input + ['content_type' => $before->contentType]);
+        $input['content_type'] = $before->contentType;
+        if ($before->contentType === ContentItemType::VIDEO && $before->videoDeliveryMode !== null) {
+            $input['video_delivery_mode'] = $before->videoDeliveryMode;
+        }
+        $input = $this->preserveStoredMedia($input, $before);
+        $fields = $this->drafts->normalize($input);
 
         $pdo = $this->connections->connection();
         $pdo->beginTransaction();
@@ -236,6 +243,41 @@ final class ContentItemCommandService
         }
     }
 
+    /**
+     * @param array<string, mixed> $input
+     * @return array<string, mixed>
+     */
+    private function preserveStoredMedia(array $input, ContentItem $before): array
+    {
+        $type = trim((string) ($input['content_type'] ?? $before->contentType));
+        $mode = trim((string) ($input['video_delivery_mode'] ?? (string) $before->videoDeliveryMode));
+        $needsFile = $type === ContentItemType::PDF
+            || $type === ContentItemType::AUDIO
+            || ($type === ContentItemType::VIDEO && $mode === VideoDeliveryMode::UPLOAD);
+        if (!$needsFile || $before->objectKey === null) {
+            return $input;
+        }
+        if (trim((string) ($input['object_key'] ?? '')) !== '') {
+            return $input;
+        }
+
+        $input['object_key'] = $before->objectKey;
+        if (trim((string) ($input['original_filename'] ?? '')) === '') {
+            $input['original_filename'] = $before->delivery->originalFilename;
+        }
+        if (trim((string) ($input['media_mime'] ?? '')) === '') {
+            $input['media_mime'] = $before->delivery->mediaMime;
+        }
+        if (!isset($input['media_bytes']) || $input['media_bytes'] === '') {
+            $input['media_bytes'] = $before->delivery->mediaBytes;
+        }
+        if (trim((string) ($input['media_sha256'] ?? '')) === '') {
+            $input['media_sha256'] = $before->delivery->mediaSha256;
+        }
+
+        return $input;
+    }
+
     private function requireModuleForVersion(int $moduleId, int $versionId): void
     {
         $module = $this->modules->findById($moduleId);
@@ -248,7 +290,7 @@ final class ContentItemCommandService
     {
         $item = $this->contentItems->findById($contentId);
         if ($item === null) {
-            throw new ConflictException('Content item could not be loaded after save.');
+            throw new ConflictException('This lesson could not be loaded after save.');
         }
 
         return $item;
@@ -258,7 +300,7 @@ final class ContentItemCommandService
     {
         $item = $this->contentItems->findById($contentId);
         if ($item === null || $item->moduleId !== $moduleId) {
-            throw new NotFoundException('Content item not found.');
+            throw new NotFoundException('Lesson not found.');
         }
 
         return $item;

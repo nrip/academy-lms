@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Academy\Application\Learning;
 
 use Academy\Application\RBAC\AuthorizationService;
+use Academy\Domain\Courses\ContentItem;
 use Academy\Domain\Courses\ContentItemRepository;
 use Academy\Domain\Courses\ContentItemType;
 use Academy\Domain\Courses\ModuleRepository;
@@ -44,6 +45,46 @@ final class LearningMediaAccessService
      */
     public function issuePlaybackUrl(AuthContext $auth, int $enrolmentId, int $contentId): array
     {
+        $item = $this->requireAccessibleItem($auth, $enrolmentId, $contentId);
+        $objectKey = $item->objectKey;
+        if (!is_string($objectKey) || $objectKey === '') {
+            throw new ValidationException('This lesson media is not in learning storage.');
+        }
+        $expiresAt = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('+15 minutes');
+
+        return $this->storage->issueDownloadUrl($objectKey, $expiresAt);
+    }
+
+    /**
+     * Same permission and release checks as a signed URL, then the private PDF bytes.
+     * The learner page loads these through PDF.js. Download still uses the signed URL.
+     *
+     * @return array{bytes: string, filename: string, mime: string}
+     */
+    public function readPdfForViewer(AuthContext $auth, int $enrolmentId, int $contentId): array
+    {
+        $item = $this->requireAccessibleItem($auth, $enrolmentId, $contentId);
+        if ($item->contentType !== ContentItemType::PDF) {
+            throw new ValidationException('This lesson is not a PDF.');
+        }
+        $objectKey = $item->objectKey;
+        if (!is_string($objectKey) || $objectKey === '') {
+            throw new ValidationException('This lesson media is not in learning storage.');
+        }
+        $filename = $item->delivery->originalFilename;
+        if ($filename === null || $filename === '') {
+            $filename = 'lesson.pdf';
+        }
+
+        return [
+            'bytes' => $this->storage->readObject($objectKey),
+            'filename' => $filename,
+            'mime' => 'application/pdf',
+        ];
+    }
+
+    private function requireAccessibleItem(AuthContext $auth, int $enrolmentId, int $contentId): ContentItem
+    {
         if ($auth->userId === null) {
             throw new AuthenticationException('Authentication required.');
         }
@@ -77,8 +118,6 @@ final class LearningMediaAccessService
             throw new ConflictException('This content is locked until prior mandatory items are completed.');
         }
 
-        $expiresAt = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('+15 minutes');
-
-        return $this->storage->issueDownloadUrl($item->objectKey, $expiresAt);
+        return $item;
     }
 }

@@ -7,7 +7,8 @@
   },
   "dependencies": {
     "bootstrap": "5.3.3",
-    "jquery": "3.7.1"
+    "jquery": "3.7.1",
+    "pdfjs-dist": "^4.10.38"
   },
   "scripts": {
     "assets:install": "node bin/install-frontend-assets.mjs"

@@ -359,6 +359,7 @@ POST /webhooks/razorpay
 - Validate file signatures, not only client MIME declarations.
 - Random object keys; original names preserved only as metadata.
 - Platform caps: credential documents 10 MB; support attachments 10 MB / 5 files; downloadable resources 100 MB; profile images 5 MB; webhook bodies 1 MB.
+- Learning-media upload caps are configuration (`LEARNING_MEDIA_PDF_MAX_BYTES`, `LEARNING_MEDIA_AUDIO_MAX_BYTES`, `LEARNING_MEDIA_VIDEO_MAX_BYTES`). Approved defaults: PDF 100 MB, audio 100 MB, video 500 MB. Do not hardcode those checks.
 
 ---
 

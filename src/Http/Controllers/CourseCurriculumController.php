@@ -7,6 +7,9 @@ namespace Academy\Http\Controllers;
 use Academy\Application\Courses\ContentItemCommandService;
 use Academy\Application\Courses\CurriculumQueryService;
 use Academy\Application\Courses\ModuleCommandService;
+use Academy\Application\Learning\LearningMediaIngestService;
+use Academy\Domain\Courses\LearningMediaPolicy;
+use Academy\Domain\Courses\LessonKind;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\ConflictException;
 use Academy\Domain\Exception\NotFoundException;
@@ -15,10 +18,13 @@ use Academy\Domain\Security\AuthContext;
 use Academy\Http\Middleware\AuthenticationMiddleware;
 use Academy\Http\Middleware\SessionMiddleware;
 use Academy\Infrastructure\View\PhpRenderer;
+use DateTimeImmutable;
+use DateTimeZone;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\UploadedFileInterface;
 
 final class CourseCurriculumController
 {
@@ -26,6 +32,8 @@ final class CourseCurriculumController
         private readonly CurriculumQueryService $query,
         private readonly ModuleCommandService $modules,
         private readonly ContentItemCommandService $contentItems,
+        private readonly LearningMediaIngestService $media,
+        private readonly LearningMediaPolicy $limits,
         private readonly PhpRenderer $renderer,
     ) {
     }
@@ -105,9 +113,9 @@ final class CourseCurriculumController
         $courseId = (int) ($args['courseId'] ?? 0);
         $versionId = (int) ($args['versionId'] ?? 0);
         $moduleId = (int) ($args['moduleId'] ?? 0);
-        $body = $this->body($request);
 
         try {
+            $body = $this->lessonInput($request);
             $this->contentItems->create($this->auth($request), $courseId, $versionId, $moduleId, $body);
         } catch (ValidationException | ConflictException | NotFoundException $exception) {
             return $this->errorResponse($request, $courseId, $versionId, $exception);
@@ -125,9 +133,9 @@ final class CourseCurriculumController
         $versionId = (int) ($args['versionId'] ?? 0);
         $moduleId = (int) ($args['moduleId'] ?? 0);
         $contentId = (int) ($args['contentId'] ?? 0);
-        $body = $this->body($request);
 
         try {
+            $body = $this->lessonInput($request);
             $this->contentItems->update(
                 $this->auth($request),
                 $courseId,
@@ -186,6 +194,11 @@ final class CourseCurriculumController
             'editable' => $curriculum['editable'],
             'error' => $error,
             'flash' => $flash,
+            'uploadLimits' => [
+                'pdf' => $this->limits->limitMegabytes('pdf'),
+                'audio' => $this->limits->limitMegabytes('audio'),
+                'video' => $this->limits->limitMegabytes('video'),
+            ],
         ]);
 
         return new HtmlResponse($html, $status);
@@ -206,6 +219,69 @@ final class CourseCurriculumController
     private function curriculumPath(int $courseId, int $versionId): string
     {
         return '/admin/courses/' . $courseId . '/versions/' . $versionId . '/curriculum';
+    }
+
+    /** @return array<string, mixed> */
+    private function lessonInput(ServerRequestInterface $request): array
+    {
+        $body = LessonKind::apply($this->body($request));
+        $kind = trim((string) ($body['lesson_kind'] ?? ''));
+        if ($kind === LessonKind::TEXT) {
+            $body['body_text'] = (string) ($body['lesson_body_text'] ?? $body['body_text'] ?? '');
+        } elseif ($kind === LessonKind::RICH_TEXT) {
+            $body['body_text'] = (string) ($body['lesson_body_rich'] ?? $body['body_text'] ?? '');
+        }
+        unset($body['lesson_body_text'], $body['lesson_body_rich']);
+        $body = $this->normaliseUtcFields($body);
+        $fileKind = LessonKind::fileKind($kind);
+        $uploaded = $request->getUploadedFiles()['lesson_file'] ?? null;
+        if (!$uploaded instanceof UploadedFileInterface || $uploaded->getError() === UPLOAD_ERR_NO_FILE) {
+            return $body;
+        }
+        if ($fileKind === null) {
+            throw new ValidationException('This lesson type does not accept a file.');
+        }
+        $error = $uploaded->getError();
+        if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+            throw new ValidationException(
+                'The file is larger than the server can accept. ' . $this->limits->uploadLimitMessage($fileKind),
+            );
+        }
+        if ($error !== UPLOAD_ERR_OK) {
+            throw new ValidationException('The file could not be read. Please try again.');
+        }
+        $stream = $uploaded->getStream();
+        $bytes = $stream->getContents();
+        $stored = $this->media->store($fileKind, $bytes, $uploaded->getClientFilename());
+
+        return array_merge($body, $stored);
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     * @return array<string, mixed>
+     */
+    private function normaliseUtcFields(array $body): array
+    {
+        $india = new DateTimeZone('Asia/Kolkata');
+        $utc = new DateTimeZone('UTC');
+        foreach (['live_starts_at', 'live_ends_at'] as $key) {
+            $value = trim((string) ($body[$key] ?? ''));
+            if ($value === '' || preg_match('/(Z|[+-]\d{2}:?\d{2})$/', $value) === 1) {
+                continue;
+            }
+            $local = false;
+            if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/', $value) === 1) {
+                $local = DateTimeImmutable::createFromFormat('Y-m-d\TH:i', $value, $india);
+            } elseif (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/', $value) === 1) {
+                $local = DateTimeImmutable::createFromFormat('Y-m-d\TH:i:s', $value, $india);
+            }
+            if ($local instanceof DateTimeImmutable) {
+                $body[$key] = $local->setTimezone($utc)->format('Y-m-d\TH:i:s\Z');
+            }
+        }
+
+        return $body;
     }
 
     /** @return array<string, mixed> */
@@ -241,10 +317,10 @@ final class CourseCurriculumController
             return 'Module deleted.';
         }
         if (isset($params['content_saved'])) {
-            return 'Content item saved.';
+            return 'Lesson saved.';
         }
         if (isset($params['content_deleted'])) {
-            return 'Content item deleted.';
+            return 'Lesson deleted.';
         }
 
         return null;

@@ -187,7 +187,7 @@ final class ContentItemDraftNormalizer
     {
         $objectKey = trim((string) ($input['object_key'] ?? ''));
         if ($objectKey === '') {
-            throw new ValidationException('This lesson requires a private media object key.');
+            throw new ValidationException('Upload a file for this lesson.');
         }
         if (strlen($objectKey) > 512 || str_contains($objectKey, '..') || str_starts_with($objectKey, '/')) {
             throw new ValidationException('Object key is invalid.');

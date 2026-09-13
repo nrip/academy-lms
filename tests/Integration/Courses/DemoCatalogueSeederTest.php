@@ -120,10 +120,10 @@ final class DemoCatalogueSeederTest extends TestCase
         $courses = $service->listPublishedCourses();
         $slugs = array_map(static fn (array $row) => $row['course']->slug, $courses);
 
-        self::assertContains('obesity-management-foundations', $slugs);
+        self::assertContains('certificate-course-obesity-metabolic-health', $slugs);
         self::assertContains('metabolic-health-advanced', $slugs);
 
-        $detail = $service->getCourseDetail('obesity-management-foundations');
+        $detail = $service->getCourseDetail('certificate-course-obesity-metabolic-health');
         self::assertNotEmpty($detail['eligibilityRules']);
         self::assertNotEmpty($detail['documentRequirements']);
         self::assertCount(4, $detail['batches']);

@@ -11,6 +11,9 @@ server {
         try_files $uri /index.php$is_args$args;
     }
 
+    # At least the configured video upload cap (default 500 MB) plus multipart overhead.
+    client_max_body_size 512m;
+
     location ~ \.php$ {
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;

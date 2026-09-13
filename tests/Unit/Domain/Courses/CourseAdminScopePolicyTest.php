@@ -140,6 +140,11 @@ final class CourseAdminScopePolicyTest extends TestCase
                 return [];
             }
 
+            public function nextVersionNumber(int $courseId): int
+            {
+                return 1;
+            }
+
             public function insertDraft(array $fields): int
             {
                 return 0;
@@ -152,6 +157,11 @@ final class CourseAdminScopePolicyTest extends TestCase
 
             public function lock(int $versionId, string $lockedReason, DateTimeImmutable $lockedAt): void
             {
+            }
+
+            public function publishAndLock(int $versionId, DateTimeImmutable $at): bool
+            {
+                return false;
             }
         };
     }

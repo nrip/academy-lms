@@ -626,6 +626,7 @@ The CourseDocumentRequirement may configure a lower limit, but it may not exceed
 - Front/back credential requirements: maximum 2 files unless the requirement explicitly permits more.
 - Support-ticket attachments: 10 MB per file and 5 files per ticket message.
 - Course downloadable resources: 100 MB per file; larger learning media must use the approved video/media provider.
+- Learning-media uploads (Decision `LX-LEARN-POLISH-1`): PDF 100 MB, audio 100 MB, and video 500 MB by default, from `LEARNING_MEDIA_PDF_MAX_BYTES`, `LEARNING_MEDIA_AUDIO_MAX_BYTES`, and `LEARNING_MEDIA_VIDEO_MAX_BYTES`. These files stay in private learning storage. They do not use Mux or Cloudflare Stream.
 - Profile and promotional images: 5 MB per file.
 - Webhook and ordinary JSON request bodies: 1 MB unless an endpoint-specific exception is documented.
 - Multipart uploads and executable/archive formats are denied by default; any exception requires malware scanning and an allow-listed requirement.
