@@ -140,6 +140,29 @@ final class LearnerPlayerController
         return new RedirectResponse($issued['download_url'], 302);
     }
 
+    /**
+     * Same-origin PDF bytes for PDF.js. Authorization matches the signed download URL.
+     *
+     * @param array<string, string> $args
+     */
+    public function mediaFile(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        $enrolmentId = (int) ($args['enrolmentId'] ?? 0);
+        $contentId = (int) ($args['contentId'] ?? 0);
+        $file = $this->media->readPdfForViewer($this->auth($request), $enrolmentId, $contentId);
+        $filename = str_replace(['"', '\\', "\r", "\n"], '', $file['filename']);
+        $response = new \Laminas\Diactoros\Response('php://temp', 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'Content-Length' => (string) strlen($file['bytes']),
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+        $response->getBody()->write($file['bytes']);
+
+        return $response;
+    }
+
     private function withPodcastMediaHost(HtmlResponse $response, LearnerPlayerItemDetailView $detail): HtmlResponse
     {
         if (!$detail->podcastDirect) {

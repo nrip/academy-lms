@@ -52,6 +52,36 @@ final class ContentMediaFoundationTest extends TestCase
         self::assertSame('application/pdf', (new LearningMediaPolicy())->assertPlayable('pdf', "%PDF-1.7\n"));
     }
 
+    public function testUploadLimitsArePerKindAndConfigurationDriven(): void
+    {
+        $policy = new LearningMediaPolicy(pdfMaxBytes: 8, audioMaxBytes: 12, videoMaxBytes: 20);
+        $pdf = "%PDF-1.7\nextra";
+        self::assertGreaterThan(8, strlen($pdf));
+
+        try {
+            $policy->assertPlayable('pdf', $pdf);
+            self::fail('Expected a PDF size rejection.');
+        } catch (ValidationException $exception) {
+            self::assertStringContainsString('PDF', $exception->getMessage());
+            self::assertStringNotContainsString('100 MB', $exception->getMessage());
+        }
+
+        $video = str_repeat('x', 21);
+        try {
+            $policy->assertPlayable('video', $video);
+            self::fail('Expected a video size rejection.');
+        } catch (ValidationException $exception) {
+            self::assertStringContainsString('video', $exception->getMessage());
+            self::assertStringContainsString('upload limit', $exception->getMessage());
+            self::assertStringNotContainsString('100 MB', $exception->getMessage());
+        }
+
+        self::assertSame('20', (new LearningMediaPolicy(videoMaxBytes: 20 * 1048576))->limitMegabytes('video'));
+        self::assertStringContainsString('500 MB', (new LearningMediaPolicy())->uploadLimitMessage('video'));
+        self::assertStringContainsString('100 MB', (new LearningMediaPolicy())->uploadLimitMessage('pdf'));
+        self::assertStringContainsString('100 MB', (new LearningMediaPolicy())->uploadLimitMessage('audio'));
+    }
+
     public function testDraftRequiresUtcLiveStartAndClearsVideoFields(): void
     {
         $fields = (new ContentItemDraftNormalizer())->normalize([

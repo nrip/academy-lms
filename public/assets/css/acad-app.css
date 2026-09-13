@@ -272,12 +272,39 @@ body {
   margin-bottom: 0;
 }
 
-.acad-live-card {
-  background: var(--acad-surface);
+.acad-pdf__stage {
+  overflow: auto;
+  background: #f4f1ea;
   border: 1px solid var(--acad-line);
-  border-left: 4px solid var(--acad-teal);
-  border-radius: var(--bs-border-radius-lg);
-  padding: var(--acad-sp-5);
+  border-radius: var(--bs-border-radius);
+  min-height: 16rem;
+  text-align: center;
+}
+
+.acad-pdf__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--acad-sp-2);
+  margin-bottom: var(--acad-sp-3);
+}
+
+.acad-pdf__status {
+  font-size: 0.875rem;
+  color: var(--acad-muted);
+  min-width: 8rem;
+}
+
+.acad-pdf__name {
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.acad-pdf canvas {
+  max-width: 100%;
+  height: auto;
+  background: #fff;
+  box-shadow: var(--bs-box-shadow-sm);
 }
 
 [data-acad-lesson-panel][hidden] {

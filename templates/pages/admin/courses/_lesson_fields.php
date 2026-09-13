@@ -7,8 +7,10 @@ declare(strict_types=1);
 /** @var string $selectedKind */
 /** @var ?\Academy\Domain\Courses\ContentItem $lesson */
 /** @var bool $lockedKind */
+/** @var array{pdf?: string, audio?: string, video?: string} $uploadLimits */
 
 $lesson = $lesson ?? null;
+$uploadLimits = $uploadLimits ?? [];
 $body = $lesson?->bodyText ?? '';
 $videoUrl = $lesson?->videoUrl ?? '';
 $podcastUrl = $lesson?->delivery->podcastUrl ?? '';
@@ -61,7 +63,7 @@ $fileLabel = $lesson?->delivery->originalFilename;
         <?php elseif ($lesson !== null): ?>
             <div class="form-text"><?= $e->html('Leave empty to keep the current file.') ?></div>
         <?php else: ?>
-            <div class="form-text"><?= $e->html('Use a file the browser can play already. PDF, MP4, WebM, MP3, M4A, or WAV.') ?></div>
+            <div class="form-text"><?= $e->html('Use a file the browser can play already. PDF up to ' . ($uploadLimits['pdf'] ?? '') . ' MB, audio up to ' . ($uploadLimits['audio'] ?? '') . ' MB, or video up to ' . ($uploadLimits['video'] ?? '') . ' MB.') ?></div>
         <?php endif; ?>
     </div>
 

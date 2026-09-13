@@ -8,6 +8,7 @@ use Academy\Application\Courses\ContentItemCommandService;
 use Academy\Application\Courses\CurriculumQueryService;
 use Academy\Application\Courses\ModuleCommandService;
 use Academy\Application\Learning\LearningMediaIngestService;
+use Academy\Domain\Courses\LearningMediaPolicy;
 use Academy\Domain\Courses\LessonKind;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\ConflictException;
@@ -32,6 +33,7 @@ final class CourseCurriculumController
         private readonly ModuleCommandService $modules,
         private readonly ContentItemCommandService $contentItems,
         private readonly LearningMediaIngestService $media,
+        private readonly LearningMediaPolicy $limits,
         private readonly PhpRenderer $renderer,
     ) {
     }
@@ -192,6 +194,11 @@ final class CourseCurriculumController
             'editable' => $curriculum['editable'],
             'error' => $error,
             'flash' => $flash,
+            'uploadLimits' => [
+                'pdf' => $this->limits->limitMegabytes('pdf'),
+                'audio' => $this->limits->limitMegabytes('audio'),
+                'video' => $this->limits->limitMegabytes('video'),
+            ],
         ]);
 
         return new HtmlResponse($html, $status);
@@ -236,7 +243,9 @@ final class CourseCurriculumController
         }
         $error = $uploaded->getError();
         if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
-            throw new ValidationException('The file is larger than the server can accept. Use a file that is already in a playable format.');
+            throw new ValidationException(
+                'The file is larger than the server can accept. ' . $this->limits->uploadLimitMessage($fileKind),
+            );
         }
         if ($error !== UPLOAD_ERR_OK) {
             throw new ValidationException('The file could not be read. Please try again.');

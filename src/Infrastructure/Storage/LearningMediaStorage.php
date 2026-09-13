@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Academy\Infrastructure\Storage;
 
 use Academy\Domain\Courses\LearningMediaPolicy;
+use Academy\Domain\Exception\ExternalServiceException;
 use Academy\Domain\Exception\ValidationException;
 use Academy\Domain\Storage\ObjectMetadata;
 use Academy\Domain\Storage\ObjectStorage;
 use DateTimeImmutable;
+use DateTimeZone;
 
 /**
  * Learning-media store. Separate binding from credential-document ObjectStorage.
@@ -62,5 +64,45 @@ final class LearningMediaStorage implements ObjectStorage
     {
         $this->policy->assertObjectKey($objectKey);
         $this->inner->deleteObject($objectKey);
+    }
+
+    /**
+     * Reads a private learning object. Local storage is read from disk.
+     * S3 is read by fetching the short-lived signed URL this class just issued.
+     */
+    public function readObject(string $objectKey): string
+    {
+        $this->policy->assertObjectKey($objectKey);
+        if ($this->inner instanceof LearningLocalObjectStorage) {
+            return $this->inner->readObject($objectKey);
+        }
+
+        $expiresAt = (new DateTimeImmutable('@' . (time() + 900)))->setTimezone(new DateTimeZone('UTC'));
+        $issued = $this->issueDownloadUrl($objectKey, $expiresAt);
+
+        return $this->fetchSignedUrl($issued['download_url']);
+    }
+
+    private function fetchSignedUrl(string $url): string
+    {
+        if (!str_starts_with($url, 'https://') || !function_exists('curl_init')) {
+            throw new ExternalServiceException('Learning media could not be read.');
+        }
+        $ch = curl_init($url);
+        if ($ch === false) {
+            throw new ExternalServiceException('Learning media could not be read.');
+        }
+        curl_setopt($ch, CURLOPT_HTTPGET, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if (!is_string($body) || $body === '' || $status < 200 || $status >= 300) {
+            throw new ExternalServiceException('Learning media could not be read.');
+        }
+
+        return $body;
     }
 }

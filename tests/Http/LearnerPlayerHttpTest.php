@@ -327,9 +327,12 @@ final class LearnerPlayerHttpTest extends TestCase
         );
         self::assertSame(200, $pdf->getStatusCode());
         $pdfHtml = (string) $pdf->getBody();
-        self::assertStringContainsString('Open PDF', $pdfHtml);
+        self::assertStringContainsString('Download', $pdfHtml);
+        self::assertStringContainsString('data-acad-pdf-viewer', $pdfHtml);
+        self::assertStringContainsString('/learning/enrolments/' . $enrolmentId . '/items/' . $pdfId . '/media/file', $pdfHtml);
         self::assertStringContainsString('handout.pdf', $pdfHtml);
         self::assertStringNotContainsString('learning/media/handout.pdf', $pdfHtml);
+        self::assertStringNotContainsString('annotation', $pdfHtml);
     }
 
     /**

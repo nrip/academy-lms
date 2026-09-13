@@ -26,6 +26,18 @@ const packages = [
       { from: 'dist/jquery.min.js', to: 'jquery/jquery.min.js' },
       { from: 'dist/jquery.min.map', to: 'jquery/jquery.min.map' },
     ],
+    directories: [],
+  },
+  {
+    name: 'pdfjs-dist',
+    files: [
+      { from: 'build/pdf.min.mjs', to: 'pdfjs/pdf.min.mjs' },
+      { from: 'build/pdf.worker.min.mjs', to: 'pdfjs/pdf.worker.min.mjs' },
+    ],
+    directories: [
+      { from: 'cmaps', to: 'pdfjs/cmaps' },
+      { from: 'standard_fonts', to: 'pdfjs/standard_fonts' },
+    ],
   },
 ];
 
@@ -54,6 +66,15 @@ for (const pkg of packages) {
     }
     mkdirSync(dirname(target), { recursive: true });
     cpSync(source, target);
+  }
+  for (const directory of pkg.directories ?? []) {
+    const source = join(pkgRoot, directory.from);
+    const target = join(vendorRoot, directory.to);
+    if (!existsSync(source)) {
+      throw new Error(`Expected asset missing: ${source}`);
+    }
+    mkdirSync(dirname(target), { recursive: true });
+    cpSync(source, target, { recursive: true });
   }
 }
 

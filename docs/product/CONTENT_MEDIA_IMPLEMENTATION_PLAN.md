@@ -19,7 +19,7 @@ Keep `Course` → `CourseVersion` → `Module` → `ContentItem`. The UI says **
 |---|---|---|
 | Text | `text_lesson` | Escaped plain text. Mark complete. |
 | Rich text | `rich_text` | Allow-listed HTML. Mark complete. |
-| PDF | `pdf` + private object | Open via short-lived signed URL. Mark complete. |
+| PDF | `pdf` + private object | In-LMS PDF.js viewer. Download uses the existing short-lived signed URL. Mark complete. No annotations or editing. |
 | Video embed | `video` + `embedded` | YouTube / Vimeo iframe. Mark complete. |
 | Video link | `video` + `external_link` | New-tab HTTPS link. Mark complete. |
 | Video upload | `video` + `upload` + private object | In-page `<video controls>` from a signed URL. Mark complete. |
@@ -107,7 +107,7 @@ No change to `content_progress`, enrolment, or notification tables.
 4. Do not run `uat:reset` or `demo:prepare` as part of this migration.
 5. `down()` drops new checks and columns after deleting only `rich_text`, `podcast`, `audio`, `live_session`, and `video` rows whose `video_delivery_mode=upload`. Leaves prior video and PDF rows.
 
-**Open limit (do not invent in code):** platform cap for downloadable resources is 100 MB (`AGENTS.md` §10). Typical lecture video exceeds that. Confirm a video/audio upload cap before implementation. Until confirmed, the plan does not set a new number.
+**Upload caps (configuration, not hardcoded):** PDF `LEARNING_MEDIA_PDF_MAX_BYTES` default 100 MB; audio `LEARNING_MEDIA_AUDIO_MAX_BYTES` default 100 MB; video `LEARNING_MEDIA_VIDEO_MAX_BYTES` default 500 MB. PHP and the web server must accept at least the video cap. Decision `LX-LEARN-POLISH-1`.
 
 ---
 
@@ -120,7 +120,7 @@ Reuse `Academy\Domain\Storage\ObjectStorage`. Do not add a second store for “v
 | Key | Random key, prefix `learning/media/`. Never the original filename. Never a `public/` path. |
 | Write | Authorised course-admin request on an unlocked version. Sniff signature. Allow-list only types the browser can play **without** transcoding: PDF (`%PDF`), `video/mp4`, `video/webm`, `audio/mpeg`, `audio/mp4`, `audio/wav`. Reject anything else with a validation error that says the file must already be in a playable format. |
 | Metadata | Persist filename, detected MIME, byte size, SHA-256 on the content item. Object body stays in the store. |
-| Read | After enrolment + release check, `issueDownloadUrl` for 10–15 minutes. Learner page sets `<video src>` or `<audio src>` to that URL, or redirects for PDF. `Content-Disposition` uses `original_filename`. |
+| Read | After enrolment + release check, `issueDownloadUrl` for 10–15 minutes. Learner page sets `<video src>` or `<audio src>` to the authenticated media route, which redirects to that URL. PDF.js loads a same-origin stream of the same private object. Download remains the signed URL. |
 | Local backend | Supported for learning media in every environment when `LEARNING_STORAGE_DRIVER=local`. Private directory outside `public/`, signed GET, 10–15 minute expiry. Do not reuse the credential-document “local forbidden in production-like env” gate for this driver. |
 | S3 backend | Supported when `LEARNING_STORAGE_DRIVER=s3`. Private bucket, no public ACL, short-lived GET. Same `ObjectStorage` port and same `learning/media/` key prefix. |
 | Selection | One driver per deployment, from configuration. If the selected driver is missing credentials or the directory is not writable, fail that upload/play action. Do not fall through to `public/`. Do not change `DOCUMENTS_STORAGE_DRIVER` behaviour. |

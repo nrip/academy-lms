@@ -136,10 +136,23 @@ ob_start();
         <?php endif; ?>
     <?php elseif ($type === ContentItemType::PDF): ?>
         <?php if ($detail->mediaPath !== null): ?>
-            <p class="mb-2"><?= $e->html($delivery->originalFilename ?? 'Lesson PDF') ?></p>
-            <a class="btn btn-primary" href="<?= $e->attr($detail->mediaPath) ?>" target="_blank" rel="noopener noreferrer">
-                <?= $e->html('Open PDF') ?>
-            </a>
+            <?php $pdfFilePath = $detail->mediaPath . '/file'; ?>
+            <div class="acad-pdf" data-acad-pdf-viewer data-acad-pdf-src="<?= $e->attr($pdfFilePath) ?>">
+                <div class="acad-pdf__toolbar">
+                    <span class="acad-pdf__name"><?= $e->html($delivery->originalFilename ?? 'Lesson PDF') ?></span>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" data-acad-pdf-prev disabled><?= $e->html('Previous') ?></button>
+                    <span class="acad-pdf__status" data-acad-pdf-status><?= $e->html('Loading PDF…') ?></span>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" data-acad-pdf-next disabled><?= $e->html('Next') ?></button>
+                    <a class="btn btn-outline-primary btn-sm" href="<?= $e->attr($detail->mediaPath) ?>" target="_blank" rel="noopener noreferrer">
+                        <?= $e->html('Download') ?>
+                    </a>
+                </div>
+                <div class="acad-pdf__stage">
+                    <canvas data-acad-pdf-canvas></canvas>
+                </div>
+                <p class="acad-pdf__error" data-acad-pdf-error hidden><?= $e->html('This PDF could not be opened in the lesson. Use Download.') ?></p>
+            </div>
+            <script type="module" src="/assets/js/acad/pdf-viewer.js"></script>
         <?php else: ?>
             <div class="alert alert-warning mb-0"><?= $e->html('This PDF is not available right now.') ?></div>
         <?php endif; ?>
