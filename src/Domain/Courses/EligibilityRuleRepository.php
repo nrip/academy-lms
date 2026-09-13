@@ -23,4 +23,6 @@ interface EligibilityRuleRepository
      * } $data
      */
     public function insert(array $data): int;
+
+    public function deleteByCourseVersionId(int $courseVersionId): void;
 }

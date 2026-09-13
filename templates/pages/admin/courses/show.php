@@ -69,6 +69,9 @@ $course = $detail->course;
                         <a href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/versions/<?= $e->attr((string) $version->versionId) ?>">
                             <?= $e->html($version->isLocked() ? 'View' : 'Edit draft') ?>
                         </a>
+                        <a class="ms-2" href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/versions/<?= $e->attr((string) $version->versionId) ?>/admission">
+                            <?= $e->html('Eligibility') ?>
+                        </a>
                     </td>
                 </tr>
             <?php endforeach; ?>

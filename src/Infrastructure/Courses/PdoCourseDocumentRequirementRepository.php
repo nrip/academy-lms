@@ -72,6 +72,56 @@ final class PdoCourseDocumentRequirementRepository implements CourseDocumentRequ
         return (int) $pdo->lastInsertId();
     }
 
+    public function findById(int $requirementId): ?CourseDocumentRequirement
+    {
+        $stmt = $this->connections->connection()->prepare(
+            'SELECT ' . self::COLUMNS . ' FROM course_document_requirements WHERE requirement_id = :requirement_id',
+        );
+        $stmt->execute(['requirement_id' => $requirementId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $this->mapRow($row) : null;
+    }
+
+    public function updatePresentation(
+        int $requirementId,
+        string $documentName,
+        string $description,
+        bool $mandatory,
+        int $sortOrder,
+    ): bool {
+        $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $stmt = $this->connections->connection()->prepare(
+            'UPDATE course_document_requirements
+             SET document_name = :document_name,
+                 description = :description,
+                 mandatory_flag = :mandatory_flag,
+                 sort_order = :sort_order,
+                 updated_at = :updated_at
+             WHERE requirement_id = :requirement_id',
+        );
+        $stmt->execute([
+            'document_name' => $documentName,
+            'description' => $description,
+            'mandatory_flag' => $mandatory ? 1 : 0,
+            'sort_order' => $sortOrder,
+            'updated_at' => $now,
+            'requirement_id' => $requirementId,
+        ]);
+
+        return $stmt->rowCount() > 0;
+    }
+
+    public function delete(int $requirementId): bool
+    {
+        $stmt = $this->connections->connection()->prepare(
+            'DELETE FROM course_document_requirements WHERE requirement_id = :requirement_id',
+        );
+        $stmt->execute(['requirement_id' => $requirementId]);
+
+        return $stmt->rowCount() > 0;
+    }
+
     /**
      * @param array<string, mixed> $row
      */

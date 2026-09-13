@@ -99,6 +99,10 @@ final class CoursesAuditPayload implements AuditPayload
             'batch_code',
             'name',
             'delivery_mode',
+            'requirement_id',
+            'sort_order',
+            'learner_categories',
+            'note_count',
             'min_capacity',
             'max_capacity',
         ];

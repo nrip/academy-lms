@@ -70,7 +70,8 @@ ob_start();
     <nav class="acad-author-steps mb-3" aria-label="Course setup">
         <span class="acad-author-steps__item acad-author-steps__item--current"><?= $e->html('1. Course details') ?></span>
         <a class="acad-author-steps__item" href="<?= $e->attr($versionBase) ?>/curriculum"><?= $e->html('2. Chapters') ?></a>
-        <a class="acad-author-steps__item" href="#publish"><?= $e->html('3. Publish') ?></a>
+        <a class="acad-author-steps__item" href="<?= $e->attr($versionBase) ?>/admission"><?= $e->html('3. Eligibility') ?></a>
+        <a class="acad-author-steps__item" href="#publish"><?= $e->html('4. Publish') ?></a>
     </nav>
     <p class="mb-3 d-flex flex-wrap gap-2">
         <a class="btn btn-outline-primary btn-sm"
@@ -126,7 +127,10 @@ ob_start();
             <li><?= $e->html($outline['lessons'] === 0 ? 'No lessons yet' : $outline['lessons'] . ' lesson' . ($outline['lessons'] === 1 ? '' : 's')) ?></li>
             <li><?= $e->html($feeSet ? 'Fee is recorded' : 'Fee is not recorded') ?></li>
         </ul>
-        <p class="small text-muted"><?= $e->html('Eligibility and required documents are not edited on this page.') ?></p>
+        <p class="small text-muted">
+            <a href="<?= $e->attr($versionBase) ?>/admission"><?= $e->html('Set eligibility and required documents') ?></a>
+            <?= $e->html(' before you publish. They are locked with this edition.') ?>
+        </p>
         <?php if (!$version->isLocked()): ?>
             <form method="post" action="<?= $e->attr($versionBase) ?>/publish">
                 <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
@@ -139,7 +143,7 @@ ob_start();
 
     <?php if ($version->isLocked()): ?>
         <div class="alert alert-warning">
-            <?= $e->html('This edition is published. Chapters, lessons, and the fee cannot be changed. Create the next edition to make those changes.') ?>
+            <?= $e->html('This edition is published. Chapters, lessons, the fee, eligibility, and required documents cannot be changed. Create the next edition to make those changes.') ?>
         </div>
         <dl class="row">
             <dt class="col-sm-3"><?= $e->html('Title') ?></dt><dd class="col-sm-9"><?= $e->html($version->title) ?></dd>

@@ -26,4 +26,19 @@ interface CourseDocumentRequirementRepository
      * } $data
      */
     public function insert(array $data): int;
+
+    public function findById(int $requirementId): ?CourseDocumentRequirement;
+
+    /**
+     * Updates the customer-facing fields only. File types, size, and reuse stay as stored.
+     */
+    public function updatePresentation(
+        int $requirementId,
+        string $documentName,
+        string $description,
+        bool $mandatory,
+        int $sortOrder,
+    ): bool;
+
+    public function delete(int $requirementId): bool;
 }
