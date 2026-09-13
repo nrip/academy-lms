@@ -239,6 +239,25 @@ return static function (
             })(),
             'fake_scanner_enabled' => $bool('DOCUMENTS_FAKE_SCANNER', $capability->defaultFakeScannerEnabled()),
         ],
+        'learning_media' => [
+            'driver' => $string('LEARNING_STORAGE_DRIVER', 'local'),
+            'local_base_path' => $string('LEARNING_LOCAL_BASE_PATH', 'storage/learning-media'),
+            'local_signing_secret' => (static function () use ($string, $softSecretsAllowed): string {
+                $secret = $string('LEARNING_LOCAL_SIGNING_SECRET', '');
+                if ($secret === '' && $softSecretsAllowed) {
+                    return 'local-ci-learning-media-signing-secret-not-for-production';
+                }
+
+                return $secret;
+            })(),
+            // Platform downloadable-resource cap. Do not raise this for lecture video until product confirms a number.
+            'max_bytes' => $int('LEARNING_MEDIA_MAX_BYTES', 104857600),
+            's3_bucket' => $string('LEARNING_S3_BUCKET', ''),
+            's3_region' => $string('LEARNING_S3_REGION', ''),
+            's3_access_key_id' => $string('LEARNING_S3_ACCESS_KEY_ID', ''),
+            's3_secret_access_key' => $string('LEARNING_S3_SECRET_ACCESS_KEY', ''),
+            's3_endpoint' => $string('LEARNING_S3_ENDPOINT', ''),
+        ],
         'payments' => (static function () use ($capability, $bool, $string, $int): array {
             $fakeGatewayEnabled = $bool('PAYMENTS_FAKE_GATEWAY', $capability->defaultFakePaymentGatewayEnabled());
             $razorpayKeyId = $string('RAZORPAY_KEY_ID', '');

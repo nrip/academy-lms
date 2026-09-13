@@ -23,6 +23,7 @@ final class ContentItem
         public readonly string $completionRule,
         public readonly DateTimeImmutable $createdAt,
         public readonly DateTimeImmutable $updatedAt,
+        public readonly ContentDelivery $delivery = new ContentDelivery(),
     ) {
     }
 

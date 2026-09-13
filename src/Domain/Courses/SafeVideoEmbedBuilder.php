@@ -15,6 +15,9 @@ final class SafeVideoEmbedBuilder
     public function build(string $rawUrl, string $deliveryMode): VideoSource
     {
         $mode = VideoDeliveryMode::assertValid(trim($deliveryMode));
+        if ($mode === VideoDeliveryMode::UPLOAD) {
+            throw new ValidationException('Uploaded video uses a private media file, not a video URL.');
+        }
         $url = trim($rawUrl);
         if ($url === '') {
             throw new ValidationException('Video URL is required.');

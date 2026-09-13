@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Academy\Infrastructure\Courses;
 
+use Academy\Domain\Courses\ContentDelivery;
 use Academy\Domain\Courses\ContentItem;
 use Academy\Domain\Courses\ContentItemContext;
 use Academy\Domain\Courses\ContentItemRepository;
@@ -16,6 +17,8 @@ final class PdoContentItemRepository implements ContentItemRepository
 {
     private const COLUMNS = 'content_id, module_id, sequence, content_type, title, body_text, object_key,
         video_url, video_delivery_mode, video_provider,
+        original_filename, media_mime, media_bytes, media_sha256, podcast_url,
+        live_join_url, live_starts_at, live_ends_at, live_provider, live_recording_url, live_external_meeting_id,
         mandatory_flag, completion_rule, created_at, updated_at';
 
     public function __construct(
@@ -39,6 +42,9 @@ final class PdoContentItemRepository implements ContentItemRepository
         $stmt = $pdo->prepare(
             'SELECT ci.content_id, ci.module_id, ci.sequence, ci.content_type, ci.title, ci.body_text,
                     ci.object_key, ci.video_url, ci.video_delivery_mode, ci.video_provider,
+                    ci.original_filename, ci.media_mime, ci.media_bytes, ci.media_sha256, ci.podcast_url,
+                    ci.live_join_url, ci.live_starts_at, ci.live_ends_at, ci.live_provider,
+                    ci.live_recording_url, ci.live_external_meeting_id,
                     ci.mandatory_flag, ci.completion_rule, ci.created_at, ci.updated_at,
                     m.course_version_id, cv.course_id, cv.locked_at
              FROM content_items ci
@@ -82,10 +88,12 @@ final class PdoContentItemRepository implements ContentItemRepository
     public function listByCourseVersionId(int $courseVersionId): array
     {
         $pdo = $this->connections->connection();
+        $columns = implode(', ', array_map(
+            static fn (string $column): string => 'ci.' . trim($column),
+            explode(',', str_replace("\n", '', self::COLUMNS)),
+        ));
         $stmt = $pdo->prepare(
-            'SELECT ci.content_id, ci.module_id, ci.sequence, ci.content_type, ci.title, ci.body_text,
-                    ci.object_key, ci.video_url, ci.video_delivery_mode, ci.video_provider,
-                    ci.mandatory_flag, ci.completion_rule, ci.created_at, ci.updated_at
+            'SELECT ' . $columns . '
              FROM content_items ci
              INNER JOIN modules m ON m.module_id = ci.module_id
              WHERE m.course_version_id = :version_id
@@ -120,25 +128,21 @@ final class PdoContentItemRepository implements ContentItemRepository
             'INSERT INTO content_items (
                 module_id, sequence, content_type, title, body_text, object_key,
                 video_url, video_delivery_mode, video_provider,
+                original_filename, media_mime, media_bytes, media_sha256, podcast_url,
+                live_join_url, live_starts_at, live_ends_at, live_provider, live_recording_url, live_external_meeting_id,
                 mandatory_flag, completion_rule, created_at, updated_at
              ) VALUES (
                 :module_id, :sequence, :content_type, :title, :body_text, :object_key,
                 :video_url, :video_delivery_mode, :video_provider,
+                :original_filename, :media_mime, :media_bytes, :media_sha256, :podcast_url,
+                :live_join_url, :live_starts_at, :live_ends_at, :live_provider, :live_recording_url, :live_external_meeting_id,
                 :mandatory_flag, :completion_rule, :created_at, :updated_at
              )',
         );
-        $stmt->execute([
+        $stmt->execute($this->writeBindings($data) + [
             'module_id' => $data['module_id'],
             'sequence' => $data['sequence'],
             'content_type' => $data['content_type'],
-            'title' => $data['title'],
-            'body_text' => $data['body_text'],
-            'object_key' => $data['object_key'],
-            'video_url' => $data['video_url'],
-            'video_delivery_mode' => $data['video_delivery_mode'],
-            'video_provider' => $data['video_provider'],
-            'mandatory_flag' => $data['mandatory_flag'] ? 1 : 0,
-            'completion_rule' => $data['completion_rule'],
             'created_at' => $now,
             'updated_at' => $now,
         ]);
@@ -158,20 +162,23 @@ final class PdoContentItemRepository implements ContentItemRepository
                 video_url = :video_url,
                 video_delivery_mode = :video_delivery_mode,
                 video_provider = :video_provider,
+                original_filename = :original_filename,
+                media_mime = :media_mime,
+                media_bytes = :media_bytes,
+                media_sha256 = :media_sha256,
+                podcast_url = :podcast_url,
+                live_join_url = :live_join_url,
+                live_starts_at = :live_starts_at,
+                live_ends_at = :live_ends_at,
+                live_provider = :live_provider,
+                live_recording_url = :live_recording_url,
+                live_external_meeting_id = :live_external_meeting_id,
                 mandatory_flag = :mandatory_flag,
                 completion_rule = :completion_rule,
                 updated_at = :updated_at
              WHERE content_id = :content_id',
         );
-        $stmt->execute([
-            'title' => $data['title'],
-            'body_text' => $data['body_text'],
-            'object_key' => $data['object_key'],
-            'video_url' => $data['video_url'],
-            'video_delivery_mode' => $data['video_delivery_mode'],
-            'video_provider' => $data['video_provider'],
-            'mandatory_flag' => $data['mandatory_flag'] ? 1 : 0,
-            'completion_rule' => $data['completion_rule'],
+        $stmt->execute($this->writeBindings($data) + [
             'updated_at' => $now,
             'content_id' => $contentId,
         ]);
@@ -210,6 +217,84 @@ final class PdoContentItemRepository implements ContentItemRepository
             completionRule: (string) $row['completion_rule'],
             createdAt: new DateTimeImmutable((string) $row['created_at'], $utc),
             updatedAt: new DateTimeImmutable((string) $row['updated_at'], $utc),
+            delivery: new ContentDelivery(
+                originalFilename: $this->nullableString($row, 'original_filename'),
+                mediaMime: $this->nullableString($row, 'media_mime'),
+                mediaBytes: isset($row['media_bytes']) && $row['media_bytes'] !== null ? (int) $row['media_bytes'] : null,
+                mediaSha256: $this->nullableString($row, 'media_sha256'),
+                podcastUrl: $this->nullableString($row, 'podcast_url'),
+                liveJoinUrl: $this->nullableString($row, 'live_join_url'),
+                liveStartsAt: $this->nullableUtc($row, 'live_starts_at', $utc),
+                liveEndsAt: $this->nullableUtc($row, 'live_ends_at', $utc),
+                liveProvider: $this->nullableString($row, 'live_provider'),
+                liveRecordingUrl: $this->nullableString($row, 'live_recording_url'),
+                liveExternalMeetingId: $this->nullableString($row, 'live_external_meeting_id'),
+            ),
         );
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function writeBindings(array $data): array
+    {
+        return [
+            'title' => $data['title'],
+            'body_text' => $data['body_text'],
+            'object_key' => $data['object_key'],
+            'video_url' => $data['video_url'],
+            'video_delivery_mode' => $data['video_delivery_mode'],
+            'video_provider' => $data['video_provider'],
+            'original_filename' => $data['original_filename'] ?? null,
+            'media_mime' => $data['media_mime'] ?? null,
+            'media_bytes' => $data['media_bytes'] ?? null,
+            'media_sha256' => $data['media_sha256'] ?? null,
+            'podcast_url' => $data['podcast_url'] ?? null,
+            'live_join_url' => $data['live_join_url'] ?? null,
+            'live_starts_at' => $this->formatUtc($data['live_starts_at'] ?? null),
+            'live_ends_at' => $this->formatUtc($data['live_ends_at'] ?? null),
+            'live_provider' => $data['live_provider'] ?? null,
+            'live_recording_url' => $data['live_recording_url'] ?? null,
+            'live_external_meeting_id' => $data['live_external_meeting_id'] ?? null,
+            'mandatory_flag' => $data['mandatory_flag'] ? 1 : 0,
+            'completion_rule' => $data['completion_rule'],
+        ];
+    }
+
+    private function formatUtc(mixed $value): ?string
+    {
+        if ($value instanceof DateTimeImmutable) {
+            return $value->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+        }
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function nullableString(array $row, string $key): ?string
+    {
+        if (!array_key_exists($key, $row) || $row[$key] === null) {
+            return null;
+        }
+
+        return (string) $row[$key];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function nullableUtc(array $row, string $key, DateTimeZone $utc): ?DateTimeImmutable
+    {
+        if (!array_key_exists($key, $row) || $row[$key] === null || $row[$key] === '') {
+            return null;
+        }
+
+        return new DateTimeImmutable((string) $row[$key], $utc);
     }
 }

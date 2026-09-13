@@ -164,11 +164,7 @@ final class LearnerPlayerQueryService
         $at = new DateTimeImmutable('now', new DateTimeZone('UTC'));
         $progress = $this->progress->recordAccess($enrolmentId, $contentId, $at);
 
-        $canMarkComplete = in_array($target->contentType, [
-            ContentItemType::TEXT_LESSON,
-            ContentItemType::PDF,
-            ContentItemType::VIDEO,
-        ], true)
+        $canMarkComplete = in_array($target->contentType, ContentItemType::learnerMarkCompleteTypes(), true)
             && !$progress->isCompleted();
         $blockedReason = null;
         $assessment = null;

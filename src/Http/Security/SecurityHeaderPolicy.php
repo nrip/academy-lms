@@ -15,6 +15,7 @@ final class SecurityHeaderPolicy
     public function __construct(
         private readonly bool $enableHsts,
         private readonly ?string $logoUrl = null,
+        private readonly ?string $mediaSrcHost = null,
     ) {
     }
 
@@ -61,9 +62,10 @@ final class SecurityHeaderPolicy
             $imgSrc[] = 'https://' . $logoHost;
         }
 
-        return "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; "
+            return "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; "
             . 'img-src ' . implode(' ', $imgSrc) . '; '
             . "font-src 'self' data:; "
+            . 'media-src ' . implode(' ', $this->mediaSrc()) . '; '
             . "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com; "
             . "base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
     }
@@ -79,5 +81,18 @@ final class SecurityHeaderPolicy
         }
 
         return strtolower($host);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function mediaSrc(): array
+    {
+        $sources = ["'self'"];
+        if ($this->mediaSrcHost !== null && $this->mediaSrcHost !== '') {
+            $sources[] = 'https://' . $this->mediaSrcHost;
+        }
+
+        return $sources;
     }
 }

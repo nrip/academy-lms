@@ -87,6 +87,8 @@ final class CoursesAuditPayload implements AuditPayload
             'object_key_present',
             'video_provider',
             'video_delivery_mode',
+            'media_mime',
+            'live_provider',
             'cloned_from_version_id',
             'published_at',
             'locked_reason',

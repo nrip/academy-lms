@@ -213,6 +213,49 @@ final class VideoContentHttpTest extends TestCase
         self::assertStringNotContainsString('<iframe', $externalHtml);
     }
 
+    public function testAdminCanPersistNewLessonMetadataWithoutUiChanges(): void
+    {
+        $admin = DatabaseTestCase::courseAdminFixture();
+        $boot = DatabaseTestCase::bindSessionForUser($admin['user_id'], $admin['auth_version'], AuthStage::FULLY_AUTHENTICATED);
+        [$courseId, $versionId, $moduleId] = $this->createDraftCourseWithModule($boot);
+        $path = '/admin/courses/' . $courseId . '/versions/' . $versionId . '/modules/' . $moduleId . '/content';
+
+        self::assertSame(303, $this->request('POST', $path, $boot, [
+            'content_type' => 'live_session',
+            'title' => 'Clinic hour',
+            'live_join_url' => 'https://meet.google.com/abc-defg-hij',
+            'live_starts_at' => '2026-10-01T09:00:00Z',
+        ])->getStatusCode());
+
+        self::assertSame(303, $this->request('POST', $path, $boot, [
+            'content_type' => 'podcast',
+            'title' => 'Episode',
+            'podcast_url' => 'https://cdn.example.test/ep1.mp3',
+        ])->getStatusCode());
+
+        self::assertSame(303, $this->request('POST', $path, $boot, [
+            'content_type' => 'video',
+            'title' => 'Uploaded lecture',
+            'video_delivery_mode' => 'upload',
+            'object_key' => 'learning/media/lecture1',
+            'media_mime' => 'video/mp4',
+            'original_filename' => 'lecture.mp4',
+        ])->getStatusCode());
+
+        $rows = DatabaseTestCase::pdo()->prepare(
+            'SELECT content_type, live_provider, podcast_url, video_delivery_mode, object_key, media_mime
+             FROM content_items WHERE module_id = :m ORDER BY sequence',
+        );
+        $rows->execute(['m' => $moduleId]);
+        $items = $rows->fetchAll();
+        self::assertSame('live_session', $items[0]['content_type']);
+        self::assertSame('google_meet', $items[0]['live_provider']);
+        self::assertSame('https://cdn.example.test/ep1.mp3', $items[1]['podcast_url']);
+        self::assertSame('upload', $items[2]['video_delivery_mode']);
+        self::assertSame('learning/media/lecture1', $items[2]['object_key']);
+        self::assertSame('video/mp4', $items[2]['media_mime']);
+    }
+
     /**
      * @param array{session: string, csrf: string} $boot
      * @return array{0: int, 1: int, 2: int}
