@@ -25,6 +25,7 @@ use Academy\Application\Courses\CloneCourseVersionService;
 use Academy\Application\Courses\ContentItemCommandService;
 use Academy\Application\Courses\CourseAdminAccessGuard;
 use Academy\Application\Courses\CourseAdminQueryService;
+use Academy\Application\Courses\CourseOperationsQueryService;
 use Academy\Application\Courses\CreateBatchForPublishedVersionService;
 use Academy\Application\Courses\CreateCourseService;
 use Academy\Application\Courses\CurriculumQueryService;
@@ -206,6 +207,7 @@ use Academy\Http\Controllers\AssessmentConfigController;
 use Academy\Http\Controllers\BatchController;
 use Academy\Http\Controllers\CertificateController;
 use Academy\Http\Controllers\CourseAdminController;
+use Academy\Http\Controllers\FacultyHomeController;
 use Academy\Http\Controllers\CourseCatalogueController;
 use Academy\Http\Controllers\CourseCurriculumController;
 use Academy\Http\Controllers\CourseVersionLifecycleController;
@@ -574,6 +576,12 @@ return static function (): ContainerInterface {
             $c->get(CourseAdminScopePolicy::class),
             $c->get(CourseRepository::class),
             $c->get(CourseVersionRepository::class),
+        ),
+        CourseOperationsQueryService::class => static fn (ContainerInterface $c): CourseOperationsQueryService => new CourseOperationsQueryService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(CourseAdminQueryService::class),
+            $c->get(CourseVersionRepository::class),
+            $c->get(ConnectionFactory::class),
         ),
         AssignCourseAdminScopeService::class => static fn (ContainerInterface $c): AssignCourseAdminScopeService => new AssignCourseAdminScopeService(
             $c->get(CourseAdminAccessGuard::class),
@@ -2044,6 +2052,10 @@ return static function (): ContainerInterface {
                 'course.view_assigned',
             );
             $courseAdminAccess->requirePermission(
+                $router->get('/faculty', [FacultyHomeController::class, 'index']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
                 $router->get('/admin/courses/new', [CourseAdminController::class, 'newForm']),
                 'course.create',
             );
@@ -2554,7 +2566,12 @@ return static function (): ContainerInterface {
             $c->get(AssignCourseAdminScopeService::class),
             $c->get(BatchRepository::class),
             $c->get(CourseCoverService::class),
+            $c->get(CourseOperationsQueryService::class),
             $c->get(AuthorizationService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        FacultyHomeController::class => static fn (ContainerInterface $c): FacultyHomeController => new FacultyHomeController(
+            $c->get(CourseOperationsQueryService::class),
             $c->get(PhpRenderer::class),
         ),
         CourseVersionLifecycleController::class => static fn (ContainerInterface $c): CourseVersionLifecycleController => new CourseVersionLifecycleController(

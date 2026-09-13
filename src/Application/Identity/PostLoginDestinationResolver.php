@@ -19,6 +19,7 @@ final class PostLoginDestinationResolver
     public const FINANCE_PAYMENTS = '/finance/payments';
     public const NOTIFICATION_OPS = '/admin/notifications';
     public const COURSE_ADMIN = '/admin/courses';
+    public const FACULTY_HOME = '/faculty';
     public const LEARNER_DASHBOARD = '/dashboard';
     public const PROFILE = '/profile';
     public const COURSES = '/courses';
@@ -35,6 +36,7 @@ final class PostLoginDestinationResolver
         self::FINANCE_PAYMENTS => 'finance.payment.view',
         self::NOTIFICATION_OPS => 'notification.view',
         self::COURSE_ADMIN => 'course.view_assigned',
+        self::FACULTY_HOME => 'course.view_assigned',
         self::LEARNER_DASHBOARD => 'dashboard.view_own',
         self::PROFILE => 'profile.personal.view_own',
         self::COURSES => null,

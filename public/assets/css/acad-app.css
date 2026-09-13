@@ -339,8 +339,54 @@ body {
   border-left: 4px solid var(--acad-teal);
 }
 
-.acad-inbox__body {
-  white-space: pre-wrap;
+.acad-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  height: 100%;
+  padding: var(--acad-sp-4);
+  background: var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  text-decoration: none;
+  color: inherit;
+}
+
+.acad-stat-card:hover {
+  border-color: var(--acad-teal);
+  color: inherit;
+}
+
+.acad-stat-card--static:hover {
+  border-color: var(--acad-line);
+}
+
+.acad-stat-card__value {
+  font-size: 1.75rem;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.acad-stat-card__label {
+  color: var(--bs-secondary-color);
+  font-size: 0.875rem;
+}
+
+.acad-author-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+.acad-author-steps__item {
+  color: var(--bs-secondary-color);
+  text-decoration: none;
+}
+
+.acad-author-steps__item--current {
+  color: inherit;
+  font-weight: 650;
 }
 
 .acad-lesson-stage {

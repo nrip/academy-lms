@@ -17,7 +17,7 @@ ob_start();
 <div class="acad-admin-batch-new">
     <p class="mb-2">
         <a href="<?= $e->attr($versionBase) ?>">
-            <?= $e->html('← Version ' . (string) $version->versionNumber) ?>
+            <?= $e->html('← Course details') ?>
         </a>
     </p>
     <h1 class="h3 mb-1"><?= $e->html('Create batch') ?></h1>

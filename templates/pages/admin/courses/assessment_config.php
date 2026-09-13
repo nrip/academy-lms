@@ -70,7 +70,7 @@ ob_start();
 
     <?php if (!$editable): ?>
         <div class="alert alert-warning">
-            <?= $e->html('This CourseVersion is locked. Assessment configuration cannot be changed.') ?>
+            <?= $e->html('This edition is published. Assessment settings cannot be changed. Create the next edition to edit them.') ?>
         </div>
     <?php endif; ?>
 

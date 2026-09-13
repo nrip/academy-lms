@@ -136,6 +136,13 @@ final class CourseAdminAccessGuard
         return $version;
     }
 
+    public function versionInScope(AuthContext $auth, int $courseId, int $versionId, DateTimeImmutable $at): bool
+    {
+        $adminUserId = $this->requireUserId($auth);
+
+        return $this->scopePolicy->isVersionInScope($adminUserId, $courseId, $versionId, $at);
+    }
+
     public function nowUtc(): DateTimeImmutable
     {
         return new DateTimeImmutable('now', new DateTimeZone('UTC'));

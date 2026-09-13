@@ -5,39 +5,78 @@ declare(strict_types=1);
 /** @var \Academy\Infrastructure\View\Escaper $e */
 /** @var string $title */
 /** @var string $csrf */
-/** @var list<\Academy\Domain\Courses\Course> $courses */
+/** @var \Academy\Application\Courses\CourseAdminHomeView $view */
 /** @var ?string $flash */
 
 ob_start();
 ?>
 <div class="acad-admin-courses">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h3 mb-0"><?= $e->html('Course administration') ?></h1>
+        <div>
+            <p class="acad-eyebrow mb-1"><?= $e->html('Academy') ?></p>
+            <h1 class="h3 mb-0"><?= $e->html('Courses') ?></h1>
+        </div>
         <a class="btn btn-primary" href="/admin/courses/new"><?= $e->html('New course') ?></a>
     </div>
     <?php if ($flash !== null): ?>
         <div class="alert alert-success"><?= $e->html($flash) ?></div>
     <?php endif; ?>
-    <p class="text-muted"><?= $e->html('Courses in your Course Admin scope. Open a draft version to edit overview and curriculum. Publish and batches arrive in a later work package.') ?></p>
-    <?php if ($courses === []): ?>
-        <div class="alert alert-secondary"><?= $e->html('No courses in scope yet. Create a course to get started.') ?></div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <a class="acad-stat-card" href="/admin/courses">
+                <span class="acad-stat-card__value"><?= $e->html((string) $view->totalCourses) ?></span>
+                <span class="acad-stat-card__label"><?= $e->html('Courses') ?></span>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a class="acad-stat-card" href="/admin/courses?published=1">
+                <span class="acad-stat-card__value"><?= $e->html((string) $view->publishedCourses) ?></span>
+                <span class="acad-stat-card__label"><?= $e->html('Published') ?></span>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a class="acad-stat-card" href="/admin/courses">
+                <span class="acad-stat-card__value"><?= $e->html((string) $view->activeBatches) ?></span>
+                <span class="acad-stat-card__label"><?= $e->html('Active batches') ?></span>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a class="acad-stat-card" href="/admin/courses">
+                <span class="acad-stat-card__value"><?= $e->html((string) $view->learnersEnrolled) ?></span>
+                <span class="acad-stat-card__label"><?= $e->html('Learners enrolled') ?></span>
+            </a>
+        </div>
+    </div>
+
+    <?php if ($view->courses === []): ?>
+        <div class="alert alert-secondary"><?= $e->html('No courses to show.') ?></div>
     <?php else: ?>
         <div class="table-responsive">
             <table class="table table-sm align-middle">
                 <thead>
                 <tr>
-                    <th><?= $e->html('Code') ?></th>
-                    <th><?= $e->html('Title') ?></th>
-                    <th><?= $e->html('Status') ?></th>
+                    <th><?= $e->html('Course') ?></th>
+                    <th><?= $e->html('Edition') ?></th>
+                    <th><?= $e->html('Next batch') ?></th>
+                    <th><?= $e->html('Learners') ?></th>
                     <th></th>
                 </tr>
                 </thead>
                 <tbody>
-                <?php foreach ($courses as $course): ?>
+                <?php foreach ($view->courses as $course): ?>
                     <tr>
-                        <td><?= $e->html($course->courseCode) ?></td>
-                        <td><?= $e->html($course->masterTitle) ?></td>
-                        <td><?= $e->html($course->status) ?></td>
+                        <td>
+                            <div><?= $e->html($course->title) ?></div>
+                            <div class="small text-muted"><?= $e->html($course->code) ?></div>
+                        </td>
+                        <td>
+                            <span class="badge text-bg-<?= $e->attr($course->published ? 'success' : 'secondary') ?>">
+                                <?= $e->html($course->published ? 'Published' : 'Draft') ?>
+                            </span>
+                        </td>
+                        <td><?= $e->html($course->nextBatchName ?? '—') ?></td>
+                        <td><?= $e->html((string) $course->learnerCount) ?></td>
                         <td class="text-end">
                             <a href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>">
                                 <?= $e->html('Open') ?>

@@ -20,14 +20,19 @@ ob_start();
 ?>
 <div class="acad-admin-curriculum">
     <p class="mb-2">
-        <a href="<?= $e->attr($base) ?>"><?= $e->html('← Version overview') ?></a>
+        <a href="<?= $e->attr($base) ?>"><?= $e->html('← Course details') ?></a>
     </p>
-    <h1 class="h3 mb-1"><?= $e->html('Curriculum') ?></h1>
+    <h1 class="h3 mb-1"><?= $e->html('Chapters and lessons') ?></h1>
     <p class="text-muted mb-3">
         <?= $e->html($course->masterTitle) ?>
-        · <?= $e->html('Version ' . (string) $version->versionNumber) ?>
-        · <?= $e->html($version->isLocked() ? 'Locked (read-only)' : 'Draft (editable)') ?>
+        · <?= $e->html('Edition ' . (string) $version->versionNumber) ?>
+        · <?= $e->html($version->isLocked() ? 'Published — cannot be changed' : 'Draft (editable)') ?>
     </p>
+    <nav class="acad-author-steps mb-3" aria-label="Course setup">
+        <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>"><?= $e->html('1. Course details') ?></a>
+        <span class="acad-author-steps__item acad-author-steps__item--current"><?= $e->html('2. Chapters') ?></span>
+        <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>#publish"><?= $e->html('3. Publish') ?></a>
+    </nav>
 
     <?php if ($flash !== null): ?>
         <div class="alert alert-success"><?= $e->html($flash) ?></div>
@@ -38,20 +43,20 @@ ob_start();
 
     <?php if (!$editable): ?>
         <div class="alert alert-warning">
-            <?= $e->html('This CourseVersion is locked. Curriculum cannot be changed. Create Version N+1 to edit.') ?>
+            <?= $e->html('This edition is published. Chapters and lessons cannot be changed. Create the next edition from the course page to edit.') ?>
         </div>
     <?php endif; ?>
 
     <section class="mb-4">
         <h2 class="h5"><?= $e->html('Outline') ?></h2>
         <?php if ($modules === []): ?>
-            <p class="text-muted"><?= $e->html('No modules yet. Add Module 1 below to start the curriculum.') ?></p>
+            <p class="text-muted"><?= $e->html('No chapters yet. Add the first chapter below, then add lessons to it.') ?></p>
         <?php else: ?>
             <ol class="list-group list-group-numbered mb-0">
                 <?php foreach ($modules as $node): ?>
                     <?php $module = $node['module']; ?>
                     <li class="list-group-item">
-                        <div class="fw-semibold"><?= $e->html($module->title) ?></div>
+                        <div class="fw-semibold"><?= $e->html('Chapter ' . (string) $module->sequence . ': ' . $module->title) ?></div>
                         <?php if ($module->description !== ''): ?>
                             <div class="small text-muted"><?= $e->html($module->description) ?></div>
                         <?php endif; ?>
@@ -75,7 +80,7 @@ ob_start();
 
     <?php if ($editable): ?>
         <section class="mb-5 border-top pt-4">
-            <h2 class="h5"><?= $e->html('Add module') ?></h2>
+            <h2 class="h5"><?= $e->html('Add chapter') ?></h2>
             <form method="post" action="<?= $e->attr($base . '/modules') ?>" class="row g-3">
                 <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
                 <div class="col-md-6">
@@ -86,9 +91,10 @@ ob_start();
                 <div class="col-md-3">
                     <label class="form-label" for="release_rule"><?= $e->html('Release rule') ?></label>
                     <select class="form-select" id="release_rule" name="release_rule">
-                        <option value="immediate" selected><?= $e->html('Immediate') ?></option>
-                        <option value="sequential"><?= $e->html('Sequential') ?></option>
+                        <option value="immediate" selected><?= $e->html('Open when the course opens') ?></option>
+                        <option value="sequential"><?= $e->html('After the previous chapter') ?></option>
                     </select>
+                    <div class="form-text"><?= $e->html('Open immediately, or wait until learners finish the previous chapter.') ?></div>
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                     <div class="form-check mb-2">
@@ -101,7 +107,7 @@ ob_start();
                     <textarea class="form-control" id="module_description" name="description" rows="2"></textarea>
                 </div>
                 <div class="col-12">
-                    <button class="btn btn-primary" type="submit"><?= $e->html('Create module') ?></button>
+                    <button class="btn btn-primary" type="submit"><?= $e->html('Create chapter') ?></button>
                 </div>
             </form>
         </section>
@@ -114,7 +120,7 @@ ob_start();
         ?>
         <section class="mb-5 border rounded p-3">
             <h2 class="h5 mb-3">
-                <?= $e->html('Module ' . (string) $module->sequence . ': ' . $module->title) ?>
+                <?= $e->html('Chapter ' . (string) $module->sequence . ': ' . $module->title) ?>
             </h2>
 
             <?php if ($editable): ?>
@@ -128,8 +134,8 @@ ob_start();
                     <div class="col-md-3">
                         <label class="form-label" for="mod_release_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Release') ?></label>
                         <select class="form-select" id="mod_release_<?= $e->attr((string) $module->moduleId) ?>" name="release_rule">
-                            <option value="immediate" <?= $module->releaseRule === 'immediate' ? 'selected' : '' ?>><?= $e->html('Immediate') ?></option>
-                            <option value="sequential" <?= $module->releaseRule === 'sequential' ? 'selected' : '' ?>><?= $e->html('Sequential') ?></option>
+                            <option value="immediate" <?= $module->releaseRule === 'immediate' ? 'selected' : '' ?>><?= $e->html('Open when the course opens') ?></option>
+                            <option value="sequential" <?= $module->releaseRule === 'sequential' ? 'selected' : '' ?>><?= $e->html('After the previous chapter') ?></option>
                         </select>
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
@@ -146,19 +152,19 @@ ob_start();
                                   name="description" rows="2"><?= $e->html($module->description) ?></textarea>
                     </div>
                     <div class="col-12 d-flex gap-2">
-                        <button class="btn btn-outline-primary btn-sm" type="submit"><?= $e->html('Save module') ?></button>
+                        <button class="btn btn-outline-primary btn-sm" type="submit"><?= $e->html('Save chapter') ?></button>
                     </div>
                 </form>
                 <form method="post" action="<?= $e->attr($modulePath . '/delete') ?>" class="mb-4"
-                      onsubmit="return confirm('Delete this module? It must have no lessons.');">
+                      onsubmit="return confirm('Delete this chapter? It must have no lessons.');">
                     <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
-                    <button class="btn btn-outline-danger btn-sm" type="submit"><?= $e->html('Delete module') ?></button>
+                    <button class="btn btn-outline-danger btn-sm" type="submit"><?= $e->html('Delete chapter') ?></button>
                 </form>
             <?php endif; ?>
 
             <h3 class="h6"><?= $e->html('Lessons') ?></h3>
             <?php if ($node['content_items'] === []): ?>
-                <p class="text-muted small"><?= $e->html('No lessons in this module yet.') ?></p>
+                <p class="text-muted small"><?= $e->html('No lessons in this chapter yet.') ?></p>
             <?php else: ?>
                 <?php foreach ($node['content_items'] as $item): ?>
                     <?php $kind = LessonKind::fromItem($item); ?>
@@ -216,7 +222,7 @@ ob_start();
                       action="<?= $e->attr($modulePath . '/content') ?>" class="row g-2 mt-3 bg-light p-3 rounded"
                       data-acad-lesson-form>
                     <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
-                    <div class="col-12"><strong><?= $e->html('Add lesson') ?></strong></div>
+                    <div class="col-12"><strong><?= $e->html('Add a lesson') ?></strong></div>
                     <div class="col-md-4">
                         <label class="form-label" for="kind_<?= $e->attr((string) $module->moduleId) ?>"><?= $e->html('Lesson type') ?></label>
                         <select class="form-select form-select-sm" id="kind_<?= $e->attr((string) $module->moduleId) ?>"

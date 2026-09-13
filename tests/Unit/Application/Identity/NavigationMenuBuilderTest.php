@@ -48,7 +48,7 @@ final class NavigationMenuBuilderTest extends TestCase
             $this->builder(['course.view_assigned', 'course.create'])->build($this->auth()),
             'label',
         );
-        self::assertSame(['Course Admin', 'Logout'], $labels);
+        self::assertSame(['Faculty', 'Course Admin', 'Logout'], $labels);
     }
 
     /**

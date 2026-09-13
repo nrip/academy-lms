@@ -7,6 +7,7 @@ namespace Academy\Http\Controllers;
 use Academy\Application\Courses\AssignCourseAdminScopeService;
 use Academy\Application\Courses\CourseAdminQueryService;
 use Academy\Application\Courses\CourseCoverService;
+use Academy\Application\Courses\CourseOperationsQueryService;
 use Academy\Application\Courses\CreateCourseService;
 use Academy\Application\Courses\UpdateDraftCourseVersionService;
 use Academy\Application\RBAC\AuthorizationService;
@@ -38,6 +39,7 @@ final class CourseAdminController
         private readonly AssignCourseAdminScopeService $assignScope,
         private readonly BatchRepository $batches,
         private readonly CourseCoverService $covers,
+        private readonly CourseOperationsQueryService $operations,
         private readonly AuthorizationService $authorization,
         private readonly PhpRenderer $renderer,
     ) {
@@ -45,11 +47,18 @@ final class CourseAdminController
 
     public function index(ServerRequestInterface $request): ResponseInterface
     {
-        $courses = $this->query->listAssignedCourses($this->auth($request));
+        $params = $request->getQueryParams();
+        $published = isset($params['published']) && is_string($params['published']) ? $params['published'] : null;
+        $filter = match ($published) {
+            '1' => 'published',
+            '0' => 'draft',
+            default => null,
+        };
+        $home = $this->operations->adminHome($this->auth($request), $filter);
         $html = $this->renderer->render('pages/admin/courses/index', [
-            'title' => 'Course administration',
+            'title' => 'Courses',
             'csrf' => $this->csrf($request),
-            'courses' => $courses,
+            'view' => $home,
             'flash' => $this->flash($request),
         ]);
 
@@ -211,6 +220,7 @@ final class CourseAdminController
             'course' => $detail->course,
             'version' => $version,
             'batches' => $this->batches->listByCourseVersionId($versionId),
+            'outline' => $this->operations->outlineCounts($this->auth($request), $courseId, $versionId),
             'error' => null,
             'flash' => $this->flash($request),
         ]);
@@ -249,6 +259,7 @@ final class CourseAdminController
                 'course' => $detail->course,
                 'version' => $version,
                 'batches' => $this->batches->listByCourseVersionId($versionId),
+                'outline' => $this->operations->outlineCounts($this->auth($request), $courseId, $versionId),
                 'error' => $exception->getMessage(),
                 'flash' => null,
                 'posted' => $body,

@@ -121,7 +121,17 @@ Slice 2 must not invent a second progress formula. Slice 3 must not put payment 
 
 ---
 
-*Slice 1 and slice 2 are implemented. Slices 3–5 are sequenced only.*
+*Slices 1–3 are implemented. Slices 4–5 are sequenced only.*
+
+---
+
+## Slice 3 — course administration and faculty
+
+Course Admin `/admin/courses` shows four scoped counts: courses, published courses, active batches, and learners enrolled. There is no payment or revenue card. Faculty `/faculty` is the same assignment (`course.view_assigned` and course scope). There is no separate faculty role in the schema. The teaching home lists assigned courses, upcoming live lessons, learner counts, and recent admissions or lesson updates. It does not show join URLs, application numbers, or payment data.
+
+Authoring labels say edition, chapter, and lesson. Publishing explains that the edition locks. Eligibility forms remain slice 4.
+
+---
 
 ---
 

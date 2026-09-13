@@ -11,7 +11,7 @@ declare(strict_types=1);
 ob_start();
 ?>
 <div class="acad-admin-courses-new">
-    <p class="mb-2"><a href="/admin/courses"><?= $e->html('← Course administration') ?></a></p>
+    <p class="mb-2"><a href="/admin/courses"><?= $e->html('← Courses') ?></a></p>
     <h1 class="h3 mb-3"><?= $e->html('New course') ?></h1>
     <?php if ($error !== null): ?>
         <div class="alert alert-danger"><?= $e->html($error) ?></div>
@@ -24,13 +24,13 @@ ob_start();
                    value="<?= $e->attr($values['course_code']) ?>">
         </div>
         <div class="col-12">
-            <label class="form-label" for="slug"><?= $e->html('Public slug') ?></label>
+            <label class="form-label" for="slug"><?= $e->html('Web address') ?></label>
             <input class="form-control" id="slug" name="slug" required maxlength="128"
                    value="<?= $e->attr($values['slug']) ?>">
-            <div class="form-text"><?= $e->html('Lowercase kebab-case, e.g. obesity-foundations-2027') ?></div>
+            <div class="form-text"><?= $e->html('The public path, in lowercase with hyphens. Example: obesity-foundations') ?></div>
         </div>
         <div class="col-12">
-            <label class="form-label" for="master_title"><?= $e->html('Master title') ?></label>
+            <label class="form-label" for="master_title"><?= $e->html('Course title') ?></label>
             <input class="form-control" id="master_title" name="master_title" required maxlength="255"
                    value="<?= $e->attr($values['master_title']) ?>">
         </div>

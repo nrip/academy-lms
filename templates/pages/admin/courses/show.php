@@ -15,7 +15,7 @@ ob_start();
 $course = $detail->course;
 ?>
 <div class="acad-admin-course-show">
-    <p class="mb-2"><a href="/admin/courses"><?= $e->html('← Course administration') ?></a></p>
+    <p class="mb-2"><a href="/admin/courses"><?= $e->html('← Courses') ?></a></p>
     <h1 class="h3 mb-1"><?= $e->html($course->masterTitle) ?></h1>
     <p class="text-muted"><?= $e->html($course->courseCode) ?></p>
     <?php if ($error !== null): ?>
@@ -48,15 +48,14 @@ $course = $detail->course;
     <?php if ($flash !== null): ?>
         <div class="alert alert-success"><?= $e->html($flash) ?></div>
     <?php endif; ?>
-    <h2 class="h5 mt-4"><?= $e->html('Versions') ?></h2>
+    <h2 class="h5 mt-4"><?= $e->html('Editions') ?></h2>
     <div class="table-responsive">
         <table class="table table-sm">
             <thead>
             <tr>
-                <th><?= $e->html('Version') ?></th>
+                <th><?= $e->html('Edition') ?></th>
                 <th><?= $e->html('Title') ?></th>
-                <th><?= $e->html('Status') ?></th>
-                <th><?= $e->html('Locked') ?></th>
+                <th><?= $e->html('State') ?></th>
                 <th></th>
             </tr>
             </thead>
@@ -65,8 +64,7 @@ $course = $detail->course;
                 <tr>
                     <td><?= $e->html((string) $version->versionNumber) ?></td>
                     <td><?= $e->html($version->title) ?></td>
-                    <td><?= $e->html($version->status) ?></td>
-                    <td><?= $e->html($version->isLocked() ? 'yes' : 'no') ?></td>
+                    <td><?= $e->html($version->isPublished() ? 'Published' : ($version->isLocked() ? 'Locked' : 'Draft')) ?></td>
                     <td class="text-end">
                         <a href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/versions/<?= $e->attr((string) $version->versionId) ?>">
                             <?= $e->html($version->isLocked() ? 'View' : 'Edit draft') ?>
