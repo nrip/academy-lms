@@ -1,222 +1,263 @@
 # Content media — implementation plan
 
 **Status:** Plan only. Do not treat this file as implemented.  
-**Date:** 2026-09-13  
-**Decision:** [LX-VID-STORAGE-1](./DECISION_LOG.md)  
-**Companion:** [LEARNING_EXPERIENCE_ROADMAP.md](./LEARNING_EXPERIENCE_ROADMAP.md)
+**Date:** 2026-09-13 (corrected the same day: production pack, not an MVP deferral)  
+**Decisions:** [LX-VID-STORAGE-1](./DECISION_LOG.md) (no public files, no transcode) · [LX-VID-STORAGE-2](./DECISION_LOG.md) (uploads included) · [LX-VID-STORAGE-3](./DECISION_LOG.md) (local **and** S3)  
+**Companion:** [LEARNING_EXPERIENCE_ROADMAP.md](./LEARNING_EXPERIENCE_ROADMAP.md) — this plan wins if the roadmap still calls uploads “later”.
 
-**This pack builds the customer-facing lesson menu. It does not build video upload, audio upload, or an S3/Mux/Cloudflare Stream adapter.**
+This is a **production** lesson-media pack. It does not add transcoding, adaptive streaming, HLS/DASH, or a video optimisation pipeline.
 
 ---
 
 ## 1. Scope
 
-### In this pack
+### Creator menu (all in this pack)
 
-Creator adds a lesson as one of:
+Keep `Course` → `CourseVersion` → `Module` → `ContentItem`. The UI says **Lesson**. Do not add a Lesson table.
 
 | Label | Stored as | Learner |
 |---|---|---|
 | Text | `text_lesson` | Escaped plain text. Mark complete. |
 | Rich text | `rich_text` | Allow-listed HTML. Mark complete. |
-| PDF | `pdf` | Open via short-lived signed URL. Mark complete. |
+| PDF | `pdf` + private object | Open via short-lived signed URL. Mark complete. |
 | Video embed | `video` + `embedded` | YouTube / Vimeo iframe. Mark complete. |
 | Video link | `video` + `external_link` | New-tab HTTPS link. Mark complete. |
-| Live session | `live_session` | Date/time, Join, optional recording link. Learner confirms attended. |
+| Video upload | `video` + `upload` + private object | In-page `<video controls>` from a signed URL. Mark complete. |
+| Podcast | `podcast` + HTTPS URL | In-page `<audio>` when the URL is a direct audio file; otherwise Listen. Mark complete. |
+| Audio upload | `audio` + private object | In-page `<audio controls>` from a signed URL. Mark complete. |
+| Live session | `live_session` | Start/end, Join (Meet, Zoom, Teams, or other HTTPS), optional recording link. Learner confirms attended. |
 | Quiz | `mcq_assessment` | Unchanged. Pass completes the lesson. |
 
-### Out of this pack
+### Not in this pack
 
-- Video upload, audio upload, podcast, HTML5 `<video>` / `<audio>` for academy files
-- S3, Mux, Cloudflare Stream adapters
-- Zoom / Google Meet APIs, OAuth, attendance webhooks
-- Watch-percentage completion
-- Faculty Q&A, forum SSO
-- New WYSIWYG library (not on the approved stack)
+- Transcoding, ffmpeg, thumbnail generation, bitrate ladders, HLS, DASH, Mux, Cloudflare Stream
+- Zoom / Meet / Teams APIs, OAuth, attendance webhooks
+- Watch-percentage completion (`resume_position` / `watch_percentage` stay unused)
+- Faculty Q&A, forum SSO, reminder emails (notification architecture unchanged; no new outbox event)
+- A new WYSIWYG library
 - Application, Enrolment, or Payment state-machine changes
+- Editing a locked CourseVersion in place
 
 ### Invariants
 
-- Locked `CourseVersion` rows stay immutable. New lesson types are added on a Draft or Version N+1.
-- Raw `<iframe>` HTML is never stored. Embed URLs are built by `SafeVideoEmbedBuilder`.
-- No file is served from `public/`. Signed URLs expire in 10–15 minutes and are not persisted.
-- `ObjectStorageFactory` still returns `UnconfiguredObjectStorage` unless `DOCUMENTS_STORAGE_DRIVER=local` and the environment allows local adapters. Do not add a fake public disk driver for production-like envs.
-- Clone (`CloneCourseVersionService`) copies every new lesson column.
-- Existing `video` rows remain valid.
+- Completion stays `mark_complete` or `assessment_passed`. Live session uses Mark complete / “I attended”. Join does not complete the lesson.
+- Locked versions stay immutable. New types are authored on a Draft or Version N+1.
+- No media file is written under `public/` or returned as a permanent URL.
+- Playback and download URLs are issued only after a permission check, expire in 10–15 minutes, and are not stored.
+- Learning uploads support **both** backends: private local object storage and a private S3 bucket. The operator selects one. Neither is public. Local is not restricted to non-production environments.
+- Credential-document storage is a separate setting. Choosing local for learning media must not store qualification documents on disk or expose them to Finance.
+- Clone copies lesson columns and the object key. It does not duplicate the blob in this pack.
 
 ---
 
-## 2. Behaviour to implement
-
-### Text and rich text
-
-- Text: required `body_text`, stored and rendered escaped with line breaks (current behaviour).
-- Rich text: required body, `body_format` unused if the type is `rich_text`. On save, run a domain sanitiser. Allow only `p`, `br`, `strong`, `em`, `ul`, `ol`, `li`, `h2`, `h3`, and `a` with `https` href. Strip scripts, iframes, styles, event handlers, and other tags. Reject the save if nothing remains.
-- No new npm editor. Admin field is a textarea. Optional jQuery buttons may insert the allowed tags; they are not a security control. The sanitiser is.
-
-### Video embed and video link
-
-Split the curriculum form into two labels. Keep one `content_type=video`.
-
-| Label | Rule |
-|---|---|
-| Video embed | HTTPS watch URL only. Host must resolve to YouTube, YouTube no-cookie, or Vimeo via `SafeVideoEmbedBuilder`. Reject anything else and tell the author to use Video link. |
-| Video link | Any other HTTPS URL. Provider `external`. Player does not iframe it. |
-
-Reject non-HTTPS, control characters, and pasted iframe markup on both.
-
-Learner page: embed uses the existing 16:9 iframe and CSP `frame-src` (`SecurityHeaderPolicy` already allows YouTube and Vimeo). Link uses a button, `target="_blank"`, `rel="noopener noreferrer"`. Opening either does not complete the lesson.
-
-### Live session
-
-Required fields: title, join URL, start time. End time optional. Recording URL optional.
-
-- Join URL and recording URL must be HTTPS. No OAuth, no meeting creation.
-- Provider is derived, not typed by the author: `meet.google.com` → `google_meet`; `zoom.us` / `*.zoom.us` → `zoom`; anything else HTTPS → `custom`.
-- Learner page shows start (and end if set) in the presentation timezone, a **Join live class** button (new tab), and **Recording** only when a recording URL is stored. Recording is a link, not an embed.
-- Join stays available. Do not hide it until the exact start second.
-- Completion is **I attended** (`mark_complete`, `completion_source=learner`). Clicking Join does not complete the lesson.
-- Reminder email is out of scope. Do not add an outbox event in this pack.
-
-### PDF
-
-Current learner page is a placeholder. Authors type an `object_key`.
-
-This pack:
-
-- Author uploads a PDF on the draft curriculum form (CSRF, course-admin permission, version not locked). Server checks the file signature (`%PDF`), not only the client MIME. Cap: **100 MB** (existing platform cap for downloadable resources). Random object key under a `learning/pdfs/` prefix. Original filename stored as metadata only.
-- Persist via `ObjectStorage::putObject` (local driver already implements it). Do not write under `public/`.
-- Learner with access to that enrolment and content item receives `issueDownloadUrl` (10–15 minutes). The player either opens that URL or redirects to it. The URL is not stored on `content_items`.
-- Unsigned or expired local signed URLs stay 404 (`LocalStorageDownloadController` already works this way and is registered only for the local driver).
-- If storage is `UnconfiguredObjectStorage`, save and download fail with a clear conflict message. Do not fall back to a public path.
-- Credential-document Finance segregation is unchanged. Learning PDFs are course content, not `DocumentSubmission`. Do not reuse document-reviewer signed-URL methods. A learning download must check enrolment access (`PlayerAccessPolicy` + module release), not document permissions.
-
-Remove the author-facing “object key” text field for new PDFs. Existing rows that only have a key still resolve through the same signed-URL path if the object exists.
-
-### Future compatibility (schema and ports only)
-
-- Leave `object_key` on `content_items`. Video upload will use it later. Do not add `upload` to the video delivery-mode check in this migration (that would allow a mode with no player).
-- Do not add `ObjectStorage` methods that only Mux needs. A later adapter implements the existing port or a playback port beside it.
-- Live session gets nullable `live_external_meeting_id` so an API pack does not rewrite the table. Leave it unused.
-- Do not add audio columns.
-
----
-
-## 3. Migrations
+## 2. Database changes
 
 One Phinx migration, reversible `down()`:
 
 `database/migrations/20260913000001_content_media_lesson_types.php`
 
-| Change | Detail |
+### Type check
+
+Allow: `text_lesson`, `rich_text`, `pdf`, `mcq_assessment`, `video`, `podcast`, `audio`, `live_session`.
+
+### Video
+
+Extend the existing delivery-mode check to include `upload`.
+
+| Mode | Required columns |
 |---|---|
-| `content_type` check | Allow `text_lesson`, `rich_text`, `pdf`, `mcq_assessment`, `video`, `live_session`. |
-| Live columns, all nullable | `live_join_url` VARCHAR(2048), `live_starts_at` DATETIME, `live_ends_at` DATETIME NULL, `live_provider` VARCHAR(32), `live_recording_url` VARCHAR(2048), `live_external_meeting_id` VARCHAR(128). |
-| Checks | `live_provider` null or `google_meet` \| `zoom` \| `custom`. Live type requires `live_join_url`, `live_starts_at`, `live_provider`. Non-live rows must have all live columns null. |
-| Video checks | Keep existing: video requires URL + delivery mode + provider; non-video must not set video columns. Do not add `upload`. |
-| PDF display name | `original_filename` VARCHAR(255) NULL. Used for the download `Content-Disposition` label. Not a public path. |
-| `down()` | Delete `rich_text` and `live_session` rows (or refuse if product will not accept data loss — prefer delete only those types, same pattern as WP-L10 `down()` deleting `video`). Drop live columns and restore the previous type check. Do not drop video columns. |
+| `embedded` | `video_url`, `video_provider` in `youtube` \| `youtube_nocookie` \| `vimeo`. `object_key` null. |
+| `external_link` | `video_url`, `video_provider=external`. `object_key` null. |
+| `upload` | `object_key` set. `video_url` null. `video_provider` null. |
 
-No change to `content_progress`. Attendance uses existing `mark_complete`.
+`down()` must not delete existing `embedded` / `external_link` rows. It may delete `upload` rows only if reverting (same pattern as WP-L10 deleting a type it introduced). Prefer refusing `down()` once production upload rows exist — document that in the migration comment and implement delete-of-new-types only, matching WP-L10.
 
-Do not migrate published versions in place. Authors clone to N+1 to add rich text or live sessions.
+### New columns on `content_items`
+
+| Column | Type | Use |
+|---|---|---|
+| `original_filename` | VARCHAR(255) NULL | Download/player label only. Not a path. |
+| `media_mime` | VARCHAR(128) NULL | Detected type, not the client claim. |
+| `media_bytes` | BIGINT UNSIGNED NULL | Size at ingest. |
+| `media_sha256` | CHAR(64) NULL | Integrity. |
+| `podcast_url` | VARCHAR(2048) NULL | Podcast HTTPS URL. |
+| `live_join_url` | VARCHAR(2048) NULL | Join link. |
+| `live_starts_at` | DATETIME NULL | UTC. |
+| `live_ends_at` | DATETIME NULL | UTC. Optional. |
+| `live_provider` | VARCHAR(32) NULL | `google_meet` \| `zoom` \| `teams` \| `custom`. |
+| `live_recording_url` | VARCHAR(2048) NULL | Optional HTTPS recording link (not an embed). |
+| `live_external_meeting_id` | VARCHAR(128) NULL | Unused. Reserved for a later API pack. |
+
+### Checks
+
+- Podcast requires `podcast_url`. Other types must not set it.
+- Audio requires `object_key` and `media_mime`. Must not set `podcast_url` or video columns.
+- PDF requires `object_key`.
+- Video upload requires `object_key` and forbids `video_url`.
+- Live session requires `live_join_url`, `live_starts_at`, `live_provider`. Other types must have all live columns null.
+- Non-video types must not set video URL / delivery mode / provider (existing rule, updated so `upload` is the exception that uses `object_key` instead of URL).
+
+No change to `content_progress`, enrolment, or notification tables.
+
+### Migration strategy
+
+1. Additive columns and widened checks only. No table rename. No rewrite of locked version rows.
+2. Existing `text_lesson`, `pdf`, `mcq_assessment`, and `video` (embed / external link) rows stay valid without a data backfill.
+3. Deploy code that can read the new columns **with** the migration (same release). Old code must not run against the new check if it inserts video rows without the new columns — ship migration and code together.
+4. Do not run `uat:reset` or `demo:prepare` as part of this migration.
+5. `down()` drops new checks and columns after deleting only `rich_text`, `podcast`, `audio`, `live_session`, and `video` rows whose `video_delivery_mode=upload`. Leaves prior video and PDF rows.
+
+**Open limit (do not invent in code):** platform cap for downloadable resources is 100 MB (`AGENTS.md` §10). Typical lecture video exceeds that. Confirm a video/audio upload cap before implementation. Until confirmed, the plan does not set a new number.
 
 ---
 
-## 4. Files to change
+## 3. Storage changes
+
+Reuse `Academy\Domain\Storage\ObjectStorage`. Do not add a second store for “videos”.
+
+| Rule | Detail |
+|---|---|
+| Key | Random key, prefix `learning/media/`. Never the original filename. Never a `public/` path. |
+| Write | Authorised course-admin request on an unlocked version. Sniff signature. Allow-list only types the browser can play **without** transcoding: PDF (`%PDF`), `video/mp4`, `video/webm`, `audio/mpeg`, `audio/mp4`, `audio/wav`. Reject anything else with a validation error that says the file must already be in a playable format. |
+| Metadata | Persist filename, detected MIME, byte size, SHA-256 on the content item. Object body stays in the store. |
+| Read | After enrolment + release check, `issueDownloadUrl` for 10–15 minutes. Learner page sets `<video src>` or `<audio src>` to that URL, or redirects for PDF. `Content-Disposition` uses `original_filename`. |
+| Local backend | Supported for learning media in every environment when `LEARNING_STORAGE_DRIVER=local`. Private directory outside `public/`, signed GET, 10–15 minute expiry. Do not reuse the credential-document “local forbidden in production-like env” gate for this driver. |
+| S3 backend | Supported when `LEARNING_STORAGE_DRIVER=s3`. Private bucket, no public ACL, short-lived GET. Same `ObjectStorage` port and same `learning/media/` key prefix. |
+| Selection | One driver per deployment, from configuration. If the selected driver is missing credentials or the directory is not writable, fail that upload/play action. Do not fall through to `public/`. Do not change `DOCUMENTS_STORAGE_DRIVER` behaviour. |
+| Credential documents | Learning keys use the `learning/media/` prefix. Do not issue learning URLs from document-review methods. Finance document denial tests must stay green. |
+
+CSP: keep `frame-src` limited to YouTube and Vimeo. Uploaded media is same-origin or the storage host used in the signed URL. If the signed host is not `'self'`, add that host to `media-src` from configuration (the bucket host), not `*`.
+
+---
+
+## 4. Behaviour
+
+### Text and rich text
+
+Unchanged from the previous plan: plain text escaped; rich text saved through `RestrictedHtmlSanitiser` (`p`, `br`, `strong`, `em`, `ul`, `ol`, `li`, `h2`, `h3`, `a` with `https` href). No new editor library. Textarea plus optional jQuery insert buttons. Sanitiser is the control.
+
+### Video embed and video link
+
+Unchanged: embed is YouTube/Vimeo watch URL only, iframe built by `SafeVideoEmbedBuilder`, raw iframe HTML rejected. Link is any other HTTPS URL, new tab, no iframe. Opening neither completes the lesson.
+
+### Video upload
+
+Creator uploads a file on the draft curriculum form. Learner with access gets an in-page player. No quality selector, no HLS manifest, no server-side optimisation. If the browser cannot play the file, that is a validation failure at upload, not a transcode job.
+
+### Podcast and audio upload
+
+| Label | Source | Player |
+|---|---|---|
+| Podcast | HTTPS URL | `<audio controls>` when the URL path ends in a playable audio extension (`mp3`, `m4a`, `wav`). Otherwise a Listen link. Do not iframe Spotify/Apple. |
+| Audio upload | Private object | Always `<audio controls>` via signed URL. |
+
+### Live session
+
+Join URL required, start required, end optional, recording URL optional. All URLs HTTPS.
+
+Provider derived from host:
+
+| Host | Provider |
+|---|---|
+| `meet.google.com` | `google_meet` |
+| `zoom.us`, `*.zoom.us` | `zoom` |
+| `teams.microsoft.com`, `teams.live.com` | `teams` |
+| Any other HTTPS | `custom` |
+
+Learner sees the time range, **Join live class** (new tab), and **Recording** only if set (link, not embed). Join does not mark complete.
+
+### Permissions
+
+| Actor | Check |
+|---|---|
+| Course Admin upload / edit | Existing curriculum permission plus course/version scope. `CourseAdminAccessGuard` already calls `assertMutable`. |
+| Learner play / download | `learning.content.access`, enrolment ownership (`PlayerAccessPolicy`), module/item release (`ModuleReleasePolicy`). |
+| Other learner | 404. |
+| Finance | No new document permission. Learning media is not `DocumentSubmission`. |
+
+No new permission keys unless an existing key cannot express “edit curriculum”. Do not grant this to Finance or Credential Reviewer.
+
+---
+
+## 5. Affected files
 
 ### Domain
 
-| File | Change |
-|---|---|
-| `src/Domain/Courses/ContentItemType.php` | Add `rich_text`, `live_session`. Creator labels stay in the template, not raw keys. |
-| `src/Domain/Courses/ContentItem.php` | Live fields + original filename. |
-| `src/Domain/Courses/ContentItemRepository.php` | Insert/update/hydrate contract for new columns. |
-| `src/Domain/Courses/VideoDeliveryMode.php` | No `upload` value. |
-| `src/Domain/Courses/SafeVideoEmbedBuilder.php` | Keep embed allow-list. Add a helper that rejects iframe markup before parse. |
-| `src/Domain/Courses/LiveSessionProvider.php` | New. Derive provider from HTTPS host. |
-| `src/Domain/Courses/RestrictedHtmlSanitiser.php` | New. Allow-list used on rich-text save. |
-| `src/Domain/Courses/CourseVersionPublishValidator.php` | Live lesson missing join URL or start; video embed/link missing URL; rich text empty after sanitise; PDF missing object key. |
-| `src/Domain/Courses/ContentCompletionRule.php` | `defaultForType`: live session and rich text → `mark_complete`. Quiz unchanged. |
+- `src/Domain/Courses/ContentItemType.php` — `rich_text`, `podcast`, `audio`, `live_session`
+- `src/Domain/Courses/ContentItem.php` — new fields
+- `src/Domain/Courses/ContentItemRepository.php` — contract
+- `src/Domain/Courses/VideoDeliveryMode.php` — add `upload`
+- `src/Domain/Courses/SafeVideoEmbedBuilder.php` — reject iframe markup; embed allow-list unchanged
+- `src/Domain/Courses/LiveSessionProvider.php` — new (Meet, Zoom, Teams, custom)
+- `src/Domain/Courses/RestrictedHtmlSanitiser.php` — new
+- `src/Domain/Courses/LearningMediaPolicy.php` — new. Sniffed MIME allow-list, size check against the confirmed cap, key prefix
+- `src/Domain/Courses/ContentCompletionRule.php` — defaults for new types
+- `src/Domain/Courses/CourseVersionPublishValidator.php` — reject incomplete live / video / podcast / upload rows
+- `src/Domain/Storage/ObjectStorage.php` — no new methods if `putObject` and `issueDownloadUrl` suffice
 
 ### Application
 
-| File | Change |
-|---|---|
-| `src/Application/Courses/ContentItemCommandService.php` | Branch create/update per type. Call sanitiser and live-URL policy. PDF upload writes via `ObjectStorage`. |
-| `src/Application/Courses/CloneCourseVersionService.php` | Copy live columns and `original_filename`. Object key is copied (same private object; do not duplicate blobs in this pack). |
-| `src/Application/Learning/LearnerPlayerQueryService.php` | Human type label data, embed vs link, live fields, PDF availability flag (not a stored URL). |
-| `src/Application/Learning/LearnerPlayerItemDetailView.php` | New view fields for live session and PDF action. |
-| `src/Application/Learning/MarkContentCompleteService.php` | Allow `rich_text` and `live_session` with `mark_complete`. |
-| `src/Application/Learning/LearningPdfAccessService.php` | New. Enrolment + release check, then `issueDownloadUrl`. 404/403 if no access or object missing. Unconfigured storage → 409 with a clear message. |
+- `src/Application/Courses/ContentItemCommandService.php`
+- `src/Application/Courses/CloneCourseVersionService.php`
+- `src/Application/Learning/LearnerPlayerQueryService.php`
+- `src/Application/Learning/LearnerPlayerItemDetailView.php`
+- `src/Application/Learning/MarkContentCompleteService.php` — allow rich text, podcast, audio, video upload, live session when rule is `mark_complete`
+- `src/Application/Learning/LearningMediaAccessService.php` — new. Permission + release, then signed URL. Used by PDF, video upload, and audio upload.
 
 ### Infrastructure
 
-| File | Change |
-|---|---|
-| `src/Infrastructure/Courses/PdoContentItemRepository.php` | Read/write new columns. |
-| `src/Infrastructure/Storage/ObjectStorageFactory.php` | No new driver. Comment only if a learning prefix is configured beside documents. |
-| `src/Infrastructure/Storage/LocalObjectStorage.php` | Reuse. PDF `Content-Type` on learning download should be `application/pdf` when the key is a learning PDF — set that in the learning controller, not by weakening the local document downloader. |
+- `src/Infrastructure/Courses/PdoContentItemRepository.php`
+- `src/Infrastructure/Storage/S3ObjectStorage.php` — new private-bucket adapter. No public ACL.
+- `src/Infrastructure/Storage/LocalObjectStorage.php` — learning-media use must not be blocked by the credential-document production gate. Keep document uploads on the existing document driver.
+- `src/Infrastructure/Storage/ObjectStorageFactory.php` — learning factory (or a mode argument) selects `local` or `s3` from `LEARNING_STORAGE_DRIVER`. Document factory stays as it is.
+- `config/app.php` / `.env.example` — `LEARNING_STORAGE_DRIVER=local|s3`, local base path, S3 bucket, region, key prefix. No Mux keys.
 
-### HTTP, templates, routes
+### HTTP and templates
 
-| File | Change |
-|---|---|
-| `config/container.php` | Register `GET /learning/enrolments/{enrolmentId}/items/{contentId}/pdf` on `LearnerPlayerController` or a small `LearningPdfController`. Same permission as the item page (`learning.content.access` + ownership). Wire `ObjectStorage` into the PDF service. |
-| `src/Http/Controllers/CourseCurriculumController.php` | Accept PDF multipart on content create/update. Keep CSRF. |
-| `src/Http/Controllers/LearnerPlayerController.php` | PDF redirect/open action. |
-| `src/Http/Security/SecurityHeaderPolicy.php` | No new frame hosts. |
-| `templates/pages/admin/courses/curriculum.php` | Seven lesson labels (plus quiz). Conditional fields. No object-key, provider, or “ContentItem” copy. |
-| `templates/pages/learning/item.php` | Text, sanitised rich text, PDF open, embed iframe, external link, live join/recording/I attended. |
-| `templates/pages/learning/outline.php` | Labels: Text, Rich text, PDF, Video embed, Video link, Live session, Quiz. Continue from `last_accessed_at` if that item is accessible and incomplete; else first accessible incomplete lesson. |
+- `config/container.php` — `GET /learning/enrolments/{enrolmentId}/items/{contentId}/media` issues or redirects to the signed URL after access checks
+- `src/Http/Controllers/CourseCurriculumController.php` — multipart upload on content create/update
+- `src/Http/Controllers/LearnerPlayerController.php` — media action
+- `src/Http/Security/SecurityHeaderPolicy.php` — `media-src` for the configured storage host only
+- `templates/pages/admin/courses/curriculum.php` — ten labels, conditional fields, no object-key or “ContentItem” copy
+- `templates/pages/learning/item.php` — players, join, recording, PDF open
+- `templates/pages/learning/outline.php` — human labels; Continue from last accessible incomplete item
 
-Do not change payment, admission, or document-review routes.
-
-### Docs touched only if behaviour comments in code are insufficient
-
-This plan and the Decision Log are the product record. Do not rewrite the SRS.
+Do not change payment, admission, document-review, or notification worker event lists.
 
 ---
 
-## 5. Tests required
+## 6. Test strategy
 
 | Layer | Cases |
 |---|---|
-| Unit | `SafeVideoEmbedBuilder`: YouTube, youtu.be, no-cookie, Vimeo pass; Drive/Meet/HTTP/`<iframe>` fail. `LiveSessionProvider`: meet.google.com, zoom.us, custom HTTPS; reject non-HTTPS. `RestrictedHtmlSanitiser`: keeps allow-list; strips `script`, `iframe`, `on*`. |
-| HTTP authoring | Course Admin on a draft can create text, rich text, video embed, video link, live session. Video embed rejects a non-YouTube/Vimeo URL. Video link rejects HTTP. Live session requires join URL + start. Locked version returns conflict and does not write. |
-| HTTP player | Learner item: embed HTML contains iframe `src` on youtube.com or player.vimeo.com only. Video link has no iframe. Live page has Join and does not complete on GET. POST complete sets completed. Recording link omitted when empty. Outline does not contain `text_lesson` or `external_link`. |
-| PDF | Upload stores a private key, not a `public/` path. Learner with access gets a signed URL that expires. Learner without enrolment cannot. Expired/bad signature is 404. Unconfigured storage does not return a file. Finance document-denial tests stay green (this path is not a document URL). |
-| Clone / publish | Clone copies live fields. Publish refuses a live lesson with no join URL and a video lesson with no URL. |
-| Regression | `tests/Http/VideoContentHttpTest.php`, `tests/Unit/Domain/Courses/SafeVideoEmbedBuilderTest.php`, `tests/Http/LearnerPlayerHttpTest.php`, `tests/Http/CourseCurriculumHttpTest.php`. |
+| Unit | Embed builder: YouTube/Vimeo pass; Drive, Meet, HTTP, raw iframe fail. Live provider: Meet, Zoom, Teams, custom; non-HTTPS fails. Sanitiser strips `script` / `iframe` / `on*`. Media policy rejects a non-allow-listed MIME and a key outside `learning/media/`. |
+| HTTP authoring | Draft admin can create each in-scope type. Locked version does not write. Video embed rejects a Zoom URL. Video link rejects HTTP. Video upload rejects a non-mp4/webm payload and does not write a `public/` path. Audio upload and PDF same. |
+| HTTP playback | Learner with access receives a signed URL (expiry ≤ 15 minutes) and an in-page `<video>` or `<audio>`. Learner without enrolment does not. Expired or bad signature is 404. Embed page iframes only YouTube/Vimeo. Video link has no iframe. Join GET does not complete the lesson; POST complete does. |
+| Storage | With `LEARNING_STORAGE_DRIVER=local`, upload and signed playback succeed and the file is not under `public/`. With `s3`, the same tests use the private bucket adapter (or a fake S3 double that proves no public ACL and a short-lived URL). Missing config fails the action and does not write a public file. Finance document-denial tests still pass. Switching learning storage to local does not change document storage. |
+| Clone / publish | Clone copies live and media columns. Publish refuses video upload with no object, podcast with no URL, live session with no join URL or start. |
+| Regression | `VideoContentHttpTest`, `SafeVideoEmbedBuilderTest`, `LearnerPlayerHttpTest`, `CourseCurriculumHttpTest`. |
 
-No new state-machine tests. No webhook tests.
-
----
-
-## 6. Implementation sequence
-
-Do these in order. Stop after each step if tests for that step fail.
-
-1. **Domain + unit tests** — types, sanitiser, live URL policy, embed rejection of iframe HTML. No migration yet.
-2. **Migration** — columns and checks. Fixture seeders that insert content items must include new nullable columns.
-3. **Repository + command service + clone** — create/update/clone for text, rich text, video embed, video link, live session. PDF object-key path still works for existing rows.
-4. **Admin template** — creator labels and conditional fields. Hide object key.
-5. **Player query, item template, outline labels, mark complete** — embed, link, live join/recording, I attended, Continue.
-6. **PDF upload + signed open** — `LearningPdfAccessService`, route, player button. Local driver only when env already allows it.
-7. **Publish validator + HTTP tests** listed above.
-8. **Do not** add Mux, S3, upload video, or audio in a follow-up commit on this pack.
+No state-machine tests. No webhook tests. No HLS fixture.
 
 ---
 
-## 7. Explicit non-goals (future hooks only)
+## 7. Implementation sequence
 
-| Future | What this pack leaves behind |
-|---|---|
-| Video upload | `object_key` column. No `upload` delivery mode. No `<video>` player. |
-| Audio upload | No audio type, no columns. |
-| S3 | `ObjectStorage` interface unchanged. Factory still unconfigured in production-like env. |
-| Mux / Cloudflare Stream | No client, no env keys, no playback token. Decision Log must choose this before an adapter. |
-| Meet / Zoom API | `live_external_meeting_id` nullable and unused. |
+1. Confirm the video/audio byte cap (open question in §2). Do not guess it in the migration.
+2. Domain types, sanitiser, live provider, media policy, unit tests.
+3. Migration (additive). Update content-item fixtures for new nullable columns.
+4. Repository, command service, clone — URL types first (text, rich text, embed, link, podcast, live session) so they do not depend on S3.
+5. Admin and player templates for those URL types. Mark complete and outline labels.
+6. Learning storage factory with **both** backends: private local and private S3. Document storage factory unchanged.
+7. Upload + signed playback for PDF, video upload, and audio upload via `LearningMediaAccessService`.
+8. Publish validator and the HTTP cases in §6.
+9. Stop. Do not add ffmpeg, Mux, or a reminder outbox event in this pack.
+
+---
+
+## 8. Conflict recorded, not assumed
+
+Technical Architecture v1.1 prefers Mux or Cloudflare Stream for protected adaptive video. This pack does not implement that. Learning uploads use private local storage **or** a private S3 bucket (`LX-VID-STORAGE-3`). Credential-document rules that forbid a local document driver in production-like environments are not changed. If learning local storage and that document rule are implemented as one shared flag, stop — they must be separate.
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Status:** Planning note for Phase 2 learning UX. Not an SRS amendment.  
 **Date:** 2026-09-13  
-**Product correction (2026-09-13):** Live classes by join link (Google Meet / Zoom) are required. Video is three creator choices — link, embed, upload — not one mixed “Video” type. Podcast and audio upload are separate. See §1.  
+**Product correction (2026-09-13):** Live classes by join link are required. Video is link, embed, and upload. Podcast and audio upload are in the production pack. **Implementation authority:** [CONTENT_MEDIA_IMPLEMENTATION_PLAN.md](./CONTENT_MEDIA_IMPLEMENTATION_PLAN.md) and Decision Log `LX-VID-STORAGE-2`. Where this roadmap says uploads are “later”, the implementation plan wins.  
 **Code baseline:** Course → Module → `ContentItem`; learner player; MCQ assessments; completion certificates.  
 **Authority:** SRS v6.1 §4.3 (`REQ-MOD-1`–`REQ-MOD-4`), §12 notifications (`REQ-NOTIF-1`). If this note and the SRS disagree, the SRS wins until a Decision Log entry says otherwise.
 
