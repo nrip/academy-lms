@@ -37,6 +37,7 @@ If documents conflict, stop and identify the conflict. Do not resolve by assumpt
 | [STATE_MACHINE_ADDENDUM.md](./product/STATE_MACHINE_ADDENDUM.md) | DocumentSubmission / Draft clarifications |
 | [PRODUCTION_READINESS_REGISTER.md](./product/PRODUCTION_READINESS_REGISTER.md) | Open production gaps (classified UAT/pilot/production/future) |
 | [WP01_DECISION_NOTE.md](./product/WP01_DECISION_NOTE.md) | WP-01 options (session, email/SMS, TOTP, scope, hosting) |
+| [DEMO_MODE_DECISION.md](./product/DEMO_MODE_DECISION.md) | Demo playground decisions (`DEMO-MODE-1`); not implemented |
 | [PRODUCT_EXPERIENCE_GAP_ASSESSMENT.md](./product/PRODUCT_EXPERIENCE_GAP_ASSESSMENT.md) | Go-live experience gaps (assessment only) |
 | [RC1_IMPLEMENTATION_PLAN.md](./product/RC1_IMPLEMENTATION_PLAN.md) | RC1 experience slices; slices 1–5 are implemented |
 

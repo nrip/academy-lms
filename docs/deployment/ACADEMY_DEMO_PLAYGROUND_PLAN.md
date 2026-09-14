@@ -1,6 +1,6 @@
 # Academy Demo Playground plan
 
-**Status:** Plan only. Do not build from this document until the open points in §13 are decided.  
+**Status:** Plan only. Host model is approved. Operating decisions are [`../product/DEMO_MODE_DECISION.md`](../product/DEMO_MODE_DECISION.md) (`DEMO-MODE-1`). Where this plan still says a facilitator must grant Course Admin, or that mail stays `local_file` only, the decision note wins. Do not implement from either document until asked.  
 **Date:** 2026-09-14  
 **Audience:** Facilitator, and the engineer who will stand up the Hetzner host.  
 **Goal:** One environment. A prospect can immediately explore a professionally populated academy, and can also create courses and work as an academy operator.
