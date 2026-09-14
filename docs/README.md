@@ -94,6 +94,8 @@ If documents conflict, stop and identify the conflict. Do not resolve by assumpt
 | [RAZORPAY_CONFIGURATION.md](./deployment/RAZORPAY_CONFIGURATION.md) | Razorpay env vars, webhook setup, local testing |
 | [EMAIL_ARCHITECTURE_REVIEW.md](./deployment/EMAIL_ARCHITECTURE_REVIEW.md) | Notification/outbox/email inventory; production provider path |
 | [EMAIL_CONFIGURATION.md](./deployment/EMAIL_CONFIGURATION.md) | SMTP/SES env vars, workers, certificate email, testing |
+| [RC1_DEMO_ENVIRONMENT_PLAN.md](./deployment/RC1_DEMO_ENVIRONMENT_PLAN.md) | Seeded RC1 showcase script (plan only; not a separate host) |
+| [ACADEMY_DEMO_PLAYGROUND_PLAN.md](./deployment/ACADEMY_DEMO_PLAYGROUND_PLAN.md) | Combined Hetzner demo playground: guided showcase and self-service exploration (plan only) |
 
 ## Releases
 
