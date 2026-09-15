@@ -59,6 +59,7 @@ return static function (
         'payments.checkout' => ['limit' => 5, 'window_seconds' => 30 * 60, 'failure' => 'fail_closed'],
         'admin.mutation' => ['limit' => 60, 'window_seconds' => 60, 'failure' => 'fail_closed'],
         'public.catalogue' => ['limit' => 300, 'window_seconds' => 60, 'failure' => 'fail_open'],
+        'learning.question.create' => ['limit' => 10, 'window_seconds' => 60 * 60, 'failure' => 'fail_closed'],
     ];
 
     // Exact-match only (no prefix/wildcard support in RateLimitMiddleware) — dynamic

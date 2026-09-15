@@ -74,6 +74,10 @@ final class LearningAuditPayload implements AuditPayload
             'certificate_type',
             'certificate_number',
             'status',
+            'question_id',
+            'response_id',
+            'course_id',
+            'module_id',
         ];
     }
 

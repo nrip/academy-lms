@@ -35,6 +35,15 @@ final class NotificationContextResolver
     public function tryResolveUserId(OutboxMessage $message): ?int
     {
         $payload = $message->payload;
+        if (
+            $message->eventType === TransactionalNotificationEventTypes::QUESTION_ASKED
+            || $message->eventType === TransactionalNotificationEventTypes::QUESTION_RESPONDED
+        ) {
+            $recipientUserId = isset($payload['recipient_user_id']) ? (int) $payload['recipient_user_id'] : 0;
+
+            return $recipientUserId > 0 ? $recipientUserId : null;
+        }
+
         $applicationId = isset($payload['application_id']) ? (int) $payload['application_id'] : 0;
         $paymentId = isset($payload['payment_id']) ? (int) $payload['payment_id'] : 0;
         $enrolmentId = isset($payload['enrolment_id']) ? (int) $payload['enrolment_id'] : 0;
@@ -68,6 +77,13 @@ final class NotificationContextResolver
      */
     public function resolve(OutboxMessage $message): array
     {
+        if (
+            $message->eventType === TransactionalNotificationEventTypes::QUESTION_ASKED
+            || $message->eventType === TransactionalNotificationEventTypes::QUESTION_RESPONDED
+        ) {
+            return $this->resolveLearningQuestion($message);
+        }
+
         $payload = $message->payload;
         $applicationId = isset($payload['application_id']) ? (int) $payload['application_id'] : 0;
         $paymentId = isset($payload['payment_id']) ? (int) $payload['payment_id'] : 0;
@@ -167,6 +183,76 @@ final class NotificationContextResolver
 
         return [
             'user_id' => $application->userId,
+            'recipient' => array_merge($recipient, ['display_name' => $displayName]),
+            'variables' => $variables,
+        ];
+    }
+
+    /**
+     * @return array{
+     *   user_id: int,
+     *   variables: array<string, string>,
+     *   recipient: array{email: string, recipient_hash: string, recipient_masked: string, display_name: string}
+     * }
+     */
+    private function resolveLearningQuestion(OutboxMessage $message): array
+    {
+        $payload = $message->payload;
+        $questionId = isset($payload['question_id']) ? (int) $payload['question_id'] : 0;
+        $recipientUserId = isset($payload['recipient_user_id']) ? (int) $payload['recipient_user_id'] : 0;
+        if ($questionId <= 0 || $recipientUserId <= 0) {
+            throw new DomainRuleException(NotificationFailureCategory::CONTEXT_MISSING);
+        }
+
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'SELECT q.enrolment_id, q.content_id, q.course_id, q.module_id,
+                    c.master_title AS course_title,
+                    m.title AS chapter_title,
+                    ci.title AS lesson_title
+             FROM learning_questions q
+             INNER JOIN courses c ON c.course_id = q.course_id
+             INNER JOIN modules m ON m.module_id = q.module_id
+             INNER JOIN content_items ci ON ci.content_id = q.content_id
+             WHERE q.question_id = :question_id
+             LIMIT 1',
+        );
+        $stmt->execute(['question_id' => $questionId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            throw new DomainRuleException(NotificationFailureCategory::CONTEXT_MISSING);
+        }
+
+        $recipient = $this->recipients->resolveVerifiedEmail($recipientUserId);
+        $displayName = $recipient['display_name'];
+        $profileName = $this->preferredDisplayName($recipientUserId);
+        if ($profileName !== null && $profileName !== '') {
+            $displayName = $profileName;
+        }
+
+        $base = rtrim($this->appUrl, '/');
+        $dashboardLink = $base . '/dashboard';
+        $variables = [
+            'learner_display_name' => $displayName,
+            'application_number' => '',
+            'course_title' => (string) $row['course_title'],
+            'batch_name' => '',
+            'status_label' => '',
+            'safe_reason' => '',
+            'dashboard_link' => $dashboardLink,
+            'chapter_title' => (string) $row['chapter_title'],
+            'lesson_title' => (string) $row['lesson_title'],
+        ];
+
+        if ($message->eventType === TransactionalNotificationEventTypes::QUESTION_ASKED) {
+            $variables['question_link'] = $base . '/faculty/questions/' . $questionId;
+        } else {
+            $variables['lesson_link'] = $base . '/learning/enrolments/'
+                . (int) $row['enrolment_id'] . '/items/' . (int) $row['content_id'];
+        }
+
+        return [
+            'user_id' => $recipientUserId,
             'recipient' => array_merge($recipient, ['display_name' => $displayName]),
             'variables' => $variables,
         ];

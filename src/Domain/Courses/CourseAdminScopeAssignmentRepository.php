@@ -30,5 +30,12 @@ interface CourseAdminScopeAssignmentRepository
 
     public function findActiveCourseScope(int $adminUserId, int $courseId, DateTimeImmutable $at): ?CourseAdminScopeAssignment;
 
+    /**
+     * Distinct admin user ids with an active course or version scope covering this course.
+     *
+     * @return list<int>
+     */
+    public function listActiveAdminUserIdsForCourse(int $courseId, DateTimeImmutable $at): array;
+
     public function revoke(int $scopeAssignmentId, int $revokedByUserId, string $reason, DateTimeImmutable $revokedAt): void;
 }

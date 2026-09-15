@@ -146,6 +146,8 @@ final class DatabaseTestCase
             'certificate_events',
             'certificates',
             'content_progress',
+            'learning_question_responses',
+            'learning_questions',
             'enrolment_status_history',
             'enrolments',
             'in_app_notifications',

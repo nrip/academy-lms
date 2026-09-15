@@ -182,10 +182,9 @@ final class TransactionalNotificationDeliveryWorker
             $claimedDelivery->attemptCount,
             null,
             $receipt->providerMessageId,
-            LearnerInboxCopy::fromRender(
+            $this->inboxCopyFor(
                 $context['user_id'],
-                $message->id,
-                $message->eventType,
+                $message,
                 $rendered['subject'],
                 $letter['text'],
                 $context['variables'],
@@ -441,10 +440,9 @@ final class TransactionalNotificationDeliveryWorker
             $claimedDelivery->attemptCount,
             null,
             $receipt->providerMessageId,
-            LearnerInboxCopy::fromRender(
+            $this->inboxCopyFor(
                 $context['user_id'],
-                $message->id,
-                $message->eventType,
+                $message,
                 $rendered['subject'],
                 $letter['text'],
                 $context['variables'],
@@ -715,5 +713,29 @@ final class TransactionalNotificationDeliveryWorker
     private function newLeaseToken(): string
     {
         return bin2hex(random_bytes(16));
+    }
+
+    /**
+     * @param array<string, mixed> $variables
+     */
+    private function inboxCopyFor(
+        int $userId,
+        OutboxMessage $message,
+        string $subject,
+        string $body,
+        array $variables,
+    ): ?LearnerInboxCopy {
+        if (!TransactionalNotificationEventTypes::writesLearnerInbox($message->eventType)) {
+            return null;
+        }
+
+        return LearnerInboxCopy::fromRender(
+            $userId,
+            $message->id,
+            $message->eventType,
+            $subject,
+            $body,
+            $variables,
+        );
     }
 }
