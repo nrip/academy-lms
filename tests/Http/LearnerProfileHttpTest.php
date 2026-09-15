@@ -48,6 +48,30 @@ final class LearnerProfileHttpTest extends TestCase
         self::assertStringContainsString('completeness', strtolower((string) $response->getBody()));
     }
 
+    public function testStaffRolesWithoutSeededProfileStillOpenOverview(): void
+    {
+        $users = [
+            'course_admin' => DatabaseTestCase::courseAdminFixture(),
+            'finance' => DatabaseTestCase::financeFixture(),
+            'reviewer' => DatabaseTestCase::reviewerFixture(),
+            'super_admin' => DatabaseTestCase::superAdminFixture(),
+        ];
+        foreach ($users as $label => $user) {
+            $boot = DatabaseTestCase::bindSessionForUser(
+                $user['user_id'],
+                $user['auth_version'],
+                AuthStage::FULLY_AUTHENTICATED,
+            );
+            $response = $this->get('/profile', [
+                'session' => $boot['session'],
+                'csrf' => $boot['csrf'],
+                'user_id' => $user['user_id'],
+            ]);
+            self::assertSame(200, $response->getStatusCode(), $label . ' should open /profile');
+            self::assertStringNotContainsString('Profile not found', (string) $response->getBody());
+        }
+    }
+
     public function testShowPersonalReturnsForm(): void
     {
         $boot = $this->bootApplicant();
