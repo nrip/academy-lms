@@ -130,6 +130,26 @@ final class TransactionalNotificationTemplateRegistry
                 . "Congratulations. Your certificate for {{course_title}} is ready.\n",
                 ['certificate_link'],
             ),
+            TransactionalNotificationEventTypes::QUESTION_ASKED => $this->def(
+                'learning_question_asked',
+                1,
+                'A learner asked a question',
+                "Hello {{learner_display_name}},\n\n"
+                . "A learner asked a question about {{lesson_title}} in {{course_title}}.\n"
+                . "Chapter: {{chapter_title}}.\n\n"
+                . "Open the question to post a response.\n",
+                ['chapter_title', 'lesson_title', 'question_link'],
+            ),
+            TransactionalNotificationEventTypes::QUESTION_RESPONDED => $this->def(
+                'learning_question_responded',
+                1,
+                'Your question has a response',
+                "Hello {{learner_display_name}},\n\n"
+                . "Your question about {{lesson_title}} in {{course_title}} has a response.\n"
+                . "Chapter: {{chapter_title}}.\n\n"
+                . "Open the lesson to read it.\n",
+                ['chapter_title', 'lesson_title', 'lesson_link'],
+            ),
         ];
     }
 

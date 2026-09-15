@@ -59,10 +59,14 @@ use Academy\Application\Identity\TokenConfirmationCleanupService;
 use Academy\Application\Identity\TokenConfirmationService;
 use Academy\Application\Identity\VerificationChallengeIssuer;
 use Academy\Application\Identity\VerificationTokenIssuer;
+use Academy\Application\Learning\AskLearningQuestionService;
+use Academy\Application\Learning\CloseLearningQuestionService;
 use Academy\Application\Learning\LearnerPlayerQueryService;
 use Academy\Application\Learning\LearningMediaAccessService;
 use Academy\Application\Learning\LearningMediaIngestService;
+use Academy\Application\Learning\LearningQuestionQueryService;
 use Academy\Application\Learning\MarkContentCompleteService;
+use Academy\Application\Learning\RespondToLearningQuestionService;
 use Academy\Application\Notifications\AcademyEmailLayout;
 use Academy\Application\Notifications\AdminNotificationQueryService;
 use Academy\Application\Notifications\AdminNotificationRetryService;
@@ -168,6 +172,8 @@ use Academy\Domain\Learning\ContentProgressRepository;
 use Academy\Domain\Learning\EnrolmentFactory;
 use Academy\Domain\Learning\EnrolmentPublicReferenceGenerator;
 use Academy\Domain\Learning\EnrolmentRepository;
+use Academy\Domain\Learning\LearningQuestionRepository;
+use Academy\Domain\Learning\LearningQuestionResponseRepository;
 use Academy\Domain\Learning\EnrolmentStateMachine;
 use Academy\Domain\Learning\EnrolmentStatusHistoryRepository;
 use Academy\Domain\Learning\ModuleReleasePolicy;
@@ -223,6 +229,7 @@ use Academy\Http\Controllers\HealthController;
 use Academy\Http\Controllers\LearnerInboxController;
 use Academy\Http\Controllers\LearnerPlayerController;
 use Academy\Http\Controllers\LearningLocalStorageDownloadController;
+use Academy\Http\Controllers\LearningQuestionController;
 use Academy\Http\Controllers\LocalStorageDownloadController;
 use Academy\Http\Controllers\LocalUploadController;
 use Academy\Http\Controllers\LoginController;
@@ -297,6 +304,8 @@ use Academy\Infrastructure\Identity\RecordingTokenConsumedHandler;
 use Academy\Infrastructure\Learning\PdoContentProgressRepository;
 use Academy\Infrastructure\Learning\PdoEnrolmentRepository;
 use Academy\Infrastructure\Learning\PdoEnrolmentStatusHistoryRepository;
+use Academy\Infrastructure\Learning\PdoLearningQuestionRepository;
+use Academy\Infrastructure\Learning\PdoLearningQuestionResponseRepository;
 use Academy\Infrastructure\Logging\LoggerFactory;
 use Academy\Infrastructure\Notifications\LocalFileEmailAdapter;
 use Academy\Infrastructure\Notifications\NotificationKeyMaterial;
@@ -912,6 +921,12 @@ return static function (): ContainerInterface {
         ContentProgressRepository::class => static fn (ContainerInterface $c): ContentProgressRepository => new PdoContentProgressRepository(
             $c->get(ConnectionFactory::class),
         ),
+        LearningQuestionRepository::class => static fn (ContainerInterface $c): LearningQuestionRepository => new PdoLearningQuestionRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        LearningQuestionResponseRepository::class => static fn (ContainerInterface $c): LearningQuestionResponseRepository => new PdoLearningQuestionResponseRepository(
+            $c->get(ConnectionFactory::class),
+        ),
         PlayerAccessPolicy::class => static fn (): PlayerAccessPolicy => new PlayerAccessPolicy(),
         ModuleReleasePolicy::class => static fn (): ModuleReleasePolicy => new ModuleReleasePolicy(),
         LearnerPlayerQueryService::class => static fn (ContainerInterface $c): LearnerPlayerQueryService => new LearnerPlayerQueryService(
@@ -926,6 +941,49 @@ return static function (): ContainerInterface {
             $c->get(ModuleReleasePolicy::class),
             $c->get(AssessmentRepository::class),
             $c->get(AssessmentAttemptRepository::class),
+        ),
+        AskLearningQuestionService::class => static fn (ContainerInterface $c): AskLearningQuestionService => new AskLearningQuestionService(
+            $c->get(AuthorizationService::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(ContentProgressRepository::class),
+            $c->get(LearningQuestionRepository::class),
+            $c->get(CourseAdminScopeAssignmentRepository::class),
+            $c->get(PlayerAccessPolicy::class),
+            $c->get(ModuleReleasePolicy::class),
+            $c->get(OutboxWriter::class),
+            $c->get(AuditService::class),
+            $c->get(TransactionManager::class),
+            $c->get(RateLimiter::class),
+        ),
+        RespondToLearningQuestionService::class => static fn (ContainerInterface $c): RespondToLearningQuestionService => new RespondToLearningQuestionService(
+            $c->get(AuthorizationService::class),
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(LearningQuestionRepository::class),
+            $c->get(LearningQuestionResponseRepository::class),
+            $c->get(OutboxWriter::class),
+            $c->get(AuditService::class),
+            $c->get(TransactionManager::class),
+        ),
+        CloseLearningQuestionService::class => static fn (ContainerInterface $c): CloseLearningQuestionService => new CloseLearningQuestionService(
+            $c->get(AuthorizationService::class),
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(LearningQuestionRepository::class),
+            $c->get(AuditService::class),
+            $c->get(TransactionManager::class),
+        ),
+        LearningQuestionQueryService::class => static fn (ContainerInterface $c): LearningQuestionQueryService => new LearningQuestionQueryService(
+            $c->get(AuthorizationService::class),
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(LearningQuestionRepository::class),
+            $c->get(LearningQuestionResponseRepository::class),
+            $c->get(CourseRepository::class),
+            $c->get(ModuleRepository::class),
+            $c->get(PlayerAccessPolicy::class),
+            $c->get(LearnerProfileRepository::class),
+            $c->get(ConnectionFactory::class),
         ),
         MarkContentCompleteService::class => static fn (ContainerInterface $c): MarkContentCompleteService => new MarkContentCompleteService(
             $c->get(AuthorizationService::class),
@@ -2016,6 +2074,14 @@ return static function (): ContainerInterface {
                 'learning.content.access',
             );
             $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/questions', [LearningQuestionController::class, 'ask']),
+                'learning.question.create_own',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/questions/{questionId}/close', [LearningQuestionController::class, 'closeOwn']),
+                'learning.question.view_own',
+            );
+            $learningAccess->requirePermission(
                 $router->post('/learning/enrolments/{enrolmentId}/assessments/{assessmentId}/attempts', [AssessmentAttemptController::class, 'start']),
                 'assessment.attempt.own',
             );
@@ -2073,6 +2139,18 @@ return static function (): ContainerInterface {
             $courseAdminAccess->requirePermission(
                 $router->get('/faculty', [FacultyHomeController::class, 'index']),
                 'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/faculty/questions/{questionId}', [LearningQuestionController::class, 'facultyShow']),
+                'learning.question.view_scoped',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/faculty/questions/{questionId}/responses', [LearningQuestionController::class, 'facultyRespond']),
+                'learning.question.respond',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/faculty/questions/{questionId}/close', [LearningQuestionController::class, 'facultyClose']),
+                'learning.question.respond',
             );
             $courseAdminAccess->requirePermission(
                 $router->get('/admin/courses/new', [CourseAdminController::class, 'newForm']),
@@ -2578,6 +2656,15 @@ return static function (): ContainerInterface {
             $c->get(LearnerPlayerQueryService::class),
             $c->get(MarkContentCompleteService::class),
             $c->get(LearningMediaAccessService::class),
+            $c->get(LearningQuestionQueryService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        LearningQuestionController::class => static fn (ContainerInterface $c): LearningQuestionController => new LearningQuestionController(
+            $c->get(AskLearningQuestionService::class),
+            $c->get(RespondToLearningQuestionService::class),
+            $c->get(CloseLearningQuestionService::class),
+            $c->get(LearningQuestionQueryService::class),
+            $c->get(LearnerPlayerQueryService::class),
             $c->get(PhpRenderer::class),
         ),
         AssessmentAttemptController::class => static fn (ContainerInterface $c): AssessmentAttemptController => new AssessmentAttemptController(
@@ -2615,6 +2702,8 @@ return static function (): ContainerInterface {
         ),
         FacultyHomeController::class => static fn (ContainerInterface $c): FacultyHomeController => new FacultyHomeController(
             $c->get(CourseOperationsQueryService::class),
+            $c->get(LearningQuestionQueryService::class),
+            $c->get(AuthorizationService::class),
             $c->get(PhpRenderer::class),
         ),
         CourseVersionLifecycleController::class => static fn (ContainerInterface $c): CourseVersionLifecycleController => new CourseVersionLifecycleController(

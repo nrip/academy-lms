@@ -45,6 +45,19 @@ final class InAppNotificationHrefTest extends TestCase
         self::assertSame('/learning/enrolments/9', $href);
     }
 
+    public function testQuestionRespondedPrefersLessonPath(): void
+    {
+        $href = InAppNotificationHref::fromVariables(
+            TransactionalNotificationEventTypes::QUESTION_RESPONDED,
+            [
+                'lesson_link' => 'https://academy.example/learning/enrolments/3/items/12',
+                'dashboard_link' => 'https://academy.example/dashboard',
+            ],
+        );
+
+        self::assertSame('/learning/enrolments/3/items/12', $href);
+    }
+
     public function testFallsBackToDashboard(): void
     {
         self::assertSame(

@@ -192,6 +192,65 @@ ob_start();
         <p class="text-muted"><?= $e->html($detail->markCompleteBlockedReason) ?></p>
     <?php endif; ?>
 
+    <?php
+    /** @var list<\Academy\Application\Learning\LearningQuestionThreadItemView> $questions */
+    $questions = $questions ?? [];
+    /** @var bool $canAsk */
+    $canAsk = $canAsk ?? false;
+    /** @var ?string $flash */
+    $flash = $flash ?? null;
+    $indiaQa = new \DateTimeZone('Asia/Kolkata');
+    ?>
+    <?php if ($canAsk || $questions !== []): ?>
+        <section class="acad-panel mt-4" aria-labelledby="qa-heading">
+            <h2 id="qa-heading" class="h5"><?= $e->html('Questions') ?></h2>
+            <?php if ($flash !== null): ?>
+                <div class="alert alert-success"><?= $e->html($flash) ?></div>
+            <?php endif; ?>
+            <?php if ($questions === []): ?>
+                <p class="text-muted"><?= $e->html('You have not asked a question on this lesson yet.') ?></p>
+            <?php else: ?>
+                <ul class="list-unstyled mb-3">
+                    <?php foreach ($questions as $thread): ?>
+                        <li class="border rounded p-3 mb-3">
+                            <div class="d-flex justify-content-between gap-2 mb-2">
+                                <span class="badge text-bg-light border"><?= $e->html($thread->statusLabel) ?></span>
+                                <span class="small text-muted">
+                                    <?= $e->html($thread->askedAt->setTimezone($indiaQa)->format('j M Y, g:i a') . ' IST') ?>
+                                </span>
+                            </div>
+                            <p class="mb-3"><?= nl2br($e->html($thread->body), false) ?></p>
+                            <?php foreach ($thread->responses as $response): ?>
+                                <div class="border-start border-3 ps-3 mb-3">
+                                    <div class="small text-muted mb-1">
+                                        <?= $e->html('Response · ' . $response->responderName) ?>
+                                        · <?= $e->html($response->respondedAt->setTimezone($indiaQa)->format('j M Y, g:i a') . ' IST') ?>
+                                    </div>
+                                    <p class="mb-0"><?= nl2br($e->html($response->body), false) ?></p>
+                                </div>
+                            <?php endforeach; ?>
+                            <?php if ($thread->canClose): ?>
+                                <form method="post"
+                                      action="<?= $e->attr($base . '/items/' . (string) $detail->item->contentId . '/questions/' . (string) $thread->questionId . '/close') ?>">
+                                    <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"><?= $e->html('Close question') ?></button>
+                                </form>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+            <?php if ($canAsk): ?>
+                <form method="post" action="<?= $e->attr($base . '/items/' . (string) $detail->item->contentId . '/questions') ?>">
+                    <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+                    <label class="form-label" for="qa-body"><?= $e->html('Ask a question') ?></label>
+                    <textarea class="form-control mb-2" id="qa-body" name="body" rows="4" maxlength="2000" required></textarea>
+                    <button type="submit" class="btn btn-outline-primary"><?= $e->html('Send question') ?></button>
+                </form>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
+
     <div class="d-flex gap-2 mt-3">
         <?php if ($detail->previousContentId !== null): ?>
             <a class="btn btn-outline-secondary btn-sm"

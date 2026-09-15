@@ -21,6 +21,8 @@ final class TransactionalNotificationEventTypes
     public const APPLICATION_ADMITTED = 'application.admitted';
     public const ENROLMENT_CREATED = 'enrolment.created';
     public const CERTIFICATE_ISSUED = 'certificate.issued';
+    public const QUESTION_ASKED = 'learning.question.asked';
+    public const QUESTION_RESPONDED = 'learning.question.responded';
 
     /** @return list<string> */
     public static function all(): array
@@ -37,11 +39,18 @@ final class TransactionalNotificationEventTypes
             self::APPLICATION_ADMITTED,
             self::ENROLMENT_CREATED,
             self::CERTIFICATE_ISSUED,
+            self::QUESTION_ASKED,
+            self::QUESTION_RESPONDED,
         ];
     }
 
     public static function isTransactional(string $eventType): bool
     {
         return in_array($eventType, self::all(), true);
+    }
+
+    public static function writesLearnerInbox(string $eventType): bool
+    {
+        return $eventType !== self::QUESTION_ASKED;
     }
 }

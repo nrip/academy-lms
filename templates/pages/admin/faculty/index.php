@@ -77,6 +77,36 @@ ob_start();
         <?php endif; ?>
     </section>
 
+    <section class="acad-panel mb-4" aria-labelledby="questions-heading">
+        <h2 id="questions-heading" class="h5"><?= $e->html('Questions') ?></h2>
+        <?php if ($view->openQuestions === []): ?>
+            <p class="text-muted mb-0"><?= $e->html('No learner questions in your courses yet.') ?></p>
+        <?php else: ?>
+            <ul class="list-unstyled mb-0">
+                <?php foreach ($view->openQuestions as $question): ?>
+                    <li class="acad-next-step__item mb-2">
+                        <div>
+                            <div>
+                                <a href="/faculty/questions/<?= $e->attr((string) $question->questionId) ?>">
+                                    <?= $e->html($question->lessonTitle) ?>
+                                </a>
+                                <span class="badge text-bg-light border ms-1"><?= $e->html($question->statusLabel) ?></span>
+                            </div>
+                            <div class="small text-muted">
+                                <?= $e->html($question->courseTitle . ' · ' . $question->chapterTitle) ?>
+                                · <?= $e->html($question->learnerName) ?>
+                                · <?= $e->html($question->askedAt->setTimezone($india)->format('j M Y, g:i a') . ' IST') ?>
+                            </div>
+                        </div>
+                        <a class="btn btn-sm btn-outline-primary" href="/faculty/questions/<?= $e->attr((string) $question->questionId) ?>">
+                            <?= $e->html('Open') ?>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </section>
+
     <section class="acad-panel" aria-labelledby="activity-heading">
         <h2 id="activity-heading" class="h5"><?= $e->html('Recent activity') ?></h2>
         <?php if ($view->recentActivity === []): ?>

@@ -129,6 +129,35 @@ final class PdoCourseAdminScopeAssignmentRepository implements CourseAdminScopeA
         return null;
     }
 
+    public function listActiveAdminUserIdsForCourse(int $courseId, DateTimeImmutable $at): array
+    {
+        $pdo = $this->connections->connection();
+        $atUtc = $at->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u');
+        $stmt = $pdo->prepare(
+            'SELECT DISTINCT a.admin_user_id
+             FROM course_admin_scope_assignments a
+             LEFT JOIN course_versions cv ON cv.version_id = a.course_version_id
+             WHERE a.revoked_at IS NULL
+               AND a.effective_from <= :at
+               AND (a.effective_to IS NULL OR a.effective_to >= :at2)
+               AND (
+                    (a.scope_type = :course_scope AND a.course_id = :course_id)
+                    OR (a.scope_type = :version_scope AND cv.course_id = :course_id2)
+               )
+             ORDER BY a.admin_user_id ASC',
+        );
+        $stmt->execute([
+            'at' => $atUtc,
+            'at2' => $atUtc,
+            'course_scope' => CourseAdminScopeType::COURSE,
+            'course_id' => $courseId,
+            'version_scope' => CourseAdminScopeType::COURSE_VERSION,
+            'course_id2' => $courseId,
+        ]);
+
+        return array_map(static fn (mixed $id): int => (int) $id, $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
     public function revoke(int $scopeAssignmentId, int $revokedByUserId, string $reason, DateTimeImmutable $revokedAt): void
     {
         $pdo = $this->connections->connection();

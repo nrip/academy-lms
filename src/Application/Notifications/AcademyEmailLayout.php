@@ -81,6 +81,11 @@ final class AcademyEmailLayout
                 $this->safeUrl($variables['learning_link'] ?? $variables['dashboard_link'] ?? ''),
             ],
             'certificate_issued' => ['View your certificate', $this->safeUrl($variables['certificate_link'] ?? '')],
+            'learning_question_asked' => ['Open question', $this->safeUrl($variables['question_link'] ?? '')],
+            'learning_question_responded' => [
+                'Open lesson',
+                $this->safeUrl($variables['lesson_link'] ?? $variables['dashboard_link'] ?? ''),
+            ],
             default => ['Open your dashboard', $this->safeUrl($variables['dashboard_link'] ?? '')],
         };
     }

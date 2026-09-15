@@ -21,6 +21,12 @@ final class InAppNotificationHref
                 return $certificate;
             }
         }
+        if ($eventType === TransactionalNotificationEventTypes::QUESTION_RESPONDED) {
+            $lesson = self::internalPath($variables['lesson_link'] ?? null);
+            if ($lesson !== null) {
+                return $lesson;
+            }
+        }
         if (
             $eventType === TransactionalNotificationEventTypes::APPLICATION_ADMITTED
             || $eventType === TransactionalNotificationEventTypes::ENROLMENT_CREATED
@@ -60,10 +66,10 @@ final class InAppNotificationHref
         if (str_contains($path, '..') || str_contains($path, '\\')) {
             return false;
         }
-        if (in_array($path, ['/dashboard', '/courses', '/profile'], true)) {
+        if (in_array($path, ['/dashboard', '/courses', '/profile', '/faculty'], true)) {
             return true;
         }
-        foreach (['/applications/', '/learning/', '/certificates/', '/profile/', '/courses/'] as $prefix) {
+        foreach (['/applications/', '/learning/', '/certificates/', '/profile/', '/courses/', '/faculty/'] as $prefix) {
             if (str_starts_with($path, $prefix)) {
                 return true;
             }

@@ -7,6 +7,7 @@ namespace Academy\Http\Controllers;
 use Academy\Application\Learning\LearnerPlayerItemDetailView;
 use Academy\Application\Learning\LearnerPlayerQueryService;
 use Academy\Application\Learning\LearningMediaAccessService;
+use Academy\Application\Learning\LearningQuestionQueryService;
 use Academy\Application\Learning\MarkContentCompleteService;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\AuthorizationException;
@@ -30,6 +31,7 @@ final class LearnerPlayerController
         private readonly LearnerPlayerQueryService $query,
         private readonly MarkContentCompleteService $markComplete,
         private readonly LearningMediaAccessService $media,
+        private readonly LearningQuestionQueryService $questions,
         private readonly PhpRenderer $renderer,
     ) {
     }
@@ -80,10 +82,29 @@ final class LearnerPlayerController
             return new HtmlResponse($html, 409);
         }
 
+        $params = $request->getQueryParams();
+        $flash = null;
+        if (isset($params['asked'])) {
+            $flash = 'Your question was sent.';
+        } elseif (isset($params['closed'])) {
+            $flash = 'Question closed.';
+        }
+
+        $threads = [];
+        $canAsk = $this->questions->canAskOnLesson($detail->item->contentType);
+        try {
+            $threads = $this->questions->lessonThread($this->auth($request), $enrolmentId, $contentId);
+        } catch (AuthorizationException) {
+            $canAsk = false;
+        }
+
         $html = $this->renderer->render('pages/learning/item', [
             'title' => $detail->item->title,
             'csrf' => $this->csrf($request),
             'detail' => $detail,
+            'questions' => $threads,
+            'canAsk' => $canAsk,
+            'flash' => $flash,
             'error' => null,
         ]);
 
@@ -107,6 +128,9 @@ final class LearnerPlayerController
                     'title' => $detail->item->title,
                     'csrf' => $this->csrf($request),
                     'detail' => $detail,
+                    'questions' => $this->safeLessonThread($request, $enrolmentId, $contentId),
+                    'canAsk' => $this->questions->canAskOnLesson($detail->item->contentType),
+                    'flash' => null,
                     'error' => $exception->getMessage(),
                 ]);
 
@@ -161,6 +185,18 @@ final class LearnerPlayerController
         $response->getBody()->write($file['bytes']);
 
         return $response;
+    }
+
+    /**
+     * @return list<\Academy\Application\Learning\LearningQuestionThreadItemView>
+     */
+    private function safeLessonThread(ServerRequestInterface $request, int $enrolmentId, int $contentId): array
+    {
+        try {
+            return $this->questions->lessonThread($this->auth($request), $enrolmentId, $contentId);
+        } catch (AuthorizationException) {
+            return [];
+        }
     }
 
     private function withPodcastMediaHost(HtmlResponse $response, LearnerPlayerItemDetailView $detail): HtmlResponse
