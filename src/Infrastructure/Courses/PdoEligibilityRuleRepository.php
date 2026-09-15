@@ -66,6 +66,14 @@ final class PdoEligibilityRuleRepository implements EligibilityRuleRepository
         return (int) $pdo->lastInsertId();
     }
 
+    public function deleteByCourseVersionId(int $courseVersionId): void
+    {
+        $stmt = $this->connections->connection()->prepare(
+            'DELETE FROM eligibility_rules WHERE course_version_id = :version_id',
+        );
+        $stmt->execute(['version_id' => $courseVersionId]);
+    }
+
     /**
      * @param array<string, mixed> $row
      */

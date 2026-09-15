@@ -21,6 +21,15 @@ final class InAppNotificationHref
                 return $certificate;
             }
         }
+        if (
+            $eventType === TransactionalNotificationEventTypes::APPLICATION_ADMITTED
+            || $eventType === TransactionalNotificationEventTypes::ENROLMENT_CREATED
+        ) {
+            $learning = self::internalPath($variables['learning_link'] ?? null);
+            if ($learning !== null) {
+                return $learning;
+            }
+        }
 
         return self::internalPath($variables['dashboard_link'] ?? null) ?? '/dashboard';
     }

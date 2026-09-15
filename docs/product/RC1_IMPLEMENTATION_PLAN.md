@@ -121,7 +121,17 @@ Slice 2 must not invent a second progress formula. Slice 3 must not put payment 
 
 ---
 
-*Slices 1–3 are implemented. Slices 4–5 are sequenced only.*
+*Slices 1–5 are implemented.*
+
+## Slice 5 — communication
+
+Existing transactional sends keep their events. Verification, application received, admission, and certificate issued use the requested subjects and a branded HTML alternative. Plain text remains the fallback and the learner inbox copy. Verification-token mail is still not copied into the inbox. A failed send does not create an inbox row. A later successful retry records one row, keyed by the outbox message so it cannot duplicate.
+
+## Slice 4 — eligibility and required documents
+
+Course administrators edit eligibility and required documents on an unlocked edition at `/admin/courses/{courseId}/versions/{versionId}/admission`. The screen uses learner categories and notes, and a document name, description, mandatory flag, and display order. It does not show stored field names or category codes.
+
+Those writes use the existing eligibility and document requirement records. The public course page, the learner application checklist, and the reviewer checklist already read that source. A locked edition cannot be changed; the next edition is the path for a correction. File type, size, and reuse stay at the platform defaults already used by credential uploads. Saving eligibility turns extra stored rules into display notes; it does not add an apply-time eligibility evaluator.
 
 ---
 
@@ -129,7 +139,7 @@ Slice 2 must not invent a second progress formula. Slice 3 must not put payment 
 
 Course Admin `/admin/courses` shows four scoped counts: courses, published courses, active batches, and learners enrolled. There is no payment or revenue card. Faculty `/faculty` is the same assignment (`course.view_assigned` and course scope). There is no separate faculty role in the schema. The teaching home lists assigned courses, upcoming live lessons, learner counts, and recent admissions or lesson updates. It does not show join URLs, application numbers, or payment data.
 
-Authoring labels say edition, chapter, and lesson. Publishing explains that the edition locks. Eligibility forms remain slice 4.
+Authoring labels say edition, chapter, and lesson. Publishing explains that the edition locks. Eligibility and required documents are edited on the edition, and lock with it.
 
 ---
 

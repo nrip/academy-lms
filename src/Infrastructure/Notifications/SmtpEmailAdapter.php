@@ -73,7 +73,7 @@ final class SmtpEmailAdapter implements EmailDeliveryPort
             $this->command($socket, 'RCPT TO:<' . $to . '>', [250, 251]);
             $this->command($socket, 'DATA', [354]);
 
-            $data = $this->buildMime($message, $to);
+            $data = AcademyEmailMime::data($this->fromName, $this->fromAddress, $to, $message);
             fwrite($socket, $data . "\r\n.\r\n");
             $this->expect($socket, [250]);
             $this->command($socket, 'QUIT', [221]);
@@ -150,38 +150,4 @@ final class SmtpEmailAdapter implements EmailDeliveryPort
         }
     }
 
-    private function buildMime(EmailDeliveryMessage $message, string $to): string
-    {
-        $fromName = $this->encodeHeader($this->fromName !== '' ? $this->fromName : $this->fromAddress);
-        $subject = $this->encodeHeader($message->subject);
-        $body = str_replace(["\r\n", "\r"], "\n", $message->bodyText);
-        $body = str_replace("\n", "\r\n", $body);
-        // Dot-stuffing for SMTP DATA.
-        $body = preg_replace('/^\./m', '..', $body) ?? $body;
-
-        return 'From: ' . $fromName . ' <' . $this->fromAddress . ">\r\n"
-            . 'To: <' . $to . ">\r\n"
-            . 'Subject: ' . $subject . "\r\n"
-            . "MIME-Version: 1.0\r\n"
-            . "Content-Type: text/plain; charset=UTF-8\r\n"
-            . "Content-Transfer-Encoding: 8bit\r\n"
-            . 'X-Template-Key: ' . $this->headerToken($message->templateKey) . "\r\n"
-            . 'X-Idempotency-Key: ' . $this->headerToken($message->idempotencyKey) . "\r\n"
-            . "\r\n"
-            . $body;
-    }
-
-    private function encodeHeader(string $value): string
-    {
-        if (preg_match('/^[\x20-\x7E]*$/', $value) === 1) {
-            return $value;
-        }
-
-        return '=?UTF-8?B?' . base64_encode($value) . '?=';
-    }
-
-    private function headerToken(string $value): string
-    {
-        return preg_replace('/[\r\n]+/', '', $value) ?? '';
-    }
 }

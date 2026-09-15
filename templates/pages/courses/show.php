@@ -109,6 +109,9 @@ ob_start();
                         <?php if (!$requirement->mandatory): ?>
                             <span class="text-muted small"><?= $e->html('(optional)') ?></span>
                         <?php endif; ?>
+                        <?php if ($requirement->description !== ''): ?>
+                            <div class="small text-muted"><?= $e->html($requirement->description) ?></div>
+                        <?php endif; ?>
                     </li>
                 <?php endforeach; ?>
             </ul>

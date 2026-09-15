@@ -225,6 +225,7 @@ final class TransactionalNotificationDeliveryTest extends TestCase
             $container->get(NotificationContextResolver::class),
             $container->get(TransactionalNotificationTemplateRegistry::class),
             $container->get(NotificationTemplateRenderer::class),
+            $container->get(\Academy\Application\Notifications\AcademyEmailLayout::class),
             $email,
             $policy ?? $container->get(NotificationRetryPolicy::class),
             $container->get(TransactionManager::class),

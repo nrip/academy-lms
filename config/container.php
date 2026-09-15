@@ -20,11 +20,12 @@ use Academy\Application\Certificates\CertificateIssuanceService;
 use Academy\Application\Certificates\CertificateQueryService;
 use Academy\Application\Courses\AssignCourseAdminScopeService;
 use Academy\Application\Courses\CatalogueService;
-use Academy\Application\Courses\CourseCoverService;
 use Academy\Application\Courses\CloneCourseVersionService;
+use Academy\Application\Courses\ConfigureCourseAdmissionService;
 use Academy\Application\Courses\ContentItemCommandService;
 use Academy\Application\Courses\CourseAdminAccessGuard;
 use Academy\Application\Courses\CourseAdminQueryService;
+use Academy\Application\Courses\CourseCoverService;
 use Academy\Application\Courses\CourseOperationsQueryService;
 use Academy\Application\Courses\CreateBatchForPublishedVersionService;
 use Academy\Application\Courses\CreateCourseService;
@@ -62,6 +63,7 @@ use Academy\Application\Learning\LearnerPlayerQueryService;
 use Academy\Application\Learning\LearningMediaAccessService;
 use Academy\Application\Learning\LearningMediaIngestService;
 use Academy\Application\Learning\MarkContentCompleteService;
+use Academy\Application\Notifications\AcademyEmailLayout;
 use Academy\Application\Notifications\AdminNotificationQueryService;
 use Academy\Application\Notifications\AdminNotificationRetryService;
 use Academy\Application\Notifications\DeliveryFinaliser;
@@ -127,6 +129,7 @@ use Academy\Domain\Courses\BatchRepository;
 use Academy\Domain\Courses\ContentItemRepository;
 use Academy\Domain\Courses\CourseAdminScopeAssignmentRepository;
 use Academy\Domain\Courses\CourseAdminScopePolicy;
+use Academy\Domain\Courses\CourseCoverPolicy;
 use Academy\Domain\Courses\CourseDocumentRequirementRepository;
 use Academy\Domain\Courses\CourseRepository;
 use Academy\Domain\Courses\CourseVersionImmutabilityGuard;
@@ -135,7 +138,6 @@ use Academy\Domain\Courses\CourseVersionRepository;
 use Academy\Domain\Courses\CourseVersionStateMachine;
 use Academy\Domain\Courses\CourseVersionStatusHistoryRepository;
 use Academy\Domain\Courses\EligibilityRuleRepository;
-use Academy\Domain\Courses\CourseCoverPolicy;
 use Academy\Domain\Courses\LearningMediaPolicy;
 use Academy\Domain\Courses\ModuleRepository;
 use Academy\Domain\Credentials\DocumentFileValidator;
@@ -207,17 +209,18 @@ use Academy\Http\Controllers\AssessmentConfigController;
 use Academy\Http\Controllers\BatchController;
 use Academy\Http\Controllers\CertificateController;
 use Academy\Http\Controllers\CourseAdminController;
-use Academy\Http\Controllers\FacultyHomeController;
+use Academy\Http\Controllers\CourseAdmissionController;
 use Academy\Http\Controllers\CourseCatalogueController;
 use Academy\Http\Controllers\CourseCurriculumController;
 use Academy\Http\Controllers\CourseVersionLifecycleController;
 use Academy\Http\Controllers\DashboardController;
-use Academy\Http\Controllers\LearnerInboxController;
 use Academy\Http\Controllers\DocumentController;
 use Academy\Http\Controllers\EmailVerificationController;
+use Academy\Http\Controllers\FacultyHomeController;
 use Academy\Http\Controllers\FinancePaymentController;
 use Academy\Http\Controllers\ForgotPasswordController;
 use Academy\Http\Controllers\HealthController;
+use Academy\Http\Controllers\LearnerInboxController;
 use Academy\Http\Controllers\LearnerPlayerController;
 use Academy\Http\Controllers\LearningLocalStorageDownloadController;
 use Academy\Http\Controllers\LocalStorageDownloadController;
@@ -326,8 +329,8 @@ use Academy\Infrastructure\Review\PdoReviewerScopeAssignmentRepository;
 use Academy\Infrastructure\Review\PdoVerificationAuditLogRepository;
 use Academy\Infrastructure\Scheduler\PdoSchedulerLock;
 use Academy\Infrastructure\Session\PdoSessionRepository;
-use Academy\Infrastructure\Storage\LearningLocalObjectStorage;
 use Academy\Infrastructure\Storage\CourseCoverStorage;
+use Academy\Infrastructure\Storage\LearningLocalObjectStorage;
 use Academy\Infrastructure\Storage\LearningMediaStorage;
 use Academy\Infrastructure\Storage\LocalObjectStorage;
 use Academy\Infrastructure\Storage\S3ObjectStorage;
@@ -561,6 +564,14 @@ return static function (): ContainerInterface {
             $c->get(CourseVersionRepository::class),
             $c->get(CourseAdminScopeAssignmentRepository::class),
             $c->get(QuestionBankService::class),
+            $c->get(ConnectionFactory::class),
+            $c->get(AuditService::class),
+        ),
+        ConfigureCourseAdmissionService::class => static fn (ContainerInterface $c): ConfigureCourseAdmissionService => new ConfigureCourseAdmissionService(
+            $c->get(CourseAdminAccessGuard::class),
+            $c->get(AuthorizationService::class),
+            $c->get(EligibilityRuleRepository::class),
+            $c->get(CourseDocumentRequirementRepository::class),
             $c->get(ConnectionFactory::class),
             $c->get(AuditService::class),
         ),
@@ -1774,6 +1785,12 @@ return static function (): ContainerInterface {
                 hash('sha256', $security['notifications']['delivery_key'] . '|recipient'),
             );
         },
+        AcademyEmailLayout::class => static function (ContainerInterface $c): AcademyEmailLayout {
+            /** @var array{url: string} $app */
+            $app = $c->get('config.app');
+
+            return new AcademyEmailLayout($c->get(AcademyBranding::class), $app['url']);
+        },
         NotificationContextResolver::class => static function (ContainerInterface $c): NotificationContextResolver {
             /** @var array{url: string} $app */
             $app = $c->get('config.app');
@@ -1820,6 +1837,7 @@ return static function (): ContainerInterface {
                 $c->get(NotificationContextResolver::class),
                 $c->get(TransactionalNotificationTemplateRegistry::class),
                 $c->get(NotificationTemplateRenderer::class),
+                $c->get(AcademyEmailLayout::class),
                 $c->get(EmailDeliveryPort::class),
                 $c->get(NotificationRetryPolicy::class),
                 $c->get(TransactionManager::class),
@@ -1839,6 +1857,7 @@ return static function (): ContainerInterface {
                 $c->get(VerificationChallengeRepository::class),
                 $c->get(SealedSecretBox::class),
                 $c->get(EmailDeliveryPort::class),
+                $c->get(AcademyEmailLayout::class),
                 $c->get(SmsOtpDeliveryPort::class),
                 $c->get(DeliveryFinaliser::class),
                 $c->get(LoggerInterface::class),
@@ -2106,6 +2125,26 @@ return static function (): ContainerInterface {
             $courseAdminAccess->requirePermission(
                 $router->post('/admin/course-admin-scopes', [CourseAdminController::class, 'assignScope']),
                 'course.admin.scope.assign',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/versions/{versionId}/admission', [CourseAdmissionController::class, 'show']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/admission/eligibility', [CourseAdmissionController::class, 'saveEligibility']),
+                'course.version.edit',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/admission/documents', [CourseAdmissionController::class, 'addDocument']),
+                'course.version.edit',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/admission/documents/{requirementId}', [CourseAdmissionController::class, 'updateDocument']),
+                'course.version.edit',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->post('/admin/courses/{courseId}/versions/{versionId}/admission/documents/{requirementId}/delete', [CourseAdmissionController::class, 'removeDocument']),
+                'course.version.edit',
             );
             $courseAdminAccess->requirePermission(
                 $router->get('/admin/courses/{courseId}/versions/{versionId}/curriculum', [CourseCurriculumController::class, 'show']),
@@ -2557,6 +2596,10 @@ return static function (): ContainerInterface {
         AdminNotificationController::class => static fn (ContainerInterface $c): AdminNotificationController => new AdminNotificationController(
             $c->get(AdminNotificationQueryService::class),
             $c->get(AdminNotificationRetryService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        CourseAdmissionController::class => static fn (ContainerInterface $c): CourseAdmissionController => new CourseAdmissionController(
+            $c->get(ConfigureCourseAdmissionService::class),
             $c->get(PhpRenderer::class),
         ),
         CourseAdminController::class => static fn (ContainerInterface $c): CourseAdminController => new CourseAdminController(

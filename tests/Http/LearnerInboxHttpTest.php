@@ -50,21 +50,21 @@ final class LearnerInboxHttpTest extends TestCase
             ->get(TransactionalNotificationDeliveryWorker::class)
             ->run('inbox-http', 20);
 
-        $ownerTitle = $this->titleFor($owner['applicant_user_id']);
-        $intruderTitle = $this->titleFor($intruder['applicant_user_id']);
-        self::assertNotSame($ownerTitle, $intruderTitle);
+        $ownerReference = $this->applicationReferenceFor($owner['applicant_user_id']);
+        $intruderReference = $this->applicationReferenceFor($intruder['applicant_user_id']);
+        self::assertNotSame($ownerReference, $intruderReference);
 
         $intruderPage = $this->get('/notifications', $intruder['applicant_session']);
         self::assertSame(200, $intruderPage->getStatusCode());
         $intruderBody = (string) $intruderPage->getBody();
-        self::assertStringContainsString($intruderTitle, $intruderBody);
-        self::assertStringNotContainsString($ownerTitle, $intruderBody);
+        self::assertStringContainsString($intruderReference, $intruderBody);
+        self::assertStringNotContainsString($ownerReference, $intruderBody);
         self::assertStringNotContainsString('learning/catalogue/', $intruderBody);
         self::assertStringNotContainsString('learning/media/', $intruderBody);
 
         $ownerPage = $this->get('/notifications', $owner['applicant_session']);
         self::assertSame(200, $ownerPage->getStatusCode());
-        self::assertStringContainsString($ownerTitle, (string) $ownerPage->getBody());
+        self::assertStringContainsString($ownerReference, (string) $ownerPage->getBody());
 
         $ownerIds = $this->idsFor($owner['applicant_user_id']);
         self::assertNotEmpty($ownerIds);
@@ -80,14 +80,18 @@ final class LearnerInboxHttpTest extends TestCase
         self::assertStringContainsString('No unread updates.', (string) $after->getBody());
     }
 
-    private function titleFor(int $userId): string
+    private function applicationReferenceFor(int $userId): string
     {
         $stmt = DatabaseTestCase::pdo()->prepare(
-            'SELECT title FROM in_app_notifications WHERE user_id = ? ORDER BY in_app_notification_id ASC LIMIT 1',
+            'SELECT body FROM in_app_notifications WHERE user_id = ? ORDER BY in_app_notification_id ASC LIMIT 1',
         );
         $stmt->execute([$userId]);
+        $body = (string) $stmt->fetchColumn();
+        if (preg_match('/Application reference: (\S+)\./', $body, $match) !== 1) {
+            self::fail('Inbox body is missing the application reference.');
+        }
 
-        return (string) $stmt->fetchColumn();
+        return $match[1];
     }
 
     /**

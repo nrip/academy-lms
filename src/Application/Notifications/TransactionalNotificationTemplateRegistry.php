@@ -32,12 +32,13 @@ final class TransactionalNotificationTemplateRegistry
         $this->byEventType = [
             TransactionalNotificationEventTypes::APPLICATION_SUBMITTED => $this->def(
                 'application_submitted',
-                1,
-                'Application submitted — {{application_number}}',
+                2,
+                'Your application has been received',
                 "Hello {{learner_display_name}},\n\n"
-                . "We have received your application {{application_number}} for {{course_title}} ({{batch_name}}).\n"
-                . "Status: {{status_label}}.\n\n"
-                . "View progress: {{dashboard_link}}\n",
+                . "We have received your application for {{course_title}}.\n"
+                . "Application reference: {{application_number}}.\n\n"
+                . 'What happens next: we review your documents. You can follow progress from your dashboard. '
+                . "You do not need to do anything else unless we ask for a correction.\n",
             ),
             TransactionalNotificationEventTypes::APPLICATION_CORRECTION_REQUESTED => $this->def(
                 'application_correction_requested',
@@ -104,30 +105,29 @@ final class TransactionalNotificationTemplateRegistry
             ),
             TransactionalNotificationEventTypes::APPLICATION_ADMITTED => $this->def(
                 'application_admitted',
-                1,
-                'Application admitted — {{application_number}}',
+                2,
+                'Congratulations! You have been admitted',
                 "Hello {{learner_display_name}},\n\n"
-                . "Application {{application_number}} for {{course_title}} ({{batch_name}}) is admitted.\n"
-                . "Status: {{status_label}}.\n\n"
-                . "{{dashboard_link}}\n",
+                . "You have been admitted to {{course_title}}.\n"
+                . "Application reference: {{application_number}}.\n\n"
+                . "You can start learning now.\n",
+                ['learning_link'],
             ),
             TransactionalNotificationEventTypes::ENROLMENT_CREATED => $this->def(
                 'enrolment_created',
-                1,
-                'Enrolment confirmed — {{course_title}}',
+                2,
+                'Your course is ready',
                 "Hello {{learner_display_name}},\n\n"
                 . "You are enrolled in {{course_title}} ({{batch_name}}).\n"
-                . "Status: {{status_label}}. Course access follows your enrolment status — payment alone is not enough.\n\n"
-                . "{{dashboard_link}}\n",
+                . "Open the course when you are ready to start.\n",
+                ['learning_link'],
             ),
             TransactionalNotificationEventTypes::CERTIFICATE_ISSUED => $this->def(
                 'certificate_issued',
-                1,
-                'Certificate issued — {{course_title}}',
+                2,
+                'Your certificate is ready',
                 "Hello {{learner_display_name}},\n\n"
-                . "Your certificate for {{course_title}} is ready.\n\n"
-                . "View or download your certificate: {{certificate_link}}\n\n"
-                . "{{dashboard_link}}\n",
+                . "Congratulations. Your certificate for {{course_title}} is ready.\n",
                 ['certificate_link'],
             ),
         ];

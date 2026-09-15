@@ -73,7 +73,9 @@ When a completion certificate is issued, the issuance service enqueues `certific
 
 - learner name  
 - course name  
-- certificate link (`{APP_URL}/certificates/{id}`)  
+- certificate link (`{APP_URL}/certificates/{id}`)
+
+The letter is a branded HTML message with a plain-text alternative. The inbox stores the plain text, not the HTML.  
 
 No new payment/admission state-machine changes.
 
