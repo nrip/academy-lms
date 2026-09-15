@@ -234,6 +234,11 @@ final class RegistrationServiceTest extends TestCase
                 throw new RuntimeException('forced mid-transaction failure');
             }
 
+            public function ensureStubForUser(int $userId, \DateTimeImmutable $now): \Academy\Domain\Identity\LearnerProfile
+            {
+                throw new RuntimeException('Not used in this test.');
+            }
+
             public function findByUserId(int $userId): ?\Academy\Domain\Identity\LearnerProfile
             {
                 throw new RuntimeException('Not used in this test.');

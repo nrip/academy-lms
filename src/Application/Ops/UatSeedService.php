@@ -93,15 +93,15 @@ final class UatSeedService
             foreach ($persona['roles'] as $roleKey) {
                 $this->ensureRole($pdo, $userId, $roleKey, $now);
             }
-            if (in_array(RoleKeys::APPLICANT, $persona['roles'], true)) {
-                $this->ensureLearnerProfile(
-                    $pdo,
-                    $userId,
-                    $now,
-                    $persona['first_name'] ?? 'Demo',
-                    $persona['last_name'] ?? 'Learner',
-                );
-            }
+            // Every seeded persona can open /profile (roles grant profile.*_own).
+            // Staff users do not go through registration, so create a stub here.
+            $this->ensureLearnerProfile(
+                $pdo,
+                $userId,
+                $now,
+                $persona['first_name'] ?? 'Demo',
+                $persona['last_name'] ?? $persona['label'],
+            );
             if (in_array(RoleKeys::CREDENTIAL_REVIEWER, $persona['roles'], true)) {
                 $this->ensureReviewerBatchScope($pdo, $userId, $now);
                 $this->ensureReviewerBatchScopeByCode($pdo, $userId, self::PHASE1_BATCH_CODE, $now);

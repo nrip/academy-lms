@@ -14,6 +14,12 @@ interface LearnerProfileRepository
      */
     public function insertStub(int $userId, DateTimeImmutable $now): int;
 
+    /**
+     * Returns the user's profile row, creating an empty stub when missing.
+     * Staff roles receive profile permissions but may never have gone through registration.
+     */
+    public function ensureStubForUser(int $userId, DateTimeImmutable $now): LearnerProfile;
+
     public function findByUserId(int $userId): ?LearnerProfile;
 
     public function findById(int $profileId): ?LearnerProfile;

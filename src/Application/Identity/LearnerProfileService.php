@@ -173,12 +173,10 @@ final class LearnerProfileService
             throw new NotFoundException('Profile not found.');
         }
 
-        $profile = $this->profiles->findByUserId($auth->userId);
-        if ($profile === null) {
-            throw new NotFoundException('Profile not found.');
-        }
-
-        return $profile;
+        return $this->profiles->ensureStubForUser(
+            $auth->userId,
+            new DateTimeImmutable('now', new DateTimeZone('UTC')),
+        );
     }
 
     private function currentPersonalValue(LearnerProfile $profile, string $column): string|bool|null

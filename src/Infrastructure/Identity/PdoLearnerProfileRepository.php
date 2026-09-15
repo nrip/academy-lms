@@ -78,6 +78,30 @@ final class PdoLearnerProfileRepository implements LearnerProfileRepository
         return (int) $pdo->lastInsertId();
     }
 
+    public function ensureStubForUser(int $userId, DateTimeImmutable $now): LearnerProfile
+    {
+        $existing = $this->findByUserId($userId);
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        try {
+            $this->insertStub($userId, $now);
+        } catch (\PDOException $exception) {
+            // Concurrent first open of /profile for the same user.
+            if ((int) $exception->errorInfo[1] !== 1062) {
+                throw $exception;
+            }
+        }
+
+        $profile = $this->findByUserId($userId);
+        if ($profile === null) {
+            throw new \RuntimeException('Failed to ensure learner profile stub.');
+        }
+
+        return $profile;
+    }
+
     public function findByUserId(int $userId): ?LearnerProfile
     {
         $pdo = $this->connections->connection();

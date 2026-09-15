@@ -155,6 +155,11 @@ final class RegistrationPasswordHashOrderTest extends TestCase
                 throw new \LogicException('Must not be called: duplicate conflict short-circuits registration.');
             }
 
+            public function ensureStubForUser(int $userId, \DateTimeImmutable $now): \Academy\Domain\Identity\LearnerProfile
+            {
+                throw new \LogicException('Not used in this test.');
+            }
+
             public function findByUserId(int $userId): ?\Academy\Domain\Identity\LearnerProfile
             {
                 throw new \LogicException('Not used in this test.');
