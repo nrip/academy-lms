@@ -11,6 +11,7 @@ use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\AuthorizationException;
 use Academy\Domain\Exception\DomainRuleException;
 use Academy\Domain\Exception\NotFoundException;
+use Academy\Domain\Identity\LearnerProfileRepository;
 use Academy\Domain\Learning\EnrolmentLifecycleStatus;
 use Academy\Domain\Notifications\InAppNotificationRepository;
 use Academy\Domain\Payments\PaymentAmountSnapshot;
@@ -35,6 +36,7 @@ final class LearnerDashboardQueryService
         private readonly LearnerPlayerQueryService $player,
         private readonly CertificateRepository $certificates,
         private readonly InAppNotificationRepository $inbox,
+        private readonly LearnerProfileRepository $learnerProfiles,
     ) {
     }
 
@@ -198,7 +200,7 @@ final class LearnerDashboardQueryService
                     : null,
                 batchStartsAt: $row['batch_starts_at'] !== null ? (string) $row['batch_starts_at'] : null,
                 batchEndsAt: $row['batch_ends_at'] !== null ? (string) $row['batch_ends_at'] : null,
-                courseVersionLabel: 'v' . (int) $row['version_number'] . ' — ' . (string) $row['version_title'],
+                courseVersionLabel: 'Edition ' . (int) $row['version_number'] . ' — ' . (string) $row['version_title'],
                 primaryAction: $primaryAction,
             );
         }
@@ -219,6 +221,20 @@ final class LearnerDashboardQueryService
             }
         }
 
+        $certificateSummaries = [];
+        $totalActiveCertificates = 0;
+        foreach ($studyCards as $study) {
+            if ($study->certificateCount <= 0) {
+                continue;
+            }
+            $totalActiveCertificates += $study->certificateCount;
+            $certificateSummaries[] = [
+                'courseTitle' => $study->courseTitle,
+                'certificateCount' => $study->certificateCount,
+                'href' => $study->certificatesHref,
+            ];
+        }
+
         return new LearnerDashboardView(
             $cards,
             $requiredActions,
@@ -227,7 +243,23 @@ final class LearnerDashboardQueryService
             array_slice($upcomingSessions, 0, 5),
             $this->inbox->countUnread($userId),
             $recentUnread,
+            $this->shouldShowProfileWelcome($userId),
+            $certificateSummaries,
+            $totalActiveCertificates,
         );
+    }
+
+    private function shouldShowProfileWelcome(int $userId): bool
+    {
+        $profile = $this->learnerProfiles->findByUserId($userId);
+        if ($profile === null) {
+            return true;
+        }
+
+        $first = $profile->firstName !== null ? trim($profile->firstName) : '';
+        $display = $profile->preferredDisplayName !== null ? trim($profile->preferredDisplayName) : '';
+
+        return $first === '' && $display === '';
     }
 
     /**
@@ -342,6 +374,8 @@ final class LearnerDashboardQueryService
             }
         }
 
+        $certificateCount = $this->certificateCount($enrolmentId);
+
         return new LearnerStudyCard(
             enrolmentId: $enrolmentId,
             courseTitle: $courseTitle,
@@ -354,10 +388,19 @@ final class LearnerDashboardQueryService
             completedCount: $completed,
             totalCount: $total,
             progressPercent: $percent,
+            progressNarrative: LearnerProgressNarrative::forStudyCard(
+                $completed,
+                $total,
+                $percent,
+                $continueTitle,
+                $continueChapter,
+                $accessible,
+                $certificateCount,
+            ),
             continueTitle: $continueTitle,
             continueChapterTitle: $continueChapter,
             continueHref: $continueHref,
-            certificateCount: $this->certificateCount($enrolmentId),
+            certificateCount: $certificateCount,
             certificatesHref: $outlineHref . '/certificates',
         );
     }

@@ -39,7 +39,8 @@ If documents conflict, stop and identify the conflict. Do not resolve by assumpt
 | [WP01_DECISION_NOTE.md](./product/WP01_DECISION_NOTE.md) | WP-01 options (session, email/SMS, TOTP, scope, hosting) |
 | [DEMO_MODE_DECISION.md](./product/DEMO_MODE_DECISION.md) | Demo playground decisions (`DEMO-MODE-1`); not implemented |
 | [LEARNING_QA_DESIGN.md](./product/LEARNING_QA_DESIGN.md) | RC2 Slice 1 Learning Q&A design (implemented: ask / view / response / notifications) |
-| [PRODUCT_EXPERIENCE_GAP_ASSESSMENT.md](./product/PRODUCT_EXPERIENCE_GAP_ASSESSMENT.md) | Go-live experience gaps (assessment only) |
+| [RC2_PRODUCT_EXPERIENCE_ENHANCEMENT_PLAN.md](./product/RC2_PRODUCT_EXPERIENCE_ENHANCEMENT_PLAN.md) | Post–RC1/RC2 experience enhancement assessment (plan only) |
+| [PRODUCT_EXPERIENCE_GAP_ASSESSMENT.md](./product/PRODUCT_EXPERIENCE_GAP_ASSESSMENT.md) | Go-live experience gaps (assessment only; partially superseded by RC1) |
 | [RC1_IMPLEMENTATION_PLAN.md](./product/RC1_IMPLEMENTATION_PLAN.md) | RC1 experience slices; slices 1–5 are implemented |
 
 ## Architecture

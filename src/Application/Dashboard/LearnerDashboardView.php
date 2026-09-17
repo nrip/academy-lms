@@ -14,6 +14,7 @@ final class LearnerDashboardView
      * @param list<LearnerStudyCard> $studyCards
      * @param list<LearnerUpcomingSession> $upcomingSessions
      * @param list<InAppNotification> $recentUpdates
+     * @param list<array{courseTitle: string, certificateCount: int, href: string}> $certificateSummaries
      */
     public function __construct(
         public readonly array $cards,
@@ -23,6 +24,9 @@ final class LearnerDashboardView
         public readonly array $upcomingSessions = [],
         public readonly int $unreadUpdates = 0,
         public readonly array $recentUpdates = [],
+        public readonly bool $showProfileWelcome = false,
+        public readonly array $certificateSummaries = [],
+        public readonly int $totalActiveCertificates = 0,
     ) {
     }
 }

@@ -44,6 +44,43 @@ final class RegistrationHttpTest extends TestCase
         self::assertStringContainsString('acad-shell', $html);
         self::assertStringContainsString('btn btn-primary', $html);
         self::assertStringContainsString('Create account', $html);
+        self::assertStringContainsString('Join the academy', $html);
+        self::assertStringContainsString('data-acad-password-toggle', $html);
+        self::assertStringContainsString('Use at least 12 characters', $html);
+    }
+
+    public function testWeakPasswordRedisplaysFormWithGuidance(): void
+    {
+        $boot = $this->bootSession();
+        $email = 'httpweak.' . bin2hex(random_bytes(4)) . '@example.test';
+        $mobile = '9' . random_int(100000000, 999999999);
+
+        $response = ApplicationFactory::handle(
+            (new ServerRequest([], [], 'http://localhost/register', 'POST'))
+                ->withHeader('X-CSRF-Token', $boot['csrf'])
+                ->withParsedBody([
+                    'email' => $email,
+                    'mobile' => $mobile,
+                    'password' => 'short',
+                    'terms_accepted' => '1',
+                    'privacy_accepted' => '1',
+                    '_csrf' => $boot['csrf'],
+                ])
+                ->withCookieParams([
+                    $this->sessionCookieName => $boot['session'],
+                    $this->csrfCookieName => $boot['csrf'],
+                ]),
+        );
+
+        self::assertSame(422, $response->getStatusCode());
+        $html = (string) $response->getBody();
+        self::assertStringContainsString('at least 12 characters', $html);
+        self::assertStringContainsString($email, $html);
+
+        $pdo = DatabaseTestCase::pdo();
+        $count = $pdo->prepare('SELECT COUNT(*) FROM users WHERE email = ?');
+        $count->execute([strtolower($email)]);
+        self::assertSame(0, (int) $count->fetchColumn());
     }
 
     public function testAnonymousCatalogueShellExposesRegistrationCta(): void

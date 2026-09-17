@@ -58,7 +58,7 @@ ob_start();
     <?php endif; ?>
 
     <?php if ($outline->modules === []): ?>
-        <p class="text-muted"><?= $e->html('No curriculum is available for this course version yet.') ?></p>
+        <p class="text-muted"><?= $e->html('No curriculum is available for this course edition yet.') ?></p>
     <?php endif; ?>
 
     <?php foreach ($outline->modules as $moduleView): ?>

@@ -31,7 +31,14 @@ ob_start();
         </div>
         <div class="mb-3">
             <label class="form-label" for="password"><?= $e->html('Password') ?></label>
-            <input class="form-control" type="password" id="password" name="password" required autocomplete="current-password">
+            <div class="input-group">
+                <input class="form-control" type="password" id="password" name="password" required
+                       autocomplete="current-password" data-acad-password-input>
+                <button class="btn btn-outline-secondary" type="button" data-acad-password-toggle
+                        aria-controls="password" aria-pressed="false">
+                    <?= $e->html('Show') ?>
+                </button>
+            </div>
         </div>
         <button type="submit" class="btn btn-primary w-100"><?= $e->html('Sign in') ?></button>
     </form>

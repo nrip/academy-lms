@@ -6,6 +6,7 @@ namespace Academy\Http\Controllers;
 
 use Academy\Application\Identity\RegistrationService;
 use Academy\Application\Security\SessionService;
+use Academy\Domain\Exception\ValidationException;
 use Academy\Domain\Security\SessionRecord;
 use Academy\Http\Middleware\SessionMiddleware;
 use Academy\Infrastructure\View\PhpRenderer;
@@ -25,15 +26,7 @@ final class RegistrationController
 
     public function showForm(ServerRequestInterface $request): ResponseInterface
     {
-        /** @var string $csrf */
-        $csrf = (string) $request->getAttribute(SessionMiddleware::ATTR_RAW_CSRF, '');
-
-        $html = $this->renderer->render('pages/register/form', [
-            'title' => 'Create account',
-            'csrf' => $csrf,
-        ]);
-
-        return new HtmlResponse($html);
+        return $this->renderForm($request);
     }
 
     public function register(ServerRequestInterface $request): ResponseInterface
@@ -45,14 +38,21 @@ final class RegistrationController
         $termsAccepted = !empty($body['terms_accepted']);
         $privacyAccepted = !empty($body['privacy_accepted']);
 
-        $result = $this->registration->register(
-            $email,
-            $mobile,
-            $password,
-            $termsAccepted,
-            $privacyAccepted,
-            $this->clientIp($request),
-        );
+        try {
+            $result = $this->registration->register(
+                $email,
+                $mobile,
+                $password,
+                $termsAccepted,
+                $privacyAccepted,
+                $this->clientIp($request),
+            );
+        } catch (ValidationException $exception) {
+            return $this->renderForm($request, [
+                'email' => trim($email),
+                'mobile' => trim($mobile),
+            ], $exception->fields(), 422);
+        }
 
         if ($result->created && $result->userId !== null) {
             /** @var SessionRecord|null $session */
@@ -75,6 +75,29 @@ final class RegistrationController
         ]);
 
         return new HtmlResponse($html);
+    }
+
+    /**
+     * @param array<string, string> $values
+     * @param array<string, list<string>> $errors
+     */
+    private function renderForm(
+        ServerRequestInterface $request,
+        array $values = ['email' => '', 'mobile' => ''],
+        array $errors = [],
+        int $status = 200,
+    ): ResponseInterface {
+        /** @var string $csrf */
+        $csrf = (string) $request->getAttribute(SessionMiddleware::ATTR_RAW_CSRF, '');
+
+        $html = $this->renderer->render('pages/register/form', [
+            'title' => 'Create account',
+            'csrf' => $csrf,
+            'values' => $values,
+            'errors' => $errors,
+        ]);
+
+        return new HtmlResponse($html, $status);
     }
 
     private function pendingUserIdFromSession(ServerRequestInterface $request): ?int

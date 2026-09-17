@@ -64,7 +64,7 @@ ob_start();
                 <dt class="col-sm-4"><?= $e->html('Batch') ?></dt>
                 <dd class="col-sm-8">#<?= $e->html($application->batchId) ?></dd>
 
-                <dt class="col-sm-4"><?= $e->html('Course version') ?></dt>
+                <dt class="col-sm-4"><?= $e->html('Edition') ?></dt>
                 <dd class="col-sm-8">#<?= $e->html($application->courseVersionId) ?></dd>
 
                 <dt class="col-sm-4"><?= $e->html('Declaration accepted') ?></dt>

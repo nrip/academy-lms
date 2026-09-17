@@ -187,7 +187,8 @@ final class EmailVerificationHttpTest extends TestCase
                 ->withQueryParams(['status' => 'success']),
         );
         self::assertSame(200, $resultPage->getStatusCode());
-        self::assertStringContainsString('Confirmation completed.', (string) $resultPage->getBody());
+        self::assertStringContainsString('Welcome to the academy', (string) $resultPage->getBody());
+        self::assertStringContainsString('Sign in', (string) $resultPage->getBody());
     }
 
     /**

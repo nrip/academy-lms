@@ -18,6 +18,7 @@ final class LearnerStudyCard
         public readonly int $completedCount,
         public readonly int $totalCount,
         public readonly int $progressPercent,
+        public readonly string $progressNarrative,
         public readonly ?string $continueTitle,
         public readonly ?string $continueChapterTitle,
         public readonly string $continueHref,

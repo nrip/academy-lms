@@ -461,3 +461,65 @@ body {
 [data-acad-lesson-panel][hidden] {
   display: none !important;
 }
+
+.acad-onboard-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.acad-onboard-steps__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--acad-muted);
+  font-size: 0.9375rem;
+}
+
+.acad-onboard-steps__item--current {
+  color: var(--acad-ink, inherit);
+  font-weight: 600;
+}
+
+.acad-onboard-steps__item--done {
+  color: var(--acad-teal-dk, var(--acad-teal));
+}
+
+.acad-onboard-steps__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--acad-line);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.acad-onboard-steps__item--current .acad-onboard-steps__num {
+  background: var(--acad-teal);
+  border-color: var(--acad-teal);
+  color: #fff;
+}
+
+.acad-onboard-steps__item--done .acad-onboard-steps__num {
+  background: rgba(13, 110, 110, 0.12);
+  border-color: var(--acad-teal);
+  color: var(--acad-teal-dk, var(--acad-teal));
+}
+
+.acad-onboard__card {
+  border-top: 3px solid var(--acad-teal);
+}
+
+.acad-study-card__narrative {
+  font-size: 0.9375rem;
+  margin-bottom: 0.75rem;
+}
+
+.acad-dashboard__section + .acad-dashboard__section {
+  margin-top: 0;
+}
+

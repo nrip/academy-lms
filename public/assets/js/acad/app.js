@@ -82,6 +82,29 @@
         event.preventDefault();
         global.print();
       });
+
+      document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+          return;
+        }
+        const toggle = target.closest('[data-acad-password-toggle]');
+        if (toggle === null) {
+          return;
+        }
+        event.preventDefault();
+        const controls = toggle.getAttribute('aria-controls');
+        const input = controls
+          ? document.getElementById(controls)
+          : toggle.parentElement && toggle.parentElement.querySelector('[data-acad-password-input]');
+        if (!(input instanceof HTMLInputElement)) {
+          return;
+        }
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        toggle.setAttribute('aria-pressed', show ? 'true' : 'false');
+        toggle.textContent = show ? 'Hide' : 'Show';
+      });
     },
   };
 
