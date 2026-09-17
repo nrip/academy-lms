@@ -1,6 +1,6 @@
 # RC2 Product Experience Enhancement Plan
 
-**Status:** Wave A shipped. Waves B–D approved for implementation (2026-09-17). Decisions: `PX-ONBOARD-1`, `PX-TERM-1`, `PX-BRAND-1`, `PX-PREVIEW-1`.  
+**Status:** Waves A–D implemented on the product-experience track (2026-09-17). Decisions: `PX-ONBOARD-1`, `PX-TERM-1`, `PX-BRAND-1`, `PX-PREVIEW-1`.  
 **Date:** 2026-09-17  
 **Baseline:** After RC1, RC2 Slice 1 (Learning Q&A), and Wave A (onboarding, dashboard IA, terminology).  
 **Authority:** SRS v6.1 wins on conflict. Decision Log wins on product choices not covered by the SRS. Do not invent state-machine changes, multi-tenancy, or features listed under Explicit exclusions.

@@ -27,7 +27,7 @@ final class LocalFileEmailAdapter implements EmailDeliveryPort
             . '.eml';
         $path = rtrim($this->directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename;
 
-        $contents = AcademyEmailMime::data('Academy', 'noreply@localhost', $message->toAddress, $message);
+        $contents = AcademyEmailMime::data('Academy LMS', 'noreply@localhost', $message->toAddress, $message);
 
         if (file_put_contents($path, $contents) === false) {
             throw new RuntimeException('Unable to write local mail file.');

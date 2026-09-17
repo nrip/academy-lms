@@ -104,6 +104,13 @@ $brandHref = $authenticated ? '/dashboard' : '/';
     <main class="acad-shell__main">
         <?= $content /* pre-rendered escaped fragments from child templates */ ?>
     </main>
+    <?php if ($branding->supportEmail !== ''): ?>
+        <footer class="acad-shell__footer">
+            <span><?= $e->html($branding->name) ?></span>
+            <span aria-hidden="true">·</span>
+            <a href="mailto:<?= $e->attr($branding->supportEmail) ?>"><?= $e->html($branding->supportEmail) ?></a>
+        </footer>
+    <?php endif; ?>
 </div>
 <script src="/assets/vendor/jquery/jquery.min.js"></script>
 <script src="/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>

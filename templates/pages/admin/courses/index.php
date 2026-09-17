@@ -7,13 +7,14 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var \Academy\Application\Courses\CourseAdminHomeView $view */
 /** @var ?string $flash */
+/** @var \Academy\Application\Branding\AcademyBranding $branding */
 
 ob_start();
 ?>
 <div class="acad-admin-courses">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <p class="acad-eyebrow mb-1"><?= $e->html('Academy') ?></p>
+            <p class="acad-eyebrow mb-1"><?= $e->html($branding->name) ?></p>
             <h1 class="h3 mb-0"><?= $e->html('Courses') ?></h1>
         </div>
         <a class="btn btn-primary" href="/admin/courses/new"><?= $e->html('New course') ?></a>

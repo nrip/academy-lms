@@ -136,7 +136,8 @@ return [
         'url' => $string('APP_URL', 'http://localhost:8080'),
         'timezone' => $timezone !== '' ? $timezone : 'UTC',
     ],
-    // Single-deployment branding (env-only; no multi-tenancy / admin UI).
+    // Single-deployment branding (env-only; PX-BRAND-1). Not multi-tenant.
+    // Operators set ACADEMY_* on deploy. MAIL_FROM_NAME should usually match ACADEMY_NAME.
     'branding' => [
         'name' => $academyName,
         'logo_url' => $string('ACADEMY_LOGO_URL', '/assets/brand/logo.svg'),

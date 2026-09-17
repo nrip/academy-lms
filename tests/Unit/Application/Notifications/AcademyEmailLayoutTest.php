@@ -36,7 +36,7 @@ final class AcademyEmailLayoutTest extends TestCase
         $token = str_repeat('ab', 32);
         $letter = $this->layout->verification($token);
 
-        self::assertSame('Verify your Academy account', $letter['subject']);
+        self::assertSame('Verify your Northwind Academy account', $letter['subject']);
         self::assertStringContainsString('Welcome to Northwind Academy.', $letter['text']);
         self::assertStringContainsString('Confirm your email address', $letter['text']);
         self::assertStringContainsString('https://learn.example.test/verify-email?token=' . $token, $letter['text']);

@@ -44,7 +44,7 @@ final class AcademyEmailLayout
         $letter = $this->compose($body, 'Verify email', $url);
 
         return [
-            'subject' => 'Verify your Academy account',
+            'subject' => 'Verify your ' . $this->branding->name . ' account',
             'text' => $letter['text'],
             'html' => $letter['html'],
         ];
@@ -62,7 +62,7 @@ final class AcademyEmailLayout
         $letter = $this->compose($body, 'Reset password', $url);
 
         return [
-            'subject' => 'Reset your password',
+            'subject' => 'Reset your ' . $this->branding->name . ' password',
             'text' => $letter['text'],
             'html' => $letter['html'],
         ];

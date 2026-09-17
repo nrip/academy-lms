@@ -576,8 +576,20 @@ body {
   padding: var(--acad-sp-5);
 }
 
-.acad-author-steps__item--done {
-  color: var(--acad-teal-dk, var(--acad-teal));
+.acad-shell__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: var(--acad-sp-4) var(--acad-sp-5);
+  border-top: 1px solid var(--acad-line);
+  color: var(--acad-muted);
+  font-size: 0.875rem;
+}
+
+.acad-shell__footer a {
+  color: inherit;
 }
 
 .acad-dashboard__section + .acad-dashboard__section {
