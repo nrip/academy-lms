@@ -519,6 +519,33 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.acad-celebrate {
+  border-left: 4px solid var(--acad-teal);
+}
+
+.acad-celebrate-inline {
+  display: inline-block;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--bs-border-radius);
+  background: rgba(15, 110, 98, 0.1);
+  color: var(--acad-teal-dk, var(--acad-teal));
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.acad-certificate-achievement {
+  background: var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  padding: var(--acad-sp-4);
+  border-top: 3px solid var(--acad-teal);
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+.acad-outline-chapter--locked {
+  opacity: 0.85;
+}
+
 .acad-dashboard__section + .acad-dashboard__section {
   margin-top: 0;
 }

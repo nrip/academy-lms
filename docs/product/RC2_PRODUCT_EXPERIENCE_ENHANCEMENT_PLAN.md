@@ -1,8 +1,8 @@
 # RC2 Product Experience Enhancement Plan
 
-**Status:** Assessment and planning. Wave A decisions `PX-ONBOARD-1` and `PX-TERM-1` are recorded in the Decision Log (2026-09-17).  
+**Status:** Wave A shipped. Waves B–D approved for implementation (2026-09-17). Decisions: `PX-ONBOARD-1`, `PX-TERM-1`, `PX-BRAND-1`, `PX-PREVIEW-1`.  
 **Date:** 2026-09-17  
-**Baseline:** `main` after RC1 (public storefront, covers, learner dashboard/inbox, faculty home, eligibility UI, branded email) and RC2 Slice 1 (Learning Q&A).  
+**Baseline:** After RC1, RC2 Slice 1 (Learning Q&A), and Wave A (onboarding, dashboard IA, terminology).  
 **Authority:** SRS v6.1 wins on conflict. Decision Log wins on product choices not covered by the SRS. Do not invent state-machine changes, multi-tenancy, or features listed under Explicit exclusions.
 
 **Companions:** [`PRODUCT_EXPERIENCE_GAP_ASSESSMENT.md`](./PRODUCT_EXPERIENCE_GAP_ASSESSMENT.md) (pre-RC1; partially superseded), [`RC1_IMPLEMENTATION_PLAN.md`](./RC1_IMPLEMENTATION_PLAN.md), [`LEARNING_QA_DESIGN.md`](./LEARNING_QA_DESIGN.md), [`LEARNING_EXPERIENCE_ROADMAP.md`](./LEARNING_EXPERIENCE_ROADMAP.md), [`DECISION_LOG.md`](./DECISION_LOG.md).

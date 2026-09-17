@@ -49,12 +49,20 @@ final class LearnerPlayerController
             $flash = 'Lesson marked complete.';
         }
 
+        $questionSummary = null;
+        try {
+            $questionSummary = $this->questions->enrolmentStatusSummary($this->auth($request), $enrolmentId);
+        } catch (AuthorizationException | NotFoundException | AuthenticationException | ConflictException | DomainRuleException) {
+            $questionSummary = null;
+        }
+
         $html = $this->renderer->render('pages/learning/outline', [
             'title' => $outline->courseTitle . ' — Learning',
             'csrf' => $this->csrf($request),
             'outline' => $outline,
             'flash' => $flash,
             'error' => null,
+            'questionSummary' => $questionSummary,
         ]);
 
         return new HtmlResponse($html);
@@ -77,6 +85,7 @@ final class LearnerPlayerController
                 'outline' => $this->query->outline($this->auth($request), $enrolmentId),
                 'flash' => null,
                 'error' => $exception->getMessage(),
+                'questionSummary' => null,
             ]);
 
             return new HtmlResponse($html, 409);

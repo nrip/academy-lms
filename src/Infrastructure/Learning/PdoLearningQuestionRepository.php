@@ -82,6 +82,21 @@ final class PdoLearningQuestionRepository implements LearningQuestionRepository
         return array_map(fn (array $row): LearningQuestion => $this->map($row), $stmt->fetchAll(PDO::FETCH_ASSOC));
     }
 
+    public function listForEnrolment(int $enrolmentId, int $limit = 50): array
+    {
+        $limit = max(1, min(100, $limit));
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'SELECT ' . self::COLUMNS . ' FROM learning_questions
+             WHERE enrolment_id = :enrolment_id
+             ORDER BY asked_at DESC, question_id DESC
+             LIMIT ' . $limit,
+        );
+        $stmt->execute(['enrolment_id' => $enrolmentId]);
+
+        return array_map(fn (array $row): LearningQuestion => $this->map($row), $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
     public function listOpenForCourses(array $courseIds, int $limit = 50): array
     {
         return $this->listForCoursesFiltered($courseIds, LearningQuestionStatus::OPEN, $limit);

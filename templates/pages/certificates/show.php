@@ -9,7 +9,7 @@ declare(strict_types=1);
 /** @var string $verifyUrl */
 /** @var \Academy\Application\Branding\AcademyBranding $branding */
 
-$issued = $certificate->issuedAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y');
+$issued = $certificate->issuedAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('j F Y');
 
 ob_start();
 ?>
@@ -19,6 +19,11 @@ ob_start();
             <?= $e->html('← Certificates') ?>
         </a>
     </p>
+
+    <div class="acad-celebrate alert alert-success d-print-none mb-4" role="status">
+        <div class="fw-semibold"><?= $e->html('Congratulations') ?></div>
+        <p class="mb-0"><?= $e->html('You earned this certificate on ' . $issued . '.') ?></p>
+    </div>
 
     <div class="acad-certificate-card border p-4 p-md-5 mb-4 text-center">
         <p class="text-uppercase text-muted small mb-2"><?= $e->html($branding->certificateIssuerName) ?></p>

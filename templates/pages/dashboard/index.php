@@ -111,14 +111,36 @@ ob_start();
                                     <p class="small mb-2"><?= $e->html($study->statusExplanation) ?></p>
                                 <?php endif; ?>
                                 <p class="acad-study-card__narrative mb-2"><?= $e->html($study->progressNarrative) ?></p>
-                                <?php if ($study->totalCount > 0): ?>
-                                    <div class="d-flex justify-content-between small mb-1">
-                                        <span><?= $e->html('Progress') ?></span>
+                                <?php if ($study->totalCount > 0 && $study->progressPercent < 100): ?>
+                                    <div class="d-flex justify-content-between small text-muted mb-1">
                                         <span><?= $e->html((string) $study->completedCount . ' / ' . (string) $study->totalCount . ' lessons') ?></span>
+                                        <span><?= $e->html((string) $study->progressPercent . '%') ?></span>
                                     </div>
                                     <div class="progress mb-3" role="progressbar" aria-valuenow="<?= $e->attr((string) $study->progressPercent) ?>" aria-valuemin="0" aria-valuemax="100" aria-label="<?= $e->attr('Lesson progress') ?>">
                                         <div class="progress-bar" style="width: <?= $e->attr((string) $study->progressPercent) ?>%"></div>
                                     </div>
+                                <?php elseif ($study->progressPercent >= 100): ?>
+                                    <div class="acad-celebrate-inline mb-3">
+                                        <?= $e->html('Course complete') ?>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ($study->openQuestionCount > 0 || $study->answeredQuestionCount > 0): ?>
+                                    <p class="small text-muted mb-3">
+                                        <?php
+                                        $qaBits = [];
+                                        if ($study->openQuestionCount > 0) {
+                                            $qaBits[] = $study->openQuestionCount === 1
+                                                ? '1 question awaiting response'
+                                                : $study->openQuestionCount . ' questions awaiting response';
+                                        }
+                                        if ($study->answeredQuestionCount > 0) {
+                                            $qaBits[] = $study->answeredQuestionCount === 1
+                                                ? '1 answered'
+                                                : $study->answeredQuestionCount . ' answered';
+                                        }
+                                        echo $e->html(implode(' · ', $qaBits));
+                                        ?>
+                                    </p>
                                 <?php endif; ?>
                                 <div class="d-flex flex-wrap gap-2">
                                     <?php if ($study->contentAccessible): ?>

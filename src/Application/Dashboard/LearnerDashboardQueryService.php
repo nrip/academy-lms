@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Academy\Application\Dashboard;
 
 use Academy\Application\Learning\LearnerPlayerQueryService;
+use Academy\Application\Learning\LearningQuestionQueryService;
 use Academy\Application\RBAC\AuthorizationService;
 use Academy\Domain\Certificates\CertificateRepository;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\AuthorizationException;
+use Academy\Domain\Exception\ConflictException;
 use Academy\Domain\Exception\DomainRuleException;
 use Academy\Domain\Exception\NotFoundException;
 use Academy\Domain\Identity\LearnerProfileRepository;
@@ -37,6 +39,7 @@ final class LearnerDashboardQueryService
         private readonly CertificateRepository $certificates,
         private readonly InAppNotificationRepository $inbox,
         private readonly LearnerProfileRepository $learnerProfiles,
+        private readonly LearningQuestionQueryService $questions,
     ) {
     }
 
@@ -339,8 +342,12 @@ final class LearnerDashboardQueryService
         $percent = 0;
         $continueTitle = null;
         $continueChapter = null;
+        $continueChapterIndex = null;
+        $chapterTotal = 0;
         $continueHref = $outlineHref;
         $accessible = $enrolmentStatus === EnrolmentLifecycleStatus::ACTIVE;
+        $openQuestions = 0;
+        $answeredQuestions = 0;
 
         if ($enrolmentStatus === EnrolmentLifecycleStatus::ACTIVE
             || $enrolmentStatus === EnrolmentLifecycleStatus::SCHEDULED
@@ -351,10 +358,12 @@ final class LearnerDashboardQueryService
                 $total = $outline->totalCount;
                 $percent = $outline->progressPercent();
                 $accessible = $outline->contentAccessible;
+                $chapterTotal = $outline->chapterTotal();
                 $continue = $outline->continueTarget();
                 if ($continue !== null) {
                     $continueTitle = $continue['title'];
                     $continueChapter = $continue['chapterTitle'];
+                    $continueChapterIndex = $continue['chapterIndex'];
                     $continueHref = $outlineHref . '/items/' . $continue['contentId'];
                 }
                 if ($outline->hasCover && $outline->courseSlug !== '') {
@@ -371,6 +380,14 @@ final class LearnerDashboardQueryService
                 }
             } catch (AuthorizationException | DomainRuleException | NotFoundException) {
                 $accessible = false;
+            }
+
+            try {
+                $qa = $this->questions->enrolmentStatusSummary($auth, $enrolmentId);
+                $openQuestions = $qa['open'];
+                $answeredQuestions = $qa['answered'];
+            } catch (AuthorizationException | NotFoundException | ConflictException | DomainRuleException) {
+                // Q&A is optional on the dashboard when access is not ready.
             }
         }
 
@@ -394,14 +411,20 @@ final class LearnerDashboardQueryService
                 $percent,
                 $continueTitle,
                 $continueChapter,
+                $continueChapterIndex,
+                $chapterTotal,
                 $accessible,
                 $certificateCount,
             ),
             continueTitle: $continueTitle,
             continueChapterTitle: $continueChapter,
+            continueChapterIndex: $continueChapterIndex,
+            chapterTotal: $chapterTotal,
             continueHref: $continueHref,
             certificateCount: $certificateCount,
             certificatesHref: $outlineHref . '/certificates',
+            openQuestionCount: $openQuestions,
+            answeredQuestionCount: $answeredQuestions,
         );
     }
 

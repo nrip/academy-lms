@@ -64,6 +64,50 @@ final class LearningQuestionQueryService
         return $threads;
     }
 
+    /**
+     * Own-question counts for an enrolment (dashboard / outline).
+     *
+     * @return array{open: int, answered: int, closed: int, recent: list<LearningQuestionThreadItemView>}
+     */
+    public function enrolmentStatusSummary(AuthContext $auth, int $enrolmentId): array
+    {
+        $userId = $this->requireUser($auth);
+        $this->authorization->require($auth, 'learning.question.view_own');
+
+        $enrolment = $this->enrolments->findById($enrolmentId);
+        if ($enrolment === null) {
+            throw new NotFoundException('Enrolment not found.');
+        }
+        $this->accessPolicy->assertCanAccessContent($enrolment, $userId);
+
+        $open = 0;
+        $answered = 0;
+        $closed = 0;
+        $recent = [];
+        foreach ($this->questions->listForEnrolment($enrolmentId, 20) as $question) {
+            if (!$question->belongsToAsker($userId)) {
+                continue;
+            }
+            if ($question->status === LearningQuestionStatus::OPEN) {
+                ++$open;
+            } elseif ($question->status === LearningQuestionStatus::ANSWERED) {
+                ++$answered;
+            } else {
+                ++$closed;
+            }
+            if (count($recent) < 5) {
+                $recent[] = $this->threadItem($question);
+            }
+        }
+
+        return [
+            'open' => $open,
+            'answered' => $answered,
+            'closed' => $closed,
+            'recent' => $recent,
+        ];
+    }
+
     public function canAskOnLesson(string $contentType): bool
     {
         return $contentType !== ContentItemType::MCQ_ASSESSMENT;

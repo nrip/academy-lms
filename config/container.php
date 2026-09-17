@@ -1871,6 +1871,7 @@ return static function (): ContainerInterface {
             $c->get(CertificateRepository::class),
             $c->get(InAppNotificationRepository::class),
             $c->get(LearnerProfileRepository::class),
+            $c->get(LearningQuestionQueryService::class),
         ),
         LearnerInboxQueryService::class => static fn (ContainerInterface $c): LearnerInboxQueryService => new LearnerInboxQueryService(
             $c->get(AuthorizationService::class),

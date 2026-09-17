@@ -19,7 +19,7 @@ ob_start();
     <p class="mb-2">
         <a href="<?= $e->attr($base) ?>"><?= $e->html('← Course outline') ?></a>
     </p>
-    <p class="text-muted small mb-1"><?= $e->html($detail->courseTitle . ' · ' . $detail->module->title) ?></p>
+    <p class="text-muted small mb-1"><?= $e->html($detail->courseTitle . ' · Chapter: ' . $detail->module->title) ?></p>
     <h1 class="h3 mb-1"><?= $e->html($detail->item->title) ?></h1>
     <p class="mb-3"><span class="badge text-bg-light border"><?= $e->html(LessonKind::labelForItem($detail->item)) ?></span></p>
 
@@ -28,7 +28,7 @@ ob_start();
     <?php endif; ?>
 
     <?php if ($detail->progress->isCompleted()): ?>
-        <div class="alert alert-success"><?= $e->html('Completed') ?></div>
+        <div class="alert alert-success"><?= $e->html('Lesson completed') ?></div>
     <?php endif; ?>
 
     <div class="acad-lesson-stage">
@@ -203,7 +203,8 @@ ob_start();
     ?>
     <?php if ($canAsk || $questions !== []): ?>
         <section class="acad-panel mt-4" aria-labelledby="qa-heading">
-            <h2 id="qa-heading" class="h5"><?= $e->html('Questions') ?></h2>
+            <h2 id="qa-heading" class="h5"><?= $e->html('Ask a question') ?></h2>
+            <p class="small text-muted mb-3"><?= $e->html('Private questions for your course faculty. This is not a discussion forum.') ?></p>
             <?php if ($flash !== null): ?>
                 <div class="alert alert-success"><?= $e->html($flash) ?></div>
             <?php endif; ?>
