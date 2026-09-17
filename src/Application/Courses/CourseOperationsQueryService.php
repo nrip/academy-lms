@@ -109,6 +109,111 @@ final class CourseOperationsQueryService
         ];
     }
 
+    public function publishReadiness(AuthContext $auth, int $courseId, int $versionId): CoursePublishReadinessChecklist
+    {
+        $at = $this->access->nowUtc();
+        $course = $this->access->requireCourseInScope($auth, $courseId, $at);
+        if (!$this->access->versionInScope($auth, $courseId, $versionId, $at)) {
+            return new CoursePublishReadinessChecklist([]);
+        }
+
+        $version = $this->courseVersions->findById($versionId);
+        if ($version === null || $version->courseId !== $courseId) {
+            return new CoursePublishReadinessChecklist([]);
+        }
+
+        $counts = $this->outlineCounts($auth, $courseId, $versionId);
+        $base = '/admin/courses/' . $courseId . '/versions/' . $versionId;
+        $infoComplete = trim($version->title) !== ''
+            && trim($version->description) !== ''
+            && trim($version->learningObjectives) !== ''
+            && trim($version->intendedAudience) !== '';
+        $feeSet = trim($version->standardFee) !== '';
+        $eligibilityCount = $this->countEligibilityRules($versionId);
+        $batchCount = $this->countBatchesForVersion($versionId);
+
+        $items = [
+            [
+                'key' => 'info',
+                'label' => 'Course information complete',
+                'done' => $infoComplete,
+                'required' => true,
+                'href' => $base,
+                'help' => 'Title, description, objectives, and audience.',
+            ],
+            [
+                'key' => 'cover',
+                'label' => 'Cover image added',
+                'done' => $course->hasCover(),
+                'required' => false,
+                'href' => '/admin/courses/' . $courseId,
+                'help' => 'Recommended for the public catalogue.',
+            ],
+            [
+                'key' => 'chapters',
+                'label' => 'Chapters created',
+                'done' => $counts['chapters'] > 0,
+                'required' => true,
+                'href' => $base . '/curriculum',
+                'help' => $counts['chapters'] === 0 ? 'Create your first chapter.' : $counts['chapters'] . ' chapter(s).',
+            ],
+            [
+                'key' => 'lessons',
+                'label' => 'Lessons added',
+                'done' => $counts['lessons'] > 0,
+                'required' => true,
+                'href' => $base . '/curriculum',
+                'help' => $counts['lessons'] === 0 ? 'Add your first lesson.' : $counts['lessons'] . ' lesson(s).',
+            ],
+            [
+                'key' => 'eligibility',
+                'label' => 'Eligibility configured',
+                'done' => $eligibilityCount > 0,
+                'required' => false,
+                'href' => $base . '/admission',
+                'help' => 'Profession categories or notes for applicants.',
+            ],
+            [
+                'key' => 'fee',
+                'label' => 'Pricing recorded',
+                'done' => $feeSet,
+                'required' => true,
+                'href' => $base . '#pricing',
+                'help' => 'Standard fee and GST on the edition form.',
+            ],
+            [
+                'key' => 'batch',
+                'label' => 'Batch available',
+                'done' => $batchCount > 0,
+                'required' => false,
+                'href' => $version->isPublished() || $version->isLocked()
+                    ? $base . '/batches/new'
+                    : $base . '#publish',
+                'help' => 'Create a batch after publishing so learners can apply.',
+            ],
+        ];
+
+        return new CoursePublishReadinessChecklist($items);
+    }
+
+    private function countEligibilityRules(int $versionId): int
+    {
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM eligibility_rules WHERE course_version_id = :version_id');
+        $stmt->execute(['version_id' => $versionId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    private function countBatchesForVersion(int $versionId): int
+    {
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM batches WHERE course_version_id = :version_id');
+        $stmt->execute(['version_id' => $versionId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
     /**
      * @return list<int>
      */

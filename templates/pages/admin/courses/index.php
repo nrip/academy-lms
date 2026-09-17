@@ -50,7 +50,11 @@ ob_start();
     </div>
 
     <?php if ($view->courses === []): ?>
-        <div class="alert alert-secondary"><?= $e->html('No courses to show.') ?></div>
+        <div class="acad-empty">
+            <p class="fw-semibold mb-1"><?= $e->html('Create your first course') ?></p>
+            <p class="text-muted mb-3"><?= $e->html('Start with a title and code, then build chapters, eligibility, and publish an edition.') ?></p>
+            <a class="btn btn-primary" href="/admin/courses/new"><?= $e->html('New course') ?></a>
+        </div>
     <?php else: ?>
         <div class="table-responsive">
             <table class="table table-sm align-middle">

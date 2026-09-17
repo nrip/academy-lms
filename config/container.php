@@ -2231,6 +2231,10 @@ return static function (): ContainerInterface {
                 'course.view_assigned',
             );
             $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/versions/{versionId}/preview', [CourseCurriculumController::class, 'preview']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
                 $router->post('/admin/courses/{courseId}/versions/{versionId}/modules', [CourseCurriculumController::class, 'createModule']),
                 'module.manage',
             );
@@ -2714,6 +2718,7 @@ return static function (): ContainerInterface {
             $c->get(CloneCourseVersionService::class),
             $c->get(CreateBatchForPublishedVersionService::class),
             $c->get(BatchRepository::class),
+            $c->get(CourseOperationsQueryService::class),
             $c->get(PhpRenderer::class),
         ),
         CourseCurriculumController::class => static fn (ContainerInterface $c): CourseCurriculumController => new CourseCurriculumController(

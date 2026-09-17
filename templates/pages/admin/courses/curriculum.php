@@ -30,10 +30,14 @@ ob_start();
     </p>
     <nav class="acad-author-steps mb-3" aria-label="Course setup">
         <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>"><?= $e->html('1. Course details') ?></a>
-        <span class="acad-author-steps__item acad-author-steps__item--current"><?= $e->html('2. Chapters') ?></span>
+        <span class="acad-author-steps__item acad-author-steps__item--current"><?= $e->html('2. Chapters & lessons') ?></span>
         <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>/admission"><?= $e->html('3. Eligibility') ?></a>
-        <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>#publish"><?= $e->html('4. Publish') ?></a>
+        <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>#pricing"><?= $e->html('4. Pricing') ?></a>
+        <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>#publish"><?= $e->html('5. Review & publish') ?></a>
     </nav>
+    <p class="mb-3">
+        <a class="btn btn-outline-secondary btn-sm" href="<?= $e->attr($base) ?>/preview"><?= $e->html('Preview as learner') ?></a>
+    </p>
 
     <?php if ($flash !== null): ?>
         <div class="alert alert-success"><?= $e->html($flash) ?></div>
@@ -51,7 +55,8 @@ ob_start();
     <section class="mb-4">
         <h2 class="h5"><?= $e->html('Outline') ?></h2>
         <?php if ($modules === []): ?>
-            <p class="text-muted"><?= $e->html('No chapters yet. Add the first chapter below, then add lessons to it.') ?></p>
+            <p class="text-muted mb-2"><?= $e->html('No chapters yet.') ?></p>
+            <p class="mb-0"><?= $e->html('Create your first chapter below, then add lessons to it.') ?></p>
         <?php else: ?>
             <ol class="list-group list-group-numbered mb-0">
                 <?php foreach ($modules as $node): ?>
@@ -62,7 +67,7 @@ ob_start();
                             <div class="small text-muted"><?= $e->html($module->description) ?></div>
                         <?php endif; ?>
                         <?php if ($node['content_items'] === []): ?>
-                            <div class="small text-muted mt-1"><?= $e->html('No lessons yet.') ?></div>
+                            <div class="small text-muted mt-1"><?= $e->html('No lessons yet. Add your first lesson below.') ?></div>
                         <?php else: ?>
                             <ul class="mt-2 mb-0">
                                 <?php foreach ($node['content_items'] as $item): ?>

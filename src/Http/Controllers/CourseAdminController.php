@@ -221,6 +221,7 @@ final class CourseAdminController
             'version' => $version,
             'batches' => $this->batches->listByCourseVersionId($versionId),
             'outline' => $this->operations->outlineCounts($this->auth($request), $courseId, $versionId),
+            'readiness' => $this->operations->publishReadiness($this->auth($request), $courseId, $versionId),
             'error' => null,
             'flash' => $this->flash($request),
         ]);
@@ -260,6 +261,7 @@ final class CourseAdminController
                 'version' => $version,
                 'batches' => $this->batches->listByCourseVersionId($versionId),
                 'outline' => $this->operations->outlineCounts($this->auth($request), $courseId, $versionId),
+                'readiness' => $this->operations->publishReadiness($this->auth($request), $courseId, $versionId),
                 'error' => $exception->getMessage(),
                 'flash' => null,
                 'posted' => $body,
