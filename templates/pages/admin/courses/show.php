@@ -41,6 +41,10 @@ $course = $detail->course;
     </section>
     <p class="mb-3">
         <a class="btn btn-outline-primary btn-sm"
+           href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/analytics">
+            <?= $e->html('Course insights') ?>
+        </a>
+        <a class="btn btn-outline-primary btn-sm ms-1"
            href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/question-bank">
             <?= $e->html('Open question bank') ?>
         </a>
@@ -49,6 +53,12 @@ $course = $detail->course;
         <div class="alert alert-success"><?= $e->html($flash) ?></div>
     <?php endif; ?>
     <h2 class="h5 mt-4"><?= $e->html('Editions') ?></h2>
+    <?php if ($detail->versions === []): ?>
+        <div class="acad-empty">
+            <p class="fw-semibold mb-1"><?= $e->html('No editions yet') ?></p>
+            <p class="text-muted mb-0"><?= $e->html('A new course usually starts with Edition 1. Open it from the course list after creation.') ?></p>
+        </div>
+    <?php else: ?>
     <div class="table-responsive">
         <table class="table table-sm">
             <thead>
@@ -72,12 +82,16 @@ $course = $detail->course;
                         <a class="ms-2" href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/versions/<?= $e->attr((string) $version->versionId) ?>/admission">
                             <?= $e->html('Eligibility') ?>
                         </a>
+                        <a class="ms-2" href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/versions/<?= $e->attr((string) $version->versionId) ?>/preview">
+                            <?= $e->html('Preview') ?>
+                        </a>
                     </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
     </div>
+    <?php endif; ?>
 </div>
 <?php
 $content = ob_get_clean();

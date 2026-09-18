@@ -15,13 +15,13 @@ final class EmailNormalizer
         $normalized = strtolower(trim($raw));
 
         if ($normalized === '' || filter_var($normalized, FILTER_VALIDATE_EMAIL) === false) {
-            throw new ValidationException('Please correct the highlighted fields.', [
+            throw new ValidationException('Please check the details below and try again.', [
                 'email' => ['Enter a valid email address.'],
             ]);
         }
 
         if (strlen($normalized) > self::MAX_LENGTH) {
-            throw new ValidationException('Please correct the highlighted fields.', [
+            throw new ValidationException('Please check the details below and try again.', [
                 'email' => [sprintf('Email must be at most %d characters.', self::MAX_LENGTH)],
             ]);
         }

@@ -6,7 +6,8 @@ namespace Academy\Application\Branding;
 
 /**
  * Single-deployment academy branding (not multi-tenant).
- * Values come from environment / config — no admin UI in Phase 1.
+ * Values come from environment / config (PX-BRAND-1 foundation).
+ * No tenant table and no writable branding admin in this wave.
  */
 final class AcademyBranding
 {

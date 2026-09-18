@@ -139,6 +139,22 @@ final class CourseAdminController
     /**
      * @param array<string, string> $args
      */
+    public function analytics(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        $courseId = (int) ($args['courseId'] ?? 0);
+        $view = $this->operations->courseAnalytics($this->auth($request), $courseId);
+        $html = $this->renderer->render('pages/admin/courses/analytics', [
+            'title' => 'Insights · ' . $view->courseTitle,
+            'csrf' => $this->csrf($request),
+            'view' => $view,
+        ]);
+
+        return new HtmlResponse($html);
+    }
+
+    /**
+     * @param array<string, string> $args
+     */
     public function cover(ServerRequestInterface $request, array $args): ResponseInterface
     {
         try {
@@ -221,6 +237,7 @@ final class CourseAdminController
             'version' => $version,
             'batches' => $this->batches->listByCourseVersionId($versionId),
             'outline' => $this->operations->outlineCounts($this->auth($request), $courseId, $versionId),
+            'readiness' => $this->operations->publishReadiness($this->auth($request), $courseId, $versionId),
             'error' => null,
             'flash' => $this->flash($request),
         ]);
@@ -260,6 +277,7 @@ final class CourseAdminController
                 'version' => $version,
                 'batches' => $this->batches->listByCourseVersionId($versionId),
                 'outline' => $this->operations->outlineCounts($this->auth($request), $courseId, $versionId),
+                'readiness' => $this->operations->publishReadiness($this->auth($request), $courseId, $versionId),
                 'error' => $exception->getMessage(),
                 'flash' => null,
                 'posted' => $body,

@@ -155,7 +155,7 @@ return static function (
         'username' => $string('MAIL_USERNAME', ''),
         'password' => $string('MAIL_PASSWORD', ''),
         'from_address' => $string('MAIL_FROM_ADDRESS', ''),
-        'from_name' => $string('MAIL_FROM_NAME', $string('APP_NAME', 'Academy LMS')),
+        'from_name' => $string('MAIL_FROM_NAME', $string('ACADEMY_NAME', $string('APP_NAME', 'Academy LMS'))),
         'encryption' => $mailEncryption,
     ];
     if ($emailAdapter === 'smtp') {

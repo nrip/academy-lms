@@ -39,7 +39,8 @@ $val = static function (string $key, string $fallback) use ($posted, $version): 
 $versionBase = '/admin/courses/' . $course->courseId . '/versions/' . $version->versionId;
 /** @var array{chapters: int, lessons: int} $outline */
 $outline = $outline ?? ['chapters' => 0, 'lessons' => 0];
-$feeSet = trim($version->standardFee) !== '';
+/** @var \Academy\Application\Courses\CoursePublishReadinessChecklist|null $readiness */
+$readiness = $readiness ?? new \Academy\Application\Courses\CoursePublishReadinessChecklist([]);
 $batchLabel = static function (string $status): string {
     return match ($status) {
         'open_for_applications' => 'Open for applications',
@@ -67,16 +68,18 @@ ob_start();
         <?= $e->html('Edition ' . (string) $version->versionNumber) ?>
         · <?= $e->html($version->isPublished() ? 'Published — cannot be changed' : ($version->isLocked() ? 'Locked — cannot be changed' : 'Draft (editable)')) ?>
     </p>
-    <nav class="acad-author-steps mb-3" aria-label="Course setup">
-        <span class="acad-author-steps__item acad-author-steps__item--current"><?= $e->html('1. Course details') ?></span>
-        <a class="acad-author-steps__item" href="<?= $e->attr($versionBase) ?>/curriculum"><?= $e->html('2. Chapters') ?></a>
-        <a class="acad-author-steps__item" href="<?= $e->attr($versionBase) ?>/admission"><?= $e->html('3. Eligibility') ?></a>
-        <a class="acad-author-steps__item" href="#publish"><?= $e->html('4. Publish') ?></a>
-    </nav>
+    <?php
+    $currentStep = 1;
+    require dirname(__DIR__, 3) . '/partials/author_steps.php';
+    ?>
     <p class="mb-3 d-flex flex-wrap gap-2">
         <a class="btn btn-outline-primary btn-sm"
            href="<?= $e->attr($versionBase) ?>/curriculum">
             <?= $e->html('Open chapters') ?>
+        </a>
+        <a class="btn btn-outline-secondary btn-sm"
+           href="<?= $e->attr($versionBase) ?>/preview">
+            <?= $e->html('Preview as learner') ?>
         </a>
         <?php if (!$version->isLocked()): ?>
             <a class="btn btn-success btn-sm" href="#publish"><?= $e->html('Review before publish') ?></a>
@@ -117,29 +120,23 @@ ob_start();
                 <?php endforeach; ?>
             </ul>
         </div>
+    <?php else: ?>
+        <div class="acad-empty mb-4">
+            <p class="mb-1 fw-semibold"><?= $e->html('No batches yet') ?></p>
+            <p class="text-muted small mb-0">
+                <?= $e->html($version->isLocked()
+                    ? 'Create a batch so learners can apply to this edition.'
+                    : 'Publish this edition first, then create a batch for applications.') ?>
+            </p>
+        </div>
     <?php endif; ?>
 
-    <section class="acad-panel mb-4" id="publish">
-        <h2 class="h5"><?= $e->html('Publish') ?></h2>
-        <p class="mb-2"><?= $e->html('Publishing locks this edition. After that, chapters, lessons, and the fee cannot be changed. To change a published course, create the next edition.') ?></p>
-        <ul class="mb-3">
-            <li><?= $e->html($outline['chapters'] === 0 ? 'No chapters yet' : $outline['chapters'] . ' chapter' . ($outline['chapters'] === 1 ? '' : 's')) ?></li>
-            <li><?= $e->html($outline['lessons'] === 0 ? 'No lessons yet' : $outline['lessons'] . ' lesson' . ($outline['lessons'] === 1 ? '' : 's')) ?></li>
-            <li><?= $e->html($feeSet ? 'Fee is recorded' : 'Fee is not recorded') ?></li>
-        </ul>
-        <p class="small text-muted">
-            <a href="<?= $e->attr($versionBase) ?>/admission"><?= $e->html('Set eligibility and required documents') ?></a>
-            <?= $e->html(' before you publish. They are locked with this edition.') ?>
-        </p>
-        <?php if (!$version->isLocked()): ?>
-            <form method="post" action="<?= $e->attr($versionBase) ?>/publish">
-                <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
-                <button class="btn btn-success" type="submit"><?= $e->html('Publish this edition') ?></button>
-            </form>
-        <?php else: ?>
-            <p class="mb-0"><?= $e->html($version->isPublished() ? 'This edition is already published.' : 'This edition is locked and cannot be published from here.') ?></p>
-        <?php endif; ?>
-    </section>
+    <?php
+    $showPublishAction = !$version->isLocked();
+    $publishAction = $versionBase . '/publish';
+    $locked = $version->isLocked();
+    require dirname(__DIR__, 3) . '/partials/publish_readiness.php';
+    ?>
 
     <?php if ($version->isLocked()): ?>
         <div class="alert alert-warning">
@@ -185,7 +182,7 @@ ob_start();
                 <label class="form-label" for="duration_text"><?= $e->html('Duration') ?></label>
                 <input class="form-control" id="duration_text" name="duration_text" required value="<?= $e->attr($val('duration_text', '')) ?>">
             </div>
-            <div class="col-12"><h2 class="h5 mb-0 mt-2"><?= $e->html('Fee') ?></h2></div>
+            <div class="col-12" id="pricing"><h2 class="h5 mb-0 mt-2"><?= $e->html('Fee') ?></h2></div>
             <div class="col-md-4">
                 <label class="form-label" for="standard_fee"><?= $e->html('Standard fee') ?></label>
                 <input class="form-control" id="standard_fee" name="standard_fee" required value="<?= $e->attr($val('standard_fee', '')) ?>">

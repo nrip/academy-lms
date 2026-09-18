@@ -35,7 +35,13 @@ final class LearnerPlayerOutlineView
     /**
      * First accessible incomplete lesson. Same target the outline uses.
      *
-     * @return array{contentId: int, title: string, chapterTitle: string}|null
+     * @return array{
+     *   contentId: int,
+     *   title: string,
+     *   chapterTitle: string,
+     *   chapterIndex: int,
+     *   chapterTotal: int
+     * }|null
      */
     public function continueTarget(): ?array
     {
@@ -43,7 +49,10 @@ final class LearnerPlayerOutlineView
             return null;
         }
 
+        $chapterTotal = count($this->modules);
+        $chapterIndex = 0;
         foreach ($this->modules as $moduleView) {
+            ++$chapterIndex;
             if (!$moduleView->unlocked) {
                 continue;
             }
@@ -53,12 +62,29 @@ final class LearnerPlayerOutlineView
                         'contentId' => $itemView->item->contentId,
                         'title' => $itemView->item->title,
                         'chapterTitle' => $moduleView->module->title,
+                        'chapterIndex' => $chapterIndex,
+                        'chapterTotal' => $chapterTotal,
                     ];
                 }
             }
         }
 
         return null;
+    }
+
+    public function chapterTotal(): int
+    {
+        return count($this->modules);
+    }
+
+    /**
+     * 1-based index of the chapter containing the continue target, or null when complete/unavailable.
+     */
+    public function continueChapterIndex(): ?int
+    {
+        $continue = $this->continueTarget();
+
+        return $continue['chapterIndex'] ?? null;
     }
 
     /**

@@ -29,7 +29,7 @@ final class LegalAcceptancePolicy
         }
 
         if ($fields !== []) {
-            throw new ValidationException('Please correct the highlighted fields.', $fields);
+            throw new ValidationException('Please check the details below and try again.', $fields);
         }
     }
 

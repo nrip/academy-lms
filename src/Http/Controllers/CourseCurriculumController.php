@@ -51,6 +51,28 @@ final class CourseCurriculumController
     }
 
     /**
+     * Read-only learner-facing outline preview (PX-PREVIEW-1). No enrolment created.
+     *
+     * @param array<string, string> $args
+     */
+    public function preview(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        $courseId = (int) ($args['courseId'] ?? 0);
+        $versionId = (int) ($args['versionId'] ?? 0);
+        $curriculum = $this->query->getCurriculum($this->auth($request), $courseId, $versionId);
+
+        $html = $this->renderer->render('pages/admin/courses/preview', [
+            'title' => 'Preview as learner',
+            'csrf' => $this->csrf($request),
+            'course' => $curriculum['course'],
+            'version' => $curriculum['version'],
+            'modules' => $curriculum['modules'],
+        ]);
+
+        return new HtmlResponse($html);
+    }
+
+    /**
      * @param array<string, string> $args
      */
     public function createModule(ServerRequestInterface $request, array $args): ResponseInterface

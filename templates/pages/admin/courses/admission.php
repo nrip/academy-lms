@@ -51,9 +51,10 @@ ob_start();
     </p>
     <nav class="acad-author-steps mb-3" aria-label="Course setup">
         <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>"><?= $e->html('1. Course details') ?></a>
-        <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>/curriculum"><?= $e->html('2. Chapters') ?></a>
+        <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>/curriculum"><?= $e->html('2. Chapters & lessons') ?></a>
         <span class="acad-author-steps__item acad-author-steps__item--current"><?= $e->html('3. Eligibility') ?></span>
-        <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>#publish"><?= $e->html('4. Publish') ?></a>
+        <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>#pricing"><?= $e->html('4. Pricing') ?></a>
+        <a class="acad-author-steps__item" href="<?= $e->attr($base) ?>#publish"><?= $e->html('5. Review & publish') ?></a>
     </nav>
 
     <?php if ($flash !== null): ?>

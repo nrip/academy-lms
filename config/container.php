@@ -61,6 +61,7 @@ use Academy\Application\Identity\VerificationChallengeIssuer;
 use Academy\Application\Identity\VerificationTokenIssuer;
 use Academy\Application\Learning\AskLearningQuestionService;
 use Academy\Application\Learning\CloseLearningQuestionService;
+use Academy\Application\Learning\LearnerPersonalLearningService;
 use Academy\Application\Learning\LearnerPlayerQueryService;
 use Academy\Application\Learning\LearningMediaAccessService;
 use Academy\Application\Learning\LearningMediaIngestService;
@@ -172,6 +173,9 @@ use Academy\Domain\Learning\ContentProgressRepository;
 use Academy\Domain\Learning\EnrolmentFactory;
 use Academy\Domain\Learning\EnrolmentPublicReferenceGenerator;
 use Academy\Domain\Learning\EnrolmentRepository;
+use Academy\Domain\Learning\LearnerEnrolmentGoalRepository;
+use Academy\Domain\Learning\LearnerLessonBookmarkRepository;
+use Academy\Domain\Learning\LearnerLessonNoteRepository;
 use Academy\Domain\Learning\LearningQuestionRepository;
 use Academy\Domain\Learning\LearningQuestionResponseRepository;
 use Academy\Domain\Learning\EnrolmentStateMachine;
@@ -227,6 +231,7 @@ use Academy\Http\Controllers\FinancePaymentController;
 use Academy\Http\Controllers\ForgotPasswordController;
 use Academy\Http\Controllers\HealthController;
 use Academy\Http\Controllers\LearnerInboxController;
+use Academy\Http\Controllers\LearnerPersonalLearningController;
 use Academy\Http\Controllers\LearnerPlayerController;
 use Academy\Http\Controllers\LearningLocalStorageDownloadController;
 use Academy\Http\Controllers\LearningQuestionController;
@@ -304,6 +309,9 @@ use Academy\Infrastructure\Identity\RecordingTokenConsumedHandler;
 use Academy\Infrastructure\Learning\PdoContentProgressRepository;
 use Academy\Infrastructure\Learning\PdoEnrolmentRepository;
 use Academy\Infrastructure\Learning\PdoEnrolmentStatusHistoryRepository;
+use Academy\Infrastructure\Learning\PdoLearnerEnrolmentGoalRepository;
+use Academy\Infrastructure\Learning\PdoLearnerLessonBookmarkRepository;
+use Academy\Infrastructure\Learning\PdoLearnerLessonNoteRepository;
 use Academy\Infrastructure\Learning\PdoLearningQuestionRepository;
 use Academy\Infrastructure\Learning\PdoLearningQuestionResponseRepository;
 use Academy\Infrastructure\Logging\LoggerFactory;
@@ -927,6 +935,15 @@ return static function (): ContainerInterface {
         LearningQuestionResponseRepository::class => static fn (ContainerInterface $c): LearningQuestionResponseRepository => new PdoLearningQuestionResponseRepository(
             $c->get(ConnectionFactory::class),
         ),
+        LearnerLessonBookmarkRepository::class => static fn (ContainerInterface $c): LearnerLessonBookmarkRepository => new PdoLearnerLessonBookmarkRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        LearnerLessonNoteRepository::class => static fn (ContainerInterface $c): LearnerLessonNoteRepository => new PdoLearnerLessonNoteRepository(
+            $c->get(ConnectionFactory::class),
+        ),
+        LearnerEnrolmentGoalRepository::class => static fn (ContainerInterface $c): LearnerEnrolmentGoalRepository => new PdoLearnerEnrolmentGoalRepository(
+            $c->get(ConnectionFactory::class),
+        ),
         PlayerAccessPolicy::class => static fn (): PlayerAccessPolicy => new PlayerAccessPolicy(),
         ModuleReleasePolicy::class => static fn (): ModuleReleasePolicy => new ModuleReleasePolicy(),
         LearnerPlayerQueryService::class => static fn (ContainerInterface $c): LearnerPlayerQueryService => new LearnerPlayerQueryService(
@@ -941,6 +958,17 @@ return static function (): ContainerInterface {
             $c->get(ModuleReleasePolicy::class),
             $c->get(AssessmentRepository::class),
             $c->get(AssessmentAttemptRepository::class),
+        ),
+        LearnerPersonalLearningService::class => static fn (ContainerInterface $c): LearnerPersonalLearningService => new LearnerPersonalLearningService(
+            $c->get(AuthorizationService::class),
+            $c->get(EnrolmentRepository::class),
+            $c->get(ContentItemRepository::class),
+            $c->get(LearnerLessonBookmarkRepository::class),
+            $c->get(LearnerLessonNoteRepository::class),
+            $c->get(LearnerEnrolmentGoalRepository::class),
+            $c->get(PlayerAccessPolicy::class),
+            $c->get(AuditService::class),
+            $c->get(TransactionManager::class),
         ),
         AskLearningQuestionService::class => static fn (ContainerInterface $c): AskLearningQuestionService => new AskLearningQuestionService(
             $c->get(AuthorizationService::class),
@@ -1870,6 +1898,8 @@ return static function (): ContainerInterface {
             $c->get(LearnerPlayerQueryService::class),
             $c->get(CertificateRepository::class),
             $c->get(InAppNotificationRepository::class),
+            $c->get(LearnerProfileRepository::class),
+            $c->get(LearningQuestionQueryService::class),
         ),
         LearnerInboxQueryService::class => static fn (ContainerInterface $c): LearnerInboxQueryService => new LearnerInboxQueryService(
             $c->get(AuthorizationService::class),
@@ -2074,6 +2104,30 @@ return static function (): ContainerInterface {
                 'learning.content.access',
             );
             $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/bookmark', [LearnerPersonalLearningController::class, 'addBookmark']),
+                'learning.bookmark.manage_own',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/bookmark/remove', [LearnerPersonalLearningController::class, 'removeBookmark']),
+                'learning.bookmark.manage_own',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/notes', [LearnerPersonalLearningController::class, 'saveNote']),
+                'learning.note.manage_own',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/notes/delete', [LearnerPersonalLearningController::class, 'deleteNote']),
+                'learning.note.manage_own',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/goal', [LearnerPersonalLearningController::class, 'saveGoal']),
+                'learning.goal.manage_own',
+            );
+            $learningAccess->requirePermission(
+                $router->post('/learning/enrolments/{enrolmentId}/goal/clear', [LearnerPersonalLearningController::class, 'clearGoal']),
+                'learning.goal.manage_own',
+            );
+            $learningAccess->requirePermission(
                 $router->post('/learning/enrolments/{enrolmentId}/items/{contentId}/questions', [LearningQuestionController::class, 'ask']),
                 'learning.question.create_own',
             );
@@ -2165,6 +2219,10 @@ return static function (): ContainerInterface {
                 'course.view_assigned',
             );
             $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/analytics', [CourseAdminController::class, 'analytics']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
                 $router->get('/admin/courses/{courseId}/cover', [CourseAdminController::class, 'cover']),
                 'course.view_assigned',
             );
@@ -2226,6 +2284,10 @@ return static function (): ContainerInterface {
             );
             $courseAdminAccess->requirePermission(
                 $router->get('/admin/courses/{courseId}/versions/{versionId}/curriculum', [CourseCurriculumController::class, 'show']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/versions/{versionId}/preview', [CourseCurriculumController::class, 'preview']),
                 'course.view_assigned',
             );
             $courseAdminAccess->requirePermission(
@@ -2657,6 +2719,13 @@ return static function (): ContainerInterface {
             $c->get(MarkContentCompleteService::class),
             $c->get(LearningMediaAccessService::class),
             $c->get(LearningQuestionQueryService::class),
+            $c->get(LearnerPersonalLearningService::class),
+            $c->get(PhpRenderer::class),
+        ),
+        LearnerPersonalLearningController::class => static fn (ContainerInterface $c): LearnerPersonalLearningController => new LearnerPersonalLearningController(
+            $c->get(LearnerPersonalLearningService::class),
+            $c->get(LearnerPlayerQueryService::class),
+            $c->get(LearningQuestionQueryService::class),
             $c->get(PhpRenderer::class),
         ),
         LearningQuestionController::class => static fn (ContainerInterface $c): LearningQuestionController => new LearningQuestionController(
@@ -2712,6 +2781,7 @@ return static function (): ContainerInterface {
             $c->get(CloneCourseVersionService::class),
             $c->get(CreateBatchForPublishedVersionService::class),
             $c->get(BatchRepository::class),
+            $c->get(CourseOperationsQueryService::class),
             $c->get(PhpRenderer::class),
         ),
         CourseCurriculumController::class => static fn (ContainerInterface $c): CourseCurriculumController => new CourseCurriculumController(

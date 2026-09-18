@@ -11,12 +11,21 @@ ob_start();
 ?>
 <div class="acad-home">
     <section class="acad-home-hero mb-5">
-        <p class="acad-eyebrow mb-2"><?= $e->html($branding->name) ?></p>
-        <h1 class="acad-home-hero__title"><?= $e->html('Learn from experts') ?></h1>
-        <p class="acad-home-hero__lead">
-            <?= $e->html('Structured programmes in obesity, metabolic health, and related clinical practice.') ?>
+        <h1 class="acad-home-hero__title"><?= $e->html($branding->name) ?></h1>
+        <p class="acad-home-hero__lead mb-2">
+            <?= $e->html('Learn from experts in obesity, metabolic health, and related clinical practice.') ?>
         </p>
-        <a class="btn btn-primary btn-lg" href="/courses"><?= $e->html('Browse courses') ?></a>
+        <p class="text-muted mb-4">
+            <?= $e->html('Structured programmes with clear admission, learning, and certificate pathways.') ?>
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-primary btn-lg" href="/courses"><?= $e->html('Browse courses') ?></a>
+            <?php if ($branding->supportEmail !== ''): ?>
+                <a class="btn btn-outline-secondary btn-lg" href="mailto:<?= $e->attr($branding->supportEmail) ?>">
+                    <?= $e->html('Contact support') ?>
+                </a>
+            <?php endif; ?>
+        </div>
     </section>
 
     <section class="mb-5" aria-labelledby="featured-heading">
@@ -43,7 +52,7 @@ ob_start();
     </section>
 
     <section class="mb-5" aria-labelledby="why-heading">
-        <h2 id="why-heading" class="h4 mb-3"><?= $e->html('Why this academy') ?></h2>
+        <h2 id="why-heading" class="h4 mb-3"><?= $e->html('Why ' . $branding->name) ?></h2>
         <div class="row g-3">
             <div class="col-md-4">
                 <div class="acad-panel h-100 mb-0">

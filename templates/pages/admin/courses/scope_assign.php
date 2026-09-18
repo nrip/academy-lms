@@ -14,7 +14,7 @@ ob_start();
 <div class="acad-admin-course-scope">
     <p class="mb-2"><a href="/admin/courses"><?= $e->html('← Course administration') ?></a></p>
     <h1 class="h3 mb-3"><?= $e->html('Assign Course Admin scope') ?></h1>
-    <p class="text-muted"><?= $e->html('Super Admin only. Grants course-level object scope (include_future_versions optional).') ?></p>
+    <p class="text-muted"><?= $e->html('Super Admin only. Grants course-level object scope (optionally include future editions).') ?></p>
     <?php if ($flash !== null): ?>
         <div class="alert alert-success"><?= $e->html($flash) ?></div>
     <?php endif; ?>
@@ -37,7 +37,7 @@ ob_start();
             <input class="form-check-input" type="checkbox" id="include_future_versions" name="include_future_versions" value="1"
                 <?= $values['include_future_versions'] === '1' ? 'checked' : '' ?>>
             <label class="form-check-label" for="include_future_versions">
-                <?= $e->html('Include future CourseVersions') ?>
+                <?= $e->html('Include future editions') ?>
             </label>
         </div>
         <div class="col-12">

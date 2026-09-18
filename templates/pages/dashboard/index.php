@@ -26,16 +26,34 @@ $admissionCards = array_values(array_filter(
     static fn ($card): bool => $card->enrolmentId === null,
 ));
 $india = new DateTimeZone('Asia/Kolkata');
+$continueCards = array_values(array_filter(
+    $view->studyCards,
+    static fn ($study): bool => $study->contentAccessible && $study->progressPercent < 100,
+));
 
 ob_start();
 ?>
 <div class="acad-dashboard">
     <p class="acad-eyebrow mb-2"><?= $e->html('Learner') ?></p>
-    <h1 class="h3 mb-4"><?= $e->html('My learning') ?></h1>
+    <h1 class="h3 mb-2"><?= $e->html('My learning') ?></h1>
+    <p class="text-muted mb-4"><?= $e->html('Your courses, progress, and certificates in one place.') ?></p>
+
+    <?php if ($view->showProfileWelcome): ?>
+        <section class="acad-next-step mb-4" aria-labelledby="welcome-profile-heading">
+            <h2 id="welcome-profile-heading" class="h5 mb-2"><?= $e->html('Welcome — add your name when you are ready') ?></h2>
+            <p class="mb-3">
+                <?= $e->html('Your account is ready. Adding a first name or preferred display name helps personalise certificates and applications. You can skip this and browse courses now.') ?>
+            </p>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-primary" href="/profile/personal"><?= $e->html('Add my name') ?></a>
+                <a class="btn btn-outline-secondary" href="/courses"><?= $e->html('Browse courses') ?></a>
+            </div>
+        </section>
+    <?php endif; ?>
 
     <?php if ($needsYou !== []): ?>
-        <section class="acad-next-step mb-4" aria-labelledby="required-actions-heading">
-            <h2 id="required-actions-heading" class="h5 mb-3"><?= $e->html('Your next step') ?></h2>
+        <section class="acad-next-step mb-4 acad-dashboard__section" aria-labelledby="required-actions-heading">
+            <h2 id="required-actions-heading" class="h5 mb-3"><?= $e->html('Action needed') ?></h2>
             <ul class="list-unstyled mb-0">
                 <?php foreach ($needsYou as $action): ?>
                     <li class="acad-next-step__item">
@@ -47,27 +65,30 @@ ob_start();
         </section>
     <?php endif; ?>
 
-    <?php if ($view->unreadUpdates > 0): ?>
-        <section class="acad-panel mb-4" aria-labelledby="updates-heading">
-            <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
-                <h2 id="updates-heading" class="h5 mb-0"><?= $e->html('Updates') ?></h2>
-                <a href="/notifications"><?= $e->html('View all') ?></a>
-            </div>
-            <p class="small text-muted mb-2">
-                <?= $e->html($view->unreadUpdates === 1 ? '1 unread update.' : $view->unreadUpdates . ' unread updates.') ?>
-            </p>
+    <?php if ($continueCards !== []): ?>
+        <section class="mb-4 acad-dashboard__section" aria-labelledby="continue-heading">
+            <h2 id="continue-heading" class="h5 mb-3"><?= $e->html('Continue learning') ?></h2>
             <ul class="list-unstyled mb-0">
-                <?php foreach ($view->recentUpdates as $update): ?>
-                    <li class="mb-1"><a href="/notifications"><?= $e->html($update->title) ?></a></li>
+                <?php foreach (array_slice($continueCards, 0, 3) as $study): ?>
+                    <li class="acad-next-step__item mb-3">
+                        <div>
+                            <div class="fw-semibold"><?= $e->html($study->courseTitle) ?></div>
+                            <div class="small text-muted"><?= $e->html($study->progressNarrative) ?></div>
+                        </div>
+                        <a class="btn btn-primary" href="<?= $e->attr($study->continueHref) ?>">
+                            <?= $e->html('Continue') ?>
+                        </a>
+                    </li>
                 <?php endforeach; ?>
             </ul>
         </section>
     <?php endif; ?>
 
-    <section class="mb-4" aria-labelledby="courses-heading">
-        <h2 id="courses-heading" class="h5 mb-3"><?= $e->html('My courses') ?></h2>
+    <section class="mb-4 acad-dashboard__section" aria-labelledby="studying-heading">
+        <h2 id="studying-heading" class="h5 mb-3"><?= $e->html('Studying now') ?></h2>
         <?php if ($view->studyCards === []): ?>
-            <p class="text-muted mb-0"><?= $e->html('Courses you are admitted to appear here.') ?></p>
+            <p class="text-muted mb-2"><?= $e->html('When you are admitted to a course, your learning progress appears here.') ?></p>
+            <a class="btn btn-outline-primary" href="/courses"><?= $e->html('Browse courses') ?></a>
         <?php else: ?>
             <div class="row g-3">
                 <?php foreach ($view->studyCards as $study): ?>
@@ -85,40 +106,57 @@ ob_start();
                                         <?= $e->html($study->statusLabel) ?>
                                     </span>
                                 </div>
-                                <p class="small text-muted mb-2"><?= $e->html($study->batchName) ?></p>
+                                <p class="small text-muted mb-2"><?= $e->html('Batch: ' . $study->batchName) ?></p>
                                 <?php if ($study->statusExplanation !== ''): ?>
                                     <p class="small mb-2"><?= $e->html($study->statusExplanation) ?></p>
                                 <?php endif; ?>
-                                <?php if ($study->totalCount > 0): ?>
-                                    <div class="d-flex justify-content-between small mb-1">
-                                        <span><?= $e->html('Progress') ?></span>
-                                        <span><?= $e->html((string) $study->completedCount . ' / ' . (string) $study->totalCount . ' complete') ?></span>
+                                <p class="acad-study-card__narrative mb-2"><?= $e->html($study->progressNarrative) ?></p>
+                                <?php if ($study->totalCount > 0 && $study->progressPercent < 100): ?>
+                                    <div class="d-flex justify-content-between small text-muted mb-1">
+                                        <span><?= $e->html((string) $study->completedCount . ' / ' . (string) $study->totalCount . ' lessons') ?></span>
+                                        <span><?= $e->html((string) $study->progressPercent . '%') ?></span>
                                     </div>
                                     <div class="progress mb-3" role="progressbar" aria-valuenow="<?= $e->attr((string) $study->progressPercent) ?>" aria-valuemin="0" aria-valuemax="100" aria-label="<?= $e->attr('Lesson progress') ?>">
                                         <div class="progress-bar" style="width: <?= $e->attr((string) $study->progressPercent) ?>%"></div>
                                     </div>
+                                <?php elseif ($study->progressPercent >= 100): ?>
+                                    <div class="acad-celebrate-inline mb-3">
+                                        <?= $e->html('Course complete') ?>
+                                    </div>
                                 <?php endif; ?>
-                                <?php if ($study->continueTitle !== null): ?>
-                                    <p class="small mb-3">
-                                        <?= $e->html('Current lesson: ' . $study->continueTitle) ?>
-                                        <?php if ($study->continueChapterTitle !== null && $study->continueChapterTitle !== ''): ?>
-                                            <span class="text-muted"><?= $e->html(' · Chapter: ' . $study->continueChapterTitle) ?></span>
-                                        <?php endif; ?>
+                                <?php if ($study->openQuestionCount > 0 || $study->answeredQuestionCount > 0): ?>
+                                    <p class="small text-muted mb-3">
+                                        <?php
+                                        $qaBits = [];
+                                        if ($study->openQuestionCount > 0) {
+                                            $qaBits[] = $study->openQuestionCount === 1
+                                                ? '1 question awaiting response'
+                                                : $study->openQuestionCount . ' questions awaiting response';
+                                        }
+                                        if ($study->answeredQuestionCount > 0) {
+                                            $qaBits[] = $study->answeredQuestionCount === 1
+                                                ? '1 answered'
+                                                : $study->answeredQuestionCount . ' answered';
+                                        }
+                                        echo $e->html(implode(' · ', $qaBits));
+                                        ?>
                                     </p>
                                 <?php endif; ?>
                                 <div class="d-flex flex-wrap gap-2">
                                     <?php if ($study->contentAccessible): ?>
                                         <a class="btn btn-sm btn-primary" href="<?= $e->attr($study->continueHref) ?>">
-                                            <?= $e->html('Continue learning') ?>
+                                            <?= $e->html($study->progressPercent >= 100 ? 'Review course' : 'Continue learning') ?>
                                         </a>
                                     <?php else: ?>
                                         <a class="btn btn-sm btn-outline-primary" href="<?= $e->attr('/learning/enrolments/' . $study->enrolmentId) ?>">
                                             <?= $e->html('View course') ?>
                                         </a>
                                     <?php endif; ?>
-                                    <a class="btn btn-sm btn-outline-secondary" href="<?= $e->attr($study->certificatesHref) ?>">
-                                        <?= $e->html($study->certificateCount === 1 ? '1 certificate' : $study->certificateCount . ' certificates') ?>
-                                    </a>
+                                    <?php if ($study->certificateCount > 0): ?>
+                                        <a class="btn btn-sm btn-outline-secondary" href="<?= $e->attr($study->certificatesHref) ?>">
+                                            <?= $e->html($study->certificateCount === 1 ? 'View certificate' : 'View certificates') ?>
+                                        </a>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </article>
@@ -128,9 +166,11 @@ ob_start();
         <?php endif; ?>
     </section>
 
-    <?php if ($view->upcomingSessions !== []): ?>
-        <section class="acad-panel mb-4" aria-labelledby="live-heading">
-            <h2 id="live-heading" class="h5"><?= $e->html('Upcoming live sessions') ?></h2>
+    <section class="acad-panel mb-4 acad-dashboard__section" aria-labelledby="live-heading">
+        <h2 id="live-heading" class="h5"><?= $e->html('Upcoming learning events') ?></h2>
+        <?php if ($view->upcomingSessions === []): ?>
+            <p class="text-muted mb-0"><?= $e->html('No upcoming live sessions in your enrolled courses.') ?></p>
+        <?php else: ?>
             <ul class="list-unstyled mb-0">
                 <?php foreach ($view->upcomingSessions as $session): ?>
                     <li class="acad-next-step__item">
@@ -138,6 +178,9 @@ ob_start();
                             <div><?= $e->html($session->lessonTitle) ?></div>
                             <div class="small text-muted">
                                 <?= $e->html($session->courseTitle) ?>
+                                <?php if ($session->chapterTitle !== ''): ?>
+                                    · <?= $e->html('Chapter: ' . $session->chapterTitle) ?>
+                                <?php endif; ?>
                                 · <?= $e->html($session->startsAt->setTimezone($india)->format('j M Y, g:i a') . ' IST') ?>
                             </div>
                         </div>
@@ -145,12 +188,53 @@ ob_start();
                     </li>
                 <?php endforeach; ?>
             </ul>
+        <?php endif; ?>
+    </section>
+
+    <section class="acad-panel mb-4 acad-dashboard__section" aria-labelledby="certificates-heading">
+        <h2 id="certificates-heading" class="h5"><?= $e->html('Certificates') ?></h2>
+        <?php if ($view->certificateSummaries === []): ?>
+            <p class="text-muted mb-0"><?= $e->html('Certificates you earn will appear here.') ?></p>
+        <?php else: ?>
+            <ul class="list-unstyled mb-0">
+                <?php foreach ($view->certificateSummaries as $summary): ?>
+                    <li class="acad-next-step__item">
+                        <div>
+                            <div><?= $e->html($summary['courseTitle']) ?></div>
+                            <div class="small text-muted">
+                                <?= $e->html($summary['certificateCount'] === 1 ? '1 certificate available' : $summary['certificateCount'] . ' certificates available') ?>
+                            </div>
+                        </div>
+                        <a class="btn btn-sm btn-outline-primary" href="<?= $e->attr($summary['href']) ?>">
+                            <?= $e->html('View') ?>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </section>
+
+    <?php if ($view->unreadUpdates > 0): ?>
+        <section class="acad-panel mb-4 acad-dashboard__section" aria-labelledby="updates-heading">
+            <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+                <h2 id="updates-heading" class="h5 mb-0"><?= $e->html('Updates') ?></h2>
+                <a href="/notifications"><?= $e->html('View all') ?></a>
+            </div>
+            <p class="small text-muted mb-2">
+                <?= $e->html($view->unreadUpdates === 1 ? '1 unread update.' : $view->unreadUpdates . ' unread updates.') ?>
+            </p>
+            <ul class="list-unstyled mb-0">
+                <?php foreach ($view->recentUpdates as $update): ?>
+                    <li class="mb-1"><a href="/notifications"><?= $e->html($update->title) ?></a></li>
+                <?php endforeach; ?>
+            </ul>
         </section>
     <?php endif; ?>
 
-    <?php if ($admissionCards !== []): ?>
-        <section class="acad-panel mb-4" aria-labelledby="applications-heading">
-            <h2 id="applications-heading" class="h5"><?= $e->html('Applications') ?></h2>
+    <section class="acad-panel mb-4 acad-dashboard__section" aria-labelledby="applications-heading">
+        <h2 id="applications-heading" class="h5"><?= $e->html('Applications') ?></h2>
+        <?php if ($admissionCards !== []): ?>
+            <p class="small text-muted mb-3"><?= $e->html('Admission and payment status for courses you have not yet started.') ?></p>
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead>
@@ -193,11 +277,13 @@ ob_start();
                     </tbody>
                 </table>
             </div>
-        </section>
-    <?php elseif ($view->cards === [] && $view->studyCards === []): ?>
-        <p class="text-muted mb-3"><?= $e->html('You have no applications yet.') ?></p>
-        <a class="btn btn-outline-primary" href="/courses"><?= $e->html('Browse courses') ?></a>
-    <?php endif; ?>
+        <?php elseif ($view->studyCards === []): ?>
+            <p class="text-muted mb-2"><?= $e->html('You have no open applications yet.') ?></p>
+            <a class="btn btn-outline-primary" href="/courses"><?= $e->html('Browse courses') ?></a>
+        <?php else: ?>
+            <p class="text-muted mb-0"><?= $e->html('No open applications. Your enrolled courses are listed under Studying now.') ?></p>
+        <?php endif; ?>
+    </section>
 </div>
 <?php
 $content = ob_get_clean();

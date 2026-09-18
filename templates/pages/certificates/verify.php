@@ -7,10 +7,12 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var ?\Academy\Application\Certificates\PublicCertificateView $view */
 /** @var string $certificateNumber */
+/** @var \Academy\Application\Branding\AcademyBranding $branding */
 
 ob_start();
 ?>
 <div class="acad-certificate-verify">
+    <p class="acad-eyebrow mb-2"><?= $e->html($branding->certificateIssuerName) ?></p>
     <h1 class="h3 mb-3"><?= $e->html('Certificate verification') ?></h1>
 
     <?php if ($view === null): ?>

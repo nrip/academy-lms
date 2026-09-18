@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Academy\Http\Controllers;
 
+use Academy\Application\Learning\LearnerPersonalLearningService;
 use Academy\Application\Learning\LearnerPlayerItemDetailView;
 use Academy\Application\Learning\LearnerPlayerQueryService;
 use Academy\Application\Learning\LearningMediaAccessService;
@@ -32,6 +33,7 @@ final class LearnerPlayerController
         private readonly MarkContentCompleteService $markComplete,
         private readonly LearningMediaAccessService $media,
         private readonly LearningQuestionQueryService $questions,
+        private readonly LearnerPersonalLearningService $personal,
         private readonly PhpRenderer $renderer,
     ) {
     }
@@ -47,6 +49,27 @@ final class LearnerPlayerController
         $flash = null;
         if (isset($params['completed'])) {
             $flash = 'Lesson marked complete.';
+        } elseif (isset($params['goal_saved'])) {
+            $flash = 'Your learning goal was saved.';
+        } elseif (isset($params['goal_cleared'])) {
+            $flash = 'Your learning goal was cleared.';
+        }
+
+        $questionSummary = null;
+        try {
+            $questionSummary = $this->questions->enrolmentStatusSummary($this->auth($request), $enrolmentId);
+        } catch (AuthorizationException | NotFoundException | AuthenticationException | ConflictException | DomainRuleException) {
+            $questionSummary = null;
+        }
+
+        $goal = null;
+        $bookmarks = [];
+        try {
+            $goal = $this->personal->goalForEnrolment($this->auth($request), $enrolmentId);
+            $bookmarks = $this->personal->bookmarksForEnrolment($this->auth($request), $enrolmentId);
+        } catch (AuthorizationException | NotFoundException | ConflictException | DomainRuleException) {
+            $goal = null;
+            $bookmarks = [];
         }
 
         $html = $this->renderer->render('pages/learning/outline', [
@@ -55,6 +78,9 @@ final class LearnerPlayerController
             'outline' => $outline,
             'flash' => $flash,
             'error' => null,
+            'questionSummary' => $questionSummary,
+            'goal' => $goal,
+            'bookmarks' => $bookmarks,
         ]);
 
         return new HtmlResponse($html);
@@ -77,6 +103,7 @@ final class LearnerPlayerController
                 'outline' => $this->query->outline($this->auth($request), $enrolmentId),
                 'flash' => null,
                 'error' => $exception->getMessage(),
+                'questionSummary' => null,
             ]);
 
             return new HtmlResponse($html, 409);
@@ -88,6 +115,14 @@ final class LearnerPlayerController
             $flash = 'Your question was sent.';
         } elseif (isset($params['closed'])) {
             $flash = 'Question closed.';
+        } elseif (isset($params['bookmarked'])) {
+            $flash = 'Lesson saved for later.';
+        } elseif (isset($params['unbookmarked'])) {
+            $flash = 'Bookmark removed.';
+        } elseif (isset($params['note_saved'])) {
+            $flash = 'Private note saved.';
+        } elseif (isset($params['note_deleted'])) {
+            $flash = 'Private note deleted.';
         }
 
         $threads = [];
@@ -98,12 +133,25 @@ final class LearnerPlayerController
             $canAsk = false;
         }
 
+        $bookmarked = false;
+        $noteBody = '';
+        try {
+            $bookmarked = $this->personal->bookmarkForLesson($this->auth($request), $enrolmentId, $contentId) !== null;
+            $note = $this->personal->noteForLesson($this->auth($request), $enrolmentId, $contentId);
+            $noteBody = $note?->body ?? '';
+        } catch (AuthorizationException | NotFoundException | ConflictException | DomainRuleException) {
+            $bookmarked = false;
+            $noteBody = '';
+        }
+
         $html = $this->renderer->render('pages/learning/item', [
             'title' => $detail->item->title,
             'csrf' => $this->csrf($request),
             'detail' => $detail,
             'questions' => $threads,
             'canAsk' => $canAsk,
+            'bookmarked' => $bookmarked,
+            'noteBody' => $noteBody,
             'flash' => $flash,
             'error' => null,
         ]);
@@ -130,6 +178,8 @@ final class LearnerPlayerController
                     'detail' => $detail,
                     'questions' => $this->safeLessonThread($request, $enrolmentId, $contentId),
                     'canAsk' => $this->questions->canAskOnLesson($detail->item->contentType),
+                    'bookmarked' => $this->safeBookmarked($request, $enrolmentId, $contentId),
+                    'noteBody' => $this->safeNoteBody($request, $enrolmentId, $contentId),
                     'flash' => null,
                     'error' => $exception->getMessage(),
                 ]);
@@ -196,6 +246,24 @@ final class LearnerPlayerController
             return $this->questions->lessonThread($this->auth($request), $enrolmentId, $contentId);
         } catch (AuthorizationException) {
             return [];
+        }
+    }
+
+    private function safeBookmarked(ServerRequestInterface $request, int $enrolmentId, int $contentId): bool
+    {
+        try {
+            return $this->personal->bookmarkForLesson($this->auth($request), $enrolmentId, $contentId) !== null;
+        } catch (AuthorizationException | NotFoundException | ConflictException | DomainRuleException) {
+            return false;
+        }
+    }
+
+    private function safeNoteBody(ServerRequestInterface $request, int $enrolmentId, int $contentId): string
+    {
+        try {
+            return $this->personal->noteForLesson($this->auth($request), $enrolmentId, $contentId)?->body ?? '';
+        } catch (AuthorizationException | NotFoundException | ConflictException | DomainRuleException) {
+            return '';
         }
     }
 

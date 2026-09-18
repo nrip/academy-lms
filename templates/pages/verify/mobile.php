@@ -7,58 +7,66 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var bool $hasPendingMarker */
 /** @var string $status */
+/** @var \Academy\Application\Branding\AcademyBranding $branding */
 
-?><!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= $e->html($title) ?></title>
-</head>
-<body>
-<main>
-    <h1><?= $e->html($title) ?></h1>
+ob_start();
+?>
+<div class="acad-login acad-onboard mx-auto" style="max-width: 28rem;">
+    <p class="acad-eyebrow mb-2"><?= $e->html($branding->name) ?></p>
+    <h1 class="h3 mb-3"><?= $e->html('Verify your mobile') ?></h1>
+    <p class="text-muted mb-3">
+        <?= $e->html('Enter the one-time code we sent by SMS. You can do this now or after you sign in.') ?>
+    </p>
+
     <?php if ($status === 'success'): ?>
-        <p>Your mobile number has been verified.</p>
+        <div class="alert alert-success" role="status"><?= $e->html('Your mobile number has been verified.') ?></div>
+        <div class="d-grid gap-2 mb-3">
+            <a class="btn btn-primary" href="/login"><?= $e->html('Continue to sign in') ?></a>
+            <a class="btn btn-outline-secondary" href="/courses"><?= $e->html('Browse courses') ?></a>
+        </div>
     <?php elseif ($status === 'invalid'): ?>
-        <p>The verification code is not valid. Please try again.</p>
+        <div class="alert alert-danger" role="alert"><?= $e->html('That code is not valid. Check the SMS and try again, or request a new code.') ?></div>
     <?php elseif ($status === 'resent'): ?>
-        <p>If your account is eligible, a new verification code has been sent.</p>
+        <div class="alert alert-info" role="status"><?= $e->html('If your account is eligible, a new verification code has been sent.') ?></div>
     <?php endif; ?>
-    <form method="post" action="/verify-mobile">
-        <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
-        <p>
-            <label for="otp">Verification code</label><br>
-            <input type="text" id="otp" name="otp" inputmode="numeric" pattern="\d{6}" maxlength="6" required autocomplete="one-time-code">
-        </p>
-        <?php if (!$hasPendingMarker): ?>
-        <p>
-            <label for="mobile">Mobile</label><br>
-            <input type="tel" id="mobile" name="mobile" required autocomplete="tel">
-        </p>
-        <?php else: ?>
-        <p>
-            <label for="mobile">Mobile (optional)</label><br>
-            <input type="tel" id="mobile" name="mobile" autocomplete="tel">
-        </p>
-        <?php endif; ?>
-        <button type="submit">Verify</button>
-    </form>
-    <form method="post" action="/verify-mobile/resend">
-        <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
-        <?php if (!$hasPendingMarker): ?>
-        <p>
-            <label for="resend_mobile">Mobile (for resend)</label><br>
-            <input type="tel" id="resend_mobile" name="mobile" required autocomplete="tel">
-        </p>
-        <?php else: ?>
-        <p>
-            <label for="resend_mobile">Mobile (optional, for resend)</label><br>
-            <input type="tel" id="resend_mobile" name="mobile" autocomplete="tel">
-        </p>
-        <?php endif; ?>
-        <button type="submit">Resend code</button>
-    </form>
-</main>
-</body>
-</html>
+
+    <?php if ($status !== 'success'): ?>
+        <form method="post" action="/verify-mobile" class="card card-body shadow-sm acad-onboard__card mb-3">
+            <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+            <div class="mb-3">
+                <label class="form-label" for="otp"><?= $e->html('Verification code') ?></label>
+                <input class="form-control" type="text" id="otp" name="otp" inputmode="numeric"
+                       pattern="\d{6}" maxlength="6" required autocomplete="one-time-code">
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="mobile">
+                    <?= $e->html($hasPendingMarker ? 'Mobile (optional)' : 'Mobile') ?>
+                </label>
+                <input class="form-control" type="tel" id="mobile" name="mobile"
+                       autocomplete="tel"<?= $hasPendingMarker ? '' : ' required' ?>>
+                <?php if ($hasPendingMarker): ?>
+                    <div class="form-text"><?= $e->html('Leave blank to use the mobile from your recent registration.') ?></div>
+                <?php endif; ?>
+            </div>
+            <button type="submit" class="btn btn-primary w-100"><?= $e->html('Verify mobile') ?></button>
+        </form>
+
+        <form method="post" action="/verify-mobile/resend" class="card card-body shadow-sm">
+            <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+            <p class="small text-muted mb-2"><?= $e->html('Did not receive a code?') ?></p>
+            <div class="mb-3">
+                <label class="form-label" for="resend_mobile">
+                    <?= $e->html($hasPendingMarker ? 'Mobile (optional)' : 'Mobile') ?>
+                </label>
+                <input class="form-control" type="tel" id="resend_mobile" name="mobile"
+                       autocomplete="tel"<?= $hasPendingMarker ? '' : ' required' ?>>
+            </div>
+            <button type="submit" class="btn btn-outline-secondary w-100"><?= $e->html('Resend code') ?></button>
+        </form>
+    <?php endif; ?>
+
+    <p class="mt-3 mb-0"><a href="/login"><?= $e->html('Back to sign in') ?></a></p>
+</div>
+<?php
+$content = (string) ob_get_clean();
+require dirname(__DIR__, 2) . '/layouts/base.php';

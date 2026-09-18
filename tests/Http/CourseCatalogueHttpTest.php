@@ -49,6 +49,7 @@ final class CourseCatalogueHttpTest extends TestCase
 
         self::assertSame(200, $home->getStatusCode());
         self::assertStringContainsString('Learn from experts', $html);
+        self::assertStringContainsString('Academy LMS', $html);
         self::assertStringContainsString('Homepage Course', $html);
         self::assertStringContainsString('Next intake: April intake', $html);
         self::assertStringContainsString('Browse courses', $html);

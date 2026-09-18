@@ -31,6 +31,11 @@ interface LearningQuestionRepository
     public function listForEnrolmentAndContent(int $enrolmentId, int $contentId): array;
 
     /**
+     * @return list<LearningQuestion>
+     */
+    public function listForEnrolment(int $enrolmentId, int $limit = 50): array;
+
+    /**
      * @param list<int> $courseIds
      * @return list<LearningQuestion>
      */

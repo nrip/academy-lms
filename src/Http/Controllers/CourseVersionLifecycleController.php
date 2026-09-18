@@ -6,6 +6,7 @@ namespace Academy\Http\Controllers;
 
 use Academy\Application\Courses\CloneCourseVersionService;
 use Academy\Application\Courses\CourseAdminQueryService;
+use Academy\Application\Courses\CourseOperationsQueryService;
 use Academy\Application\Courses\CreateBatchForPublishedVersionService;
 use Academy\Application\Courses\PublishCourseVersionService;
 use Academy\Domain\Courses\BatchRepository;
@@ -32,6 +33,7 @@ final class CourseVersionLifecycleController
         private readonly CloneCourseVersionService $clone,
         private readonly CreateBatchForPublishedVersionService $createBatch,
         private readonly BatchRepository $batches,
+        private readonly CourseOperationsQueryService $operations,
         private readonly PhpRenderer $renderer,
     ) {
     }
@@ -198,6 +200,8 @@ final class CourseVersionLifecycleController
             'course' => $detail->course,
             'version' => $version,
             'batches' => $this->batches->listByCourseVersionId($versionId),
+            'outline' => $this->operations->outlineCounts($this->auth($request), $courseId, $versionId),
+            'readiness' => $this->operations->publishReadiness($this->auth($request), $courseId, $versionId),
             'error' => $exception->getMessage(),
             'flash' => null,
         ]);

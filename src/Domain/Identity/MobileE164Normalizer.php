@@ -37,8 +37,8 @@ final class MobileE164Normalizer
 
     private static function invalid(): ValidationException
     {
-        return new ValidationException('Please correct the highlighted fields.', [
-            'mobile' => ['Enter a valid mobile number in E.164 form, or a 10-digit Indian mobile.'],
+        return new ValidationException('Please check the details below and try again.', [
+            'mobile' => ['Enter a valid mobile number with country code (for example +91…), or a 10-digit Indian mobile.'],
         ]);
     }
 }

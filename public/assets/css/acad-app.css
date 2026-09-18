@@ -461,3 +461,177 @@ body {
 [data-acad-lesson-panel][hidden] {
   display: none !important;
 }
+
+.acad-onboard-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.acad-onboard-steps__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--acad-muted);
+  font-size: 0.9375rem;
+}
+
+.acad-onboard-steps__item--current {
+  color: var(--acad-ink, inherit);
+  font-weight: 600;
+}
+
+.acad-onboard-steps__item--done {
+  color: var(--acad-teal-dk, var(--acad-teal));
+}
+
+.acad-onboard-steps__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--acad-line);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.acad-onboard-steps__item--current .acad-onboard-steps__num {
+  background: var(--acad-teal);
+  border-color: var(--acad-teal);
+  color: #fff;
+}
+
+.acad-onboard-steps__item--done .acad-onboard-steps__num {
+  background: rgba(13, 110, 110, 0.12);
+  border-color: var(--acad-teal);
+  color: var(--acad-teal-dk, var(--acad-teal));
+}
+
+.acad-onboard__card {
+  border-top: 3px solid var(--acad-teal);
+}
+
+.acad-study-card__narrative {
+  font-size: 0.9375rem;
+  margin-bottom: 0.75rem;
+}
+
+.acad-celebrate {
+  border-left: 4px solid var(--acad-teal);
+}
+
+.acad-celebrate-inline {
+  display: inline-block;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--bs-border-radius);
+  background: rgba(15, 110, 98, 0.1);
+  color: var(--acad-teal-dk, var(--acad-teal));
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.acad-certificate-achievement {
+  background: var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  padding: var(--acad-sp-4);
+  border-top: 3px solid var(--acad-teal);
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+.acad-certificate-card {
+  background:
+    linear-gradient(180deg, rgba(15, 110, 98, 0.06), transparent 40%),
+    var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  padding: clamp(1.5rem, 4vw, 3rem);
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+.acad-certificate-card__issuer {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: var(--acad-teal-dk, var(--acad-teal));
+  font-weight: 600;
+}
+
+.acad-certificate-card__eyebrow {
+  color: var(--acad-muted, #6c757d);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.8rem;
+}
+
+.acad-certificate-card__name {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 700;
+  color: var(--acad-ink, #212529);
+}
+
+.acad-certificate-card__meta {
+  color: var(--acad-muted, #6c757d);
+}
+
+.acad-certificate-actions .btn {
+  min-width: 10rem;
+}
+
+.acad-outline-chapter--locked {
+  opacity: 0.85;
+}
+
+.acad-readiness__item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--acad-line);
+}
+
+.acad-readiness__item:last-child {
+  border-bottom: 0;
+}
+
+.acad-readiness__mark {
+  font-weight: 700;
+  color: var(--acad-muted);
+  width: 1.25rem;
+  text-align: center;
+}
+
+.acad-readiness__item--done .acad-readiness__mark {
+  color: var(--acad-teal-dk, var(--acad-teal));
+}
+
+.acad-empty {
+  background: var(--acad-surface);
+  border: 1px dashed var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  padding: var(--acad-sp-5);
+}
+
+.acad-shell__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: var(--acad-sp-4) var(--acad-sp-5);
+  border-top: 1px solid var(--acad-line);
+  color: var(--acad-muted);
+  font-size: 0.875rem;
+}
+
+.acad-shell__footer a {
+  color: inherit;
+}
+
+.acad-dashboard__section + .acad-dashboard__section {
+  margin-top: 0;
+}
+

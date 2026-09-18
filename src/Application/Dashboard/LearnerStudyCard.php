@@ -18,11 +18,16 @@ final class LearnerStudyCard
         public readonly int $completedCount,
         public readonly int $totalCount,
         public readonly int $progressPercent,
+        public readonly string $progressNarrative,
         public readonly ?string $continueTitle,
         public readonly ?string $continueChapterTitle,
+        public readonly ?int $continueChapterIndex,
+        public readonly int $chapterTotal,
         public readonly string $continueHref,
         public readonly int $certificateCount,
         public readonly string $certificatesHref,
+        public readonly int $openQuestionCount = 0,
+        public readonly int $answeredQuestionCount = 0,
     ) {
     }
 }

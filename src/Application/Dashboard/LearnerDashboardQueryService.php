@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Academy\Application\Dashboard;
 
 use Academy\Application\Learning\LearnerPlayerQueryService;
+use Academy\Application\Learning\LearningQuestionQueryService;
 use Academy\Application\RBAC\AuthorizationService;
 use Academy\Domain\Certificates\CertificateRepository;
 use Academy\Domain\Exception\AuthenticationException;
 use Academy\Domain\Exception\AuthorizationException;
+use Academy\Domain\Exception\ConflictException;
 use Academy\Domain\Exception\DomainRuleException;
 use Academy\Domain\Exception\NotFoundException;
+use Academy\Domain\Identity\LearnerProfileRepository;
 use Academy\Domain\Learning\EnrolmentLifecycleStatus;
 use Academy\Domain\Notifications\InAppNotificationRepository;
 use Academy\Domain\Payments\PaymentAmountSnapshot;
@@ -35,6 +38,8 @@ final class LearnerDashboardQueryService
         private readonly LearnerPlayerQueryService $player,
         private readonly CertificateRepository $certificates,
         private readonly InAppNotificationRepository $inbox,
+        private readonly LearnerProfileRepository $learnerProfiles,
+        private readonly LearningQuestionQueryService $questions,
     ) {
     }
 
@@ -198,7 +203,7 @@ final class LearnerDashboardQueryService
                     : null,
                 batchStartsAt: $row['batch_starts_at'] !== null ? (string) $row['batch_starts_at'] : null,
                 batchEndsAt: $row['batch_ends_at'] !== null ? (string) $row['batch_ends_at'] : null,
-                courseVersionLabel: 'v' . (int) $row['version_number'] . ' — ' . (string) $row['version_title'],
+                courseVersionLabel: 'Edition ' . (int) $row['version_number'] . ' — ' . (string) $row['version_title'],
                 primaryAction: $primaryAction,
             );
         }
@@ -219,6 +224,20 @@ final class LearnerDashboardQueryService
             }
         }
 
+        $certificateSummaries = [];
+        $totalActiveCertificates = 0;
+        foreach ($studyCards as $study) {
+            if ($study->certificateCount <= 0) {
+                continue;
+            }
+            $totalActiveCertificates += $study->certificateCount;
+            $certificateSummaries[] = [
+                'courseTitle' => $study->courseTitle,
+                'certificateCount' => $study->certificateCount,
+                'href' => $study->certificatesHref,
+            ];
+        }
+
         return new LearnerDashboardView(
             $cards,
             $requiredActions,
@@ -227,7 +246,23 @@ final class LearnerDashboardQueryService
             array_slice($upcomingSessions, 0, 5),
             $this->inbox->countUnread($userId),
             $recentUnread,
+            $this->shouldShowProfileWelcome($userId),
+            $certificateSummaries,
+            $totalActiveCertificates,
         );
+    }
+
+    private function shouldShowProfileWelcome(int $userId): bool
+    {
+        $profile = $this->learnerProfiles->findByUserId($userId);
+        if ($profile === null) {
+            return true;
+        }
+
+        $first = $profile->firstName !== null ? trim($profile->firstName) : '';
+        $display = $profile->preferredDisplayName !== null ? trim($profile->preferredDisplayName) : '';
+
+        return $first === '' && $display === '';
     }
 
     /**
@@ -307,8 +342,12 @@ final class LearnerDashboardQueryService
         $percent = 0;
         $continueTitle = null;
         $continueChapter = null;
+        $continueChapterIndex = null;
+        $chapterTotal = 0;
         $continueHref = $outlineHref;
         $accessible = $enrolmentStatus === EnrolmentLifecycleStatus::ACTIVE;
+        $openQuestions = 0;
+        $answeredQuestions = 0;
 
         if ($enrolmentStatus === EnrolmentLifecycleStatus::ACTIVE
             || $enrolmentStatus === EnrolmentLifecycleStatus::SCHEDULED
@@ -319,10 +358,12 @@ final class LearnerDashboardQueryService
                 $total = $outline->totalCount;
                 $percent = $outline->progressPercent();
                 $accessible = $outline->contentAccessible;
+                $chapterTotal = $outline->chapterTotal();
                 $continue = $outline->continueTarget();
                 if ($continue !== null) {
                     $continueTitle = $continue['title'];
                     $continueChapter = $continue['chapterTitle'];
+                    $continueChapterIndex = $continue['chapterIndex'];
                     $continueHref = $outlineHref . '/items/' . $continue['contentId'];
                 }
                 if ($outline->hasCover && $outline->courseSlug !== '') {
@@ -340,7 +381,17 @@ final class LearnerDashboardQueryService
             } catch (AuthorizationException | DomainRuleException | NotFoundException) {
                 $accessible = false;
             }
+
+            try {
+                $qa = $this->questions->enrolmentStatusSummary($auth, $enrolmentId);
+                $openQuestions = $qa['open'];
+                $answeredQuestions = $qa['answered'];
+            } catch (AuthorizationException | NotFoundException | ConflictException | DomainRuleException) {
+                // Q&A is optional on the dashboard when access is not ready.
+            }
         }
+
+        $certificateCount = $this->certificateCount($enrolmentId);
 
         return new LearnerStudyCard(
             enrolmentId: $enrolmentId,
@@ -354,11 +405,26 @@ final class LearnerDashboardQueryService
             completedCount: $completed,
             totalCount: $total,
             progressPercent: $percent,
+            progressNarrative: LearnerProgressNarrative::forStudyCard(
+                $completed,
+                $total,
+                $percent,
+                $continueTitle,
+                $continueChapter,
+                $continueChapterIndex,
+                $chapterTotal,
+                $accessible,
+                $certificateCount,
+            ),
             continueTitle: $continueTitle,
             continueChapterTitle: $continueChapter,
+            continueChapterIndex: $continueChapterIndex,
+            chapterTotal: $chapterTotal,
             continueHref: $continueHref,
-            certificateCount: $this->certificateCount($enrolmentId),
+            certificateCount: $certificateCount,
             certificatesHref: $outlineHref . '/certificates',
+            openQuestionCount: $openQuestions,
+            answeredQuestionCount: $answeredQuestions,
         );
     }
 
