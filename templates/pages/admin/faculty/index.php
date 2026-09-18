@@ -16,16 +16,22 @@ ob_start();
     <h1 class="h3 mb-4"><?= $e->html('Your teaching') ?></h1>
 
     <div class="row g-3 mb-4">
-        <div class="col-sm-6">
+        <div class="col-sm-4">
             <div class="acad-stat-card acad-stat-card--static">
                 <span class="acad-stat-card__value"><?= $e->html((string) count($view->courses)) ?></span>
                 <span class="acad-stat-card__label"><?= $e->html('Assigned courses') ?></span>
             </div>
         </div>
-        <div class="col-sm-6">
+        <div class="col-sm-4">
             <div class="acad-stat-card acad-stat-card--static">
                 <span class="acad-stat-card__value"><?= $e->html((string) $view->learnersEnrolled) ?></span>
                 <span class="acad-stat-card__label"><?= $e->html('Learners enrolled') ?></span>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="acad-stat-card acad-stat-card--static">
+                <span class="acad-stat-card__value"><?= $e->html((string) count($view->openQuestions)) ?></span>
+                <span class="acad-stat-card__label"><?= $e->html('Pending Q&A') ?></span>
             </div>
         </div>
     </div>
@@ -33,7 +39,10 @@ ob_start();
     <section class="mb-4" aria-labelledby="assigned-heading">
         <h2 id="assigned-heading" class="h5"><?= $e->html('Assigned courses') ?></h2>
         <?php if ($view->courses === []): ?>
-            <p class="text-muted"><?= $e->html('No courses are assigned to you yet.') ?></p>
+            <div class="acad-empty">
+                <p class="fw-semibold mb-1"><?= $e->html('No courses yet') ?></p>
+                <p class="text-muted mb-0"><?= $e->html('When a course administrator assigns you to a course, it will appear here.') ?></p>
+            </div>
         <?php else: ?>
             <div class="list-group">
                 <?php foreach ($view->courses as $course): ?>
@@ -58,7 +67,7 @@ ob_start();
     <section class="acad-panel mb-4" aria-labelledby="live-heading">
         <h2 id="live-heading" class="h5"><?= $e->html('Upcoming live sessions') ?></h2>
         <?php if ($view->upcomingSessions === []): ?>
-            <p class="text-muted mb-0"><?= $e->html('No upcoming live sessions in your courses.') ?></p>
+            <p class="text-muted mb-0"><?= $e->html('No live sessions scheduled yet. Upcoming clinic hours will appear here.') ?></p>
         <?php else: ?>
             <ul class="list-unstyled mb-0">
                 <?php foreach ($view->upcomingSessions as $session): ?>
@@ -80,7 +89,10 @@ ob_start();
     <section class="acad-panel mb-4" aria-labelledby="questions-heading">
         <h2 id="questions-heading" class="h5"><?= $e->html('Questions') ?></h2>
         <?php if ($view->openQuestions === []): ?>
-            <p class="text-muted mb-0"><?= $e->html('No learner questions in your courses yet.') ?></p>
+            <div class="acad-empty">
+                <p class="fw-semibold mb-1"><?= $e->html('No questions yet') ?></p>
+                <p class="text-muted mb-0"><?= $e->html('When learners ask about a lesson, their questions will show here for you to answer.') ?></p>
+            </div>
         <?php else: ?>
             <ul class="list-unstyled mb-0">
                 <?php foreach ($view->openQuestions as $question): ?>
@@ -110,7 +122,7 @@ ob_start();
     <section class="acad-panel" aria-labelledby="activity-heading">
         <h2 id="activity-heading" class="h5"><?= $e->html('Recent activity') ?></h2>
         <?php if ($view->recentActivity === []): ?>
-            <p class="text-muted mb-0"><?= $e->html('Admissions and lesson updates in your courses will appear here.') ?></p>
+            <p class="text-muted mb-0"><?= $e->html('No recent activity yet. Enrolments, lesson updates, certificates, and Q&A responses will appear here.') ?></p>
         <?php else: ?>
             <ul class="list-unstyled mb-0">
                 <?php foreach ($view->recentActivity as $item): ?>

@@ -2167,6 +2167,10 @@ return static function (): ContainerInterface {
                 'course.view_assigned',
             );
             $courseAdminAccess->requirePermission(
+                $router->get('/admin/courses/{courseId}/analytics', [CourseAdminController::class, 'analytics']),
+                'course.view_assigned',
+            );
+            $courseAdminAccess->requirePermission(
                 $router->get('/admin/courses/{courseId}/cover', [CourseAdminController::class, 'cover']),
                 'course.view_assigned',
             );

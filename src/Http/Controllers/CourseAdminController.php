@@ -139,6 +139,22 @@ final class CourseAdminController
     /**
      * @param array<string, string> $args
      */
+    public function analytics(ServerRequestInterface $request, array $args): ResponseInterface
+    {
+        $courseId = (int) ($args['courseId'] ?? 0);
+        $view = $this->operations->courseAnalytics($this->auth($request), $courseId);
+        $html = $this->renderer->render('pages/admin/courses/analytics', [
+            'title' => 'Insights · ' . $view->courseTitle,
+            'csrf' => $this->csrf($request),
+            'view' => $view,
+        ]);
+
+        return new HtmlResponse($html);
+    }
+
+    /**
+     * @param array<string, string> $args
+     */
     public function cover(ServerRequestInterface $request, array $args): ResponseInterface
     {
         try {

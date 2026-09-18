@@ -87,15 +87,26 @@ final class AcademyOperationsHttpTest extends TestCase
         $courses = $this->request('GET', '/admin/courses', $ownerBoot);
         self::assertSame(200, $courses->getStatusCode());
         $body = (string) $courses->getBody();
-        self::assertStringContainsString('Published', $body);
+        self::assertStringContainsString('Published courses', $body);
         self::assertStringContainsString('Active batches', $body);
         self::assertStringContainsString('Learners enrolled', $body);
+        self::assertStringContainsString('Pending Q&amp;A', $body);
+        self::assertStringContainsString('Recent activity', $body);
         self::assertStringContainsString($ownedTitle, $body);
         self::assertStringContainsString('January intake', $body);
+        self::assertStringContainsString('Insights', $body);
         self::assertStringNotContainsString('Hidden metabolic course', $body);
         self::assertStringNotContainsString('later work package', $body);
         self::assertStringNotContainsString('Revenue', $body);
         self::assertStringNotContainsString('APP-PLAY-', $body);
+
+        $analytics = $this->request('GET', '/admin/courses/' . $owned['course_id'] . '/analytics', $ownerBoot);
+        self::assertSame(200, $analytics->getStatusCode());
+        $analyticsBody = (string) $analytics->getBody();
+        self::assertStringContainsString('Progress distribution', $analyticsBody);
+        self::assertStringContainsString('Completion rate', $analyticsBody);
+        self::assertStringContainsString($ownedTitle, $analyticsBody);
+        self::assertStringNotContainsString('Revenue', $analyticsBody);
 
         $edition = $this->request('GET', '/admin/courses/' . $owned['course_id'] . '/versions/' . $owned['version_id'], $ownerBoot);
         self::assertSame(200, $edition->getStatusCode());
@@ -117,6 +128,7 @@ final class AcademyOperationsHttpTest extends TestCase
         self::assertSame(200, $faculty->getStatusCode());
         $facultyBody = (string) $faculty->getBody();
         self::assertStringContainsString('Your teaching', $facultyBody);
+        self::assertStringContainsString('Pending Q&amp;A', $facultyBody);
         self::assertStringContainsString('Clinic hour', $facultyBody);
         self::assertStringContainsString('IST', $facultyBody);
         self::assertStringContainsString('A learner was admitted', $facultyBody);
@@ -130,11 +142,13 @@ final class AcademyOperationsHttpTest extends TestCase
         $otherFaculty = $this->request('GET', '/faculty', $otherBoot);
         self::assertStringNotContainsString($ownedTitle, (string) $otherFaculty->getBody());
         self::assertStringNotContainsString('Clinic hour', (string) $otherFaculty->getBody());
+        self::assertSame(403, $this->request('GET', '/admin/courses/' . $owned['course_id'] . '/analytics', $otherBoot)->getStatusCode());
 
         $finance = DatabaseTestCase::financeFixture();
         $financeBoot = DatabaseTestCase::bindSessionForUser($finance['user_id'], $finance['auth_version'], AuthStage::FULLY_AUTHENTICATED);
         self::assertSame(403, $this->request('GET', '/faculty', $financeBoot)->getStatusCode());
         self::assertSame(403, $this->request('GET', '/admin/courses', $financeBoot)->getStatusCode());
+        self::assertSame(403, $this->request('GET', '/admin/courses/' . $owned['course_id'] . '/analytics', $financeBoot)->getStatusCode());
     }
 
     private function assign(int $adminUserId, int $courseId): void

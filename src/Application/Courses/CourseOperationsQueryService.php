@@ -67,6 +67,9 @@ final class CourseOperationsQueryService
             activeBatches: $this->countActiveBatches($versionIds),
             learnersEnrolled: $this->countLearners($versionIds),
             courses: $rows,
+            pendingQuestions: $this->countOpenQuestions($versionIds),
+            certificatesIssued: $this->countCertificates($versionIds),
+            recentActivity: $this->operationalTimeline($versionIds),
         );
     }
 
@@ -78,7 +81,45 @@ final class CourseOperationsQueryService
             courses: $this->courseRows($auth, $versionIds),
             upcomingSessions: $this->upcomingSessions($versionIds),
             learnersEnrolled: $this->countLearners($versionIds),
-            recentActivity: $this->recentActivity($versionIds),
+            recentActivity: $this->operationalTimeline($versionIds),
+        );
+    }
+
+    public function courseAnalytics(AuthContext $auth, int $courseId): CourseAnalyticsView
+    {
+        $at = $this->access->nowUtc();
+        $course = $this->access->requireCourseInScope($auth, $courseId, $at);
+        $versionIds = [];
+        foreach ($this->courseVersions->listByCourseId($courseId) as $version) {
+            if ($this->access->versionInScope($auth, $courseId, $version->versionId, $at)) {
+                $versionIds[] = $version->versionId;
+            }
+        }
+
+        $learners = $this->countLearners($versionIds);
+        $active = $this->countLearnersByStatus($versionIds, [EnrolmentLifecycleStatus::ACTIVE]);
+        $certs = $this->countCertificates($versionIds);
+        $completionRate = $learners > 0 ? round(($certs / $learners) * 100, 1) : 0.0;
+        $assessment = $this->assessmentStats($versionIds);
+        $buckets = $this->progressBuckets($versionIds);
+        $lessonsCompleted = $this->countCompletedLessons($versionIds);
+        $activeWeek = $this->countLearnersActiveSince($versionIds, (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('-7 days'));
+
+        return new CourseAnalyticsView(
+            courseId: $courseId,
+            courseTitle: $course->masterTitle,
+            learnersEnrolled: $learners,
+            activeLearners: $active,
+            certificatesIssued: $certs,
+            completionRatePercent: $completionRate,
+            lessonsCompletedTotal: $lessonsCompleted,
+            assessmentAttemptsSubmitted: $assessment['submitted'],
+            assessmentAttemptsPassed: $assessment['passed'],
+            averageScorePercent: $assessment['avg_score'],
+            openQuestions: $this->countOpenQuestions($versionIds),
+            learnersActiveLast7Days: $activeWeek,
+            progressBuckets: $buckets,
+            recentActivity: $this->operationalTimeline($versionIds),
         );
     }
 
@@ -212,6 +253,316 @@ final class CourseOperationsQueryService
         $stmt->execute(['version_id' => $versionId]);
 
         return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @param list<int> $versionIds
+     */
+    private function countOpenQuestions(array $versionIds): int
+    {
+        if ($versionIds === []) {
+            return 0;
+        }
+        [$inSql, $params] = $this->intInClause('course_version_id', $versionIds);
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM learning_questions WHERE status = 'open' AND " . $inSql,
+        );
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @param list<int> $versionIds
+     */
+    private function countCertificates(array $versionIds): int
+    {
+        if ($versionIds === []) {
+            return 0;
+        }
+        [$inSql, $params] = $this->intInClause('e.course_version_id', $versionIds);
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM certificates c
+             INNER JOIN enrolments e ON e.enrolment_id = c.enrolment_id
+             WHERE c.status = 'active' AND " . $inSql,
+        );
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @param list<int> $versionIds
+     * @param list<string> $statuses
+     */
+    private function countLearnersByStatus(array $versionIds, array $statuses): int
+    {
+        if ($versionIds === [] || $statuses === []) {
+            return 0;
+        }
+        [$inSql, $params] = $this->intInClause('e.course_version_id', $versionIds);
+        [$statusSql, $statusParams] = $this->statusInClause('e.lifecycle_status', $statuses);
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'SELECT COUNT(DISTINCT e.user_id) FROM enrolments e WHERE ' . $inSql . ' AND ' . $statusSql,
+        );
+        $stmt->execute($params + $statusParams);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @param list<int> $versionIds
+     * @return array{submitted: int, passed: int, avg_score: ?float}
+     */
+    private function assessmentStats(array $versionIds): array
+    {
+        if ($versionIds === []) {
+            return ['submitted' => 0, 'passed' => 0, 'avg_score' => null];
+        }
+        [$inSql, $params] = $this->intInClause('e.course_version_id', $versionIds);
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) AS submitted,
+                    COALESCE(SUM(CASE WHEN aa.passed_flag = 1 THEN 1 ELSE 0 END), 0) AS passed,
+                    AVG(aa.score_percent) AS avg_score
+             FROM assessment_attempts aa
+             INNER JOIN enrolments e ON e.enrolment_id = aa.enrolment_id
+             WHERE aa.status = 'submitted' AND " . $inSql,
+        );
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $avg = $row['avg_score'] ?? null;
+
+        return [
+            'submitted' => (int) ($row['submitted'] ?? 0),
+            'passed' => (int) ($row['passed'] ?? 0),
+            'avg_score' => $avg !== null ? round((float) $avg, 1) : null,
+        ];
+    }
+
+    /**
+     * @param list<int> $versionIds
+     */
+    private function countCompletedLessons(array $versionIds): int
+    {
+        if ($versionIds === []) {
+            return 0;
+        }
+        [$inSql, $params] = $this->intInClause('e.course_version_id', $versionIds);
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM content_progress cp
+             INNER JOIN enrolments e ON e.enrolment_id = cp.enrolment_id
+             WHERE cp.completion_status = 'completed' AND " . $inSql,
+        );
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @param list<int> $versionIds
+     */
+    private function countLearnersActiveSince(array $versionIds, DateTimeImmutable $since): int
+    {
+        if ($versionIds === []) {
+            return 0;
+        }
+        [$inSql, $params] = $this->intInClause('e.course_version_id', $versionIds);
+        $params['since'] = $since->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'SELECT COUNT(DISTINCT e.user_id) FROM content_progress cp
+             INNER JOIN enrolments e ON e.enrolment_id = cp.enrolment_id
+             WHERE cp.last_accessed_at IS NOT NULL AND cp.last_accessed_at >= :since AND ' . $inSql,
+        );
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @param list<int> $versionIds
+     * @return list<array{label: string, count: int}>
+     */
+    private function progressBuckets(array $versionIds): array
+    {
+        $buckets = [
+            ['label' => 'Not started', 'count' => 0],
+            ['label' => '1–25%', 'count' => 0],
+            ['label' => '26–50%', 'count' => 0],
+            ['label' => '51–75%', 'count' => 0],
+            ['label' => '76–99%', 'count' => 0],
+            ['label' => 'Complete', 'count' => 0],
+        ];
+        if ($versionIds === []) {
+            return $buckets;
+        }
+        [$inSql, $params] = $this->intInClause('e.course_version_id', $versionIds);
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            "SELECT e.enrolment_id,
+                    COALESCE(SUM(CASE WHEN cp.completion_status = 'completed' THEN 1 ELSE 0 END), 0) AS completed,
+                    (
+                        SELECT COUNT(*) FROM content_items ci
+                        INNER JOIN modules m ON m.module_id = ci.module_id
+                        WHERE m.course_version_id = e.course_version_id
+                    ) AS total
+             FROM enrolments e
+             LEFT JOIN content_progress cp ON cp.enrolment_id = e.enrolment_id
+             WHERE " . $inSql . ' AND e.lifecycle_status IN (
+                \'scheduled\', \'active\', \'suspended\'
+             )
+             GROUP BY e.enrolment_id, e.course_version_id',
+        );
+        $stmt->execute($params);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $total = (int) $row['total'];
+            $completed = (int) $row['completed'];
+            if ($total <= 0 || $completed <= 0) {
+                ++$buckets[0]['count'];
+                continue;
+            }
+            $pct = (int) floor(($completed / $total) * 100);
+            if ($pct >= 100) {
+                ++$buckets[5]['count'];
+            } elseif ($pct >= 76) {
+                ++$buckets[4]['count'];
+            } elseif ($pct >= 51) {
+                ++$buckets[3]['count'];
+            } elseif ($pct >= 26) {
+                ++$buckets[2]['count'];
+            } else {
+                ++$buckets[1]['count'];
+            }
+        }
+
+        return $buckets;
+    }
+
+    /**
+     * Operational timeline from existing domain tables + selected audit actions.
+     *
+     * @param list<int> $versionIds
+     * @return list<FacultyActivityItem>
+     */
+    private function operationalTimeline(array $versionIds): array
+    {
+        if ($versionIds === []) {
+            return [];
+        }
+        $items = array_merge(
+            $this->recentAdmissions($versionIds),
+            $this->recentLessons($versionIds),
+            $this->recentCertificates($versionIds),
+            $this->recentQuestionResponses($versionIds),
+            $this->recentPublishes($versionIds),
+        );
+        usort($items, static fn (FacultyActivityItem $left, FacultyActivityItem $right): int => $right->at <=> $left->at);
+
+        return array_slice($items, 0, 12);
+    }
+
+    /**
+     * @param list<int> $versionIds
+     * @return list<FacultyActivityItem>
+     */
+    private function recentCertificates(array $versionIds): array
+    {
+        [$inSql, $params] = $this->intInClause('e.course_version_id', $versionIds);
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            "SELECT c.issued_at, e.course_id, co.master_title, c.certificate_label
+             FROM certificates c
+             INNER JOIN enrolments e ON e.enrolment_id = c.enrolment_id
+             INNER JOIN courses co ON co.course_id = e.course_id
+             WHERE c.status = 'active' AND " . $inSql . '
+             ORDER BY c.issued_at DESC, c.certificate_id DESC
+             LIMIT 8',
+        );
+        $stmt->execute($params);
+        $items = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $items[] = new FacultyActivityItem(
+                label: 'Certificate issued: ' . (string) $row['certificate_label'] . ' · ' . (string) $row['master_title'],
+                at: new DateTimeImmutable((string) $row['issued_at'], new DateTimeZone('UTC')),
+                href: '/admin/courses/' . (int) $row['course_id'] . '/analytics',
+            );
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<int> $versionIds
+     * @return list<FacultyActivityItem>
+     */
+    private function recentQuestionResponses(array $versionIds): array
+    {
+        [$inSql, $params] = $this->intInClause('q.course_version_id', $versionIds);
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            'SELECT r.responded_at, q.course_id, c.master_title, ci.title AS lesson_title, q.question_id
+             FROM learning_question_responses r
+             INNER JOIN learning_questions q ON q.question_id = r.question_id
+             INNER JOIN courses c ON c.course_id = q.course_id
+             INNER JOIN content_items ci ON ci.content_id = q.content_id
+             WHERE ' . $inSql . '
+             ORDER BY r.responded_at DESC, r.response_id DESC
+             LIMIT 8',
+        );
+        $stmt->execute($params);
+        $items = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $items[] = new FacultyActivityItem(
+                label: 'Question response · ' . (string) $row['lesson_title'] . ' · ' . (string) $row['master_title'],
+                at: new DateTimeImmutable((string) $row['responded_at'], new DateTimeZone('UTC')),
+                href: '/faculty/questions/' . (int) $row['question_id'],
+            );
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<int> $versionIds
+     * @return list<FacultyActivityItem>
+     */
+    private function recentPublishes(array $versionIds): array
+    {
+        [$inSql, $params] = $this->intInClause('cv.version_id', $versionIds);
+        $pdo = $this->connections->connection();
+        $stmt = $pdo->prepare(
+            "SELECT cv.published_at, cv.course_id, c.master_title, cv.version_number
+             FROM course_versions cv
+             INNER JOIN courses c ON c.course_id = cv.course_id
+             WHERE cv.published_at IS NOT NULL AND " . $inSql . '
+             ORDER BY cv.published_at DESC, cv.version_id DESC
+             LIMIT 8',
+        );
+        $stmt->execute($params);
+        $items = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $items[] = new FacultyActivityItem(
+                label: 'Edition ' . (int) $row['version_number'] . ' published · ' . (string) $row['master_title'],
+                at: new DateTimeImmutable((string) $row['published_at'], new DateTimeZone('UTC')),
+                href: '/admin/courses/' . (int) $row['course_id'],
+            );
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<int> $versionIds
+     * @return list<FacultyActivityItem>
+     */
+    private function recentActivity(array $versionIds): array
+    {
+        return $this->operationalTimeline($versionIds);
     }
 
     /**
@@ -390,21 +741,6 @@ final class CourseOperationsQueryService
         }
 
         return $sessions;
-    }
-
-    /**
-     * @param list<int> $versionIds
-     * @return list<FacultyActivityItem>
-     */
-    private function recentActivity(array $versionIds): array
-    {
-        if ($versionIds === []) {
-            return [];
-        }
-        $items = array_merge($this->recentAdmissions($versionIds), $this->recentLessons($versionIds));
-        usort($items, static fn (FacultyActivityItem $left, FacultyActivityItem $right): int => $right->at <=> $left->at);
-
-        return array_slice($items, 0, 8);
     }
 
     /**

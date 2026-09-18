@@ -41,6 +41,10 @@ $course = $detail->course;
     </section>
     <p class="mb-3">
         <a class="btn btn-outline-primary btn-sm"
+           href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/analytics">
+            <?= $e->html('Course insights') ?>
+        </a>
+        <a class="btn btn-outline-primary btn-sm ms-1"
            href="/admin/courses/<?= $e->attr((string) $course->courseId) ?>/question-bank">
             <?= $e->html('Open question bank') ?>
         </a>
