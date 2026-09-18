@@ -542,6 +542,45 @@ body {
   box-shadow: var(--bs-box-shadow-sm);
 }
 
+.acad-certificate-card {
+  background:
+    linear-gradient(180deg, rgba(15, 110, 98, 0.06), transparent 40%),
+    var(--acad-surface);
+  border: 1px solid var(--acad-line);
+  border-radius: var(--bs-border-radius-lg);
+  padding: clamp(1.5rem, 4vw, 3rem);
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+.acad-certificate-card__issuer {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: var(--acad-teal-dk, var(--acad-teal));
+  font-weight: 600;
+}
+
+.acad-certificate-card__eyebrow {
+  color: var(--acad-muted, #6c757d);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.8rem;
+}
+
+.acad-certificate-card__name {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 700;
+  color: var(--acad-ink, #212529);
+}
+
+.acad-certificate-card__meta {
+  color: var(--acad-muted, #6c757d);
+}
+
+.acad-certificate-actions .btn {
+  min-width: 10rem;
+}
+
 .acad-outline-chapter--locked {
   opacity: 0.85;
 }

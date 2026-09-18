@@ -31,6 +31,32 @@ ob_start();
         <div class="alert alert-success"><?= $e->html('Lesson completed') ?></div>
     <?php endif; ?>
 
+    <?php
+    /** @var bool $bookmarked */
+    $bookmarked = $bookmarked ?? false;
+    /** @var string $noteBody */
+    $noteBody = $noteBody ?? '';
+    /** @var ?string $flash */
+    $flash = $flash ?? null;
+    ?>
+    <?php if ($flash !== null): ?>
+        <div class="alert alert-success"><?= $e->html($flash) ?></div>
+    <?php endif; ?>
+
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <?php if ($bookmarked): ?>
+            <form method="post" action="<?= $e->attr($base . '/items/' . (string) $detail->item->contentId . '/bookmark/remove') ?>">
+                <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+                <button type="submit" class="btn btn-sm btn-outline-secondary"><?= $e->html('Remove bookmark') ?></button>
+            </form>
+        <?php else: ?>
+            <form method="post" action="<?= $e->attr($base . '/items/' . (string) $detail->item->contentId . '/bookmark') ?>">
+                <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+                <button type="submit" class="btn btn-sm btn-outline-primary"><?= $e->html('Save for later') ?></button>
+            </form>
+        <?php endif; ?>
+    </div>
+
     <div class="acad-lesson-stage">
     <?php
     $type = $detail->item->contentType;
@@ -197,17 +223,32 @@ ob_start();
     $questions = $questions ?? [];
     /** @var bool $canAsk */
     $canAsk = $canAsk ?? false;
-    /** @var ?string $flash */
-    $flash = $flash ?? null;
     $indiaQa = new \DateTimeZone('Asia/Kolkata');
     ?>
+
+    <section class="acad-panel mt-4" aria-labelledby="notes-heading">
+        <h2 id="notes-heading" class="h5"><?= $e->html('Private notes') ?></h2>
+        <p class="small text-muted mb-3"><?= $e->html('Only you can see these notes. They are not shared with faculty and do not affect completion.') ?></p>
+        <form method="post" action="<?= $e->attr($base . '/items/' . (string) $detail->item->contentId . '/notes') ?>">
+            <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+            <label class="form-label" for="note-body"><?= $e->html('Your notes for this lesson') ?></label>
+            <textarea class="form-control mb-2" id="note-body" name="body" rows="4" maxlength="5000"><?= $e->html($noteBody) ?></textarea>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-outline-primary"><?= $e->html('Save note') ?></button>
+            </div>
+        </form>
+        <?php if ($noteBody !== ''): ?>
+            <form method="post" class="mt-2" action="<?= $e->attr($base . '/items/' . (string) $detail->item->contentId . '/notes/delete') ?>">
+                <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+                <button type="submit" class="btn btn-sm btn-outline-secondary"><?= $e->html('Delete note') ?></button>
+            </form>
+        <?php endif; ?>
+    </section>
+
     <?php if ($canAsk || $questions !== []): ?>
         <section class="acad-panel mt-4" aria-labelledby="qa-heading">
             <h2 id="qa-heading" class="h5"><?= $e->html('Ask a question') ?></h2>
             <p class="small text-muted mb-3"><?= $e->html('Private questions for your course faculty. This is not a discussion forum.') ?></p>
-            <?php if ($flash !== null): ?>
-                <div class="alert alert-success"><?= $e->html($flash) ?></div>
-            <?php endif; ?>
             <?php if ($questions === []): ?>
                 <p class="text-muted"><?= $e->html('You have not asked a question on this lesson yet.') ?></p>
             <?php else: ?>

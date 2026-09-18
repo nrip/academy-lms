@@ -83,6 +83,60 @@ ob_start();
         <div class="alert alert-info"><?= $e->html($outline->accessMessage) ?></div>
     <?php endif; ?>
 
+    <?php
+    /** @var ?\Academy\Domain\Learning\LearnerEnrolmentGoal $goal */
+    $goal = $goal ?? null;
+    /** @var list<array{content_id: int, title: string, created_at: \DateTimeImmutable}> $bookmarks */
+    $bookmarks = $bookmarks ?? [];
+    ?>
+    <section class="acad-panel mb-4" aria-labelledby="goal-heading">
+        <h2 id="goal-heading" class="h5"><?= $e->html('Learning goal') ?></h2>
+        <p class="small text-muted mb-3"><?= $e->html('Optional planning aid only. Goals do not unlock lessons or change certificates.') ?></p>
+        <?php if ($goal !== null): ?>
+            <p class="mb-2">
+                <span class="fw-semibold"><?= $e->html($goal->label) ?></span>
+                · <?= $e->html((new DateTimeImmutable($goal->targetDate . ' 00:00:00', new DateTimeZone('UTC')))->format('j M Y')) ?>
+            </p>
+        <?php endif; ?>
+        <form method="post" action="<?= $e->attr($base . '/goal') ?>" class="row g-2 align-items-end">
+            <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+            <div class="col-md-5">
+                <label class="form-label" for="goal-label"><?= $e->html('Label') ?></label>
+                <input class="form-control" id="goal-label" name="label" maxlength="120"
+                       value="<?= $e->attr($goal->label ?? 'Target completion date') ?>">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="goal-date"><?= $e->html('Target date') ?></label>
+                <input class="form-control" id="goal-date" name="target_date" type="date" required
+                       value="<?= $e->attr($goal->targetDate ?? '') ?>">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-outline-primary w-100"><?= $e->html('Save goal') ?></button>
+            </div>
+        </form>
+        <?php if ($goal !== null): ?>
+            <form method="post" class="mt-2" action="<?= $e->attr($base . '/goal/clear') ?>">
+                <input type="hidden" name="_csrf" value="<?= $e->attr($csrf) ?>">
+                <button type="submit" class="btn btn-sm btn-outline-secondary"><?= $e->html('Clear goal') ?></button>
+            </form>
+        <?php endif; ?>
+    </section>
+
+    <?php if ($bookmarks !== []): ?>
+        <section class="acad-panel mb-4" aria-labelledby="bookmarks-heading">
+            <h2 id="bookmarks-heading" class="h5"><?= $e->html('Saved for later') ?></h2>
+            <ul class="list-unstyled mb-0">
+                <?php foreach ($bookmarks as $bookmark): ?>
+                    <li class="mb-2">
+                        <a href="<?= $e->attr($base . '/items/' . (string) $bookmark['content_id']) ?>">
+                            <?= $e->html($bookmark['title']) ?>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </section>
+    <?php endif; ?>
+
     <?php if ($questionSummary !== null && ($questionSummary['open'] + $questionSummary['answered'] + $questionSummary['closed']) > 0): ?>
         <section class="acad-panel mb-4" aria-labelledby="outline-qa-heading">
             <h2 id="outline-qa-heading" class="h5"><?= $e->html('Your questions') ?></h2>

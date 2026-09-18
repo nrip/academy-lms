@@ -78,6 +78,11 @@ final class LearningAuditPayload implements AuditPayload
             'response_id',
             'course_id',
             'module_id',
+            'bookmark_id',
+            'note_id',
+            'goal_id',
+            'body_length',
+            'target_date',
         ];
     }
 
